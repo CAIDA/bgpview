@@ -151,6 +151,9 @@ struct bgpview_io_store {
 
   /** Shared peersign table (each sview->view borrows a reference to this) */
   bgpstream_peer_sig_map_t *peersigns;
+
+  /** Shared AS Path Store (each sview->view borrows a reference to this) */
+  bgpstream_as_path_store_t *pathstore;
 };
 
 enum {
@@ -202,9 +205,11 @@ store_view_t *store_view_create(bgpview_io_store_t *store, int id)
   // dis_status -> everything is set to zero
 
   assert(store->peersigns != NULL);
+  assert(store->pathstore != NULL);
   if((sview->view =
       bgpview_create_shared(store->peersigns,
-                                    NULL, NULL, NULL, NULL)) == NULL)
+                            store->pathstore,
+                            NULL, NULL, NULL, NULL)) == NULL)
     {
       goto err;
     }
@@ -401,6 +406,11 @@ static int dispatcher_run(bgpview_io_store_t *store,
               (uint64_t)bgpstream_peer_sig_map_get_size(store->peersigns),
               SVIEW_TIME(sview),
               "%s", "peersigns_hash_size");
+
+    DUMP_METRIC(store->server->metric_prefix,
+              (uint64_t)bgpstream_as_path_store_get_size(store->pathstore),
+              SVIEW_TIME(sview),
+              "%s", "pathstore_size");
 
   DUMP_METRIC(store->server->metric_prefix,
               (uint64_t)store->sviews_first_idx,
@@ -676,6 +686,12 @@ bgpview_io_store_t *bgpview_io_store_create(bgpview_io_server_t *server,
       goto err;
     }
 
+  if((store->pathstore = bgpstream_as_path_store_create()) == NULL)
+    {
+      fprintf(stderr, "Failed to create AS Path Store\n");
+      goto err;
+    }
+
   if((store->sviews = malloc(sizeof(store_view_t*) * window_len)) == NULL)
     {
       fprintf(stderr, "Failed to malloc the store view buffer\n");
@@ -684,7 +700,7 @@ bgpview_io_store_t *bgpview_io_store_create(bgpview_io_server_t *server,
 
   store->sviews_cnt = window_len;
 
-  /* must be created after peersigns */
+  /* must be created after peersigns and pathstore */
   for(i=0; i<WDW_LEN; i++)
     {
       if((store->sviews[i] = store_view_create(store, i)) == NULL)
@@ -740,6 +756,12 @@ void bgpview_io_store_destroy(bgpview_io_store_t *store)
     {
       bgpstream_peer_sig_map_destroy(store->peersigns);
       store->peersigns = NULL;
+    }
+
+  if(store->pathstore != NULL)
+    {
+      bgpstream_as_path_store_destroy(store->pathstore);
+      store->pathstore = NULL;
     }
 
   free(store);

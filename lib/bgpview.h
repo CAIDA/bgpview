@@ -163,6 +163,8 @@ bgpview_create(bgpview_destroy_user_t *bwv_user_destructor,
  * A BGP View holds a snapshot of the aggregated prefix information.
  * Basically, it maps from prefix -> peers -> prefix info
  *
+ * @param peersigns     pointer to a peersigns table that the view should use
+ * @param pathstore     pointer to an AS path store that the view should use
  * @param bwv_user_destructor           a function that destroys the user structure
  *                                      in the bgpview_t structure
  * @param bwv_peer_user_destructor      a function that destroys the user structure
@@ -176,6 +178,7 @@ bgpview_create(bgpview_destroy_user_t *bwv_user_destructor,
  */
 bgpview_t *
 bgpview_create_shared(bgpstream_peer_sig_map_t *peersigns,
+                      bgpstream_as_path_store_t *pathstore,
                       bgpview_destroy_user_t *bwv_user_destructor,
                       bgpview_destroy_user_t *bwv_peer_user_destructor,
                       bgpview_destroy_user_t *bwv_pfx_user_destructor,

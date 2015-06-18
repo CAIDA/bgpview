@@ -43,7 +43,7 @@
 typedef struct bwv_pfx_peerinfo {
 
   /** AS Path Store ID */
-  bgpstream_as_path_t *as_path;
+  uint32_t as_path_id;
 
   /** @todo add other pfx info fields here (AS path, etc) */
 
@@ -53,7 +53,7 @@ typedef struct bwv_pfx_peerinfo {
 typedef struct bwv_pfx_peerinfo_ext {
 
   /** AS Path Store ID */
-  bgpstream_as_path_t *as_path;
+  uint32_t as_path_id;
 
   /** @todo add other pfx info fields here (AS path, etc) */
 
@@ -222,6 +222,12 @@ struct bgpview {
   /** Is the peersigns table shared? */
   int peersigns_shared;
 
+  /** Store of AS Paths */
+  bgpstream_as_path_store_t *pathstore;
+
+  /** Is the Path Store shared? */
+  int pathstore_shared;
+
   /** Table of peerid -> peerinfo */
   /** todo*/
   kh_bwv_peerid_peerinfo_t *peerinfo;
@@ -372,8 +378,6 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
               BWV_PFX_GET_PEER_EXT(v, i).user = NULL;
             }
           BWV_PFX_SET_PEER_STATE(v, i, BGPVIEW_FIELD_INVALID);
-
-          BWV_PFX_GET_PEER_PTR(iter->view, v, i)->as_path = NULL;
         }
 
       v->peers_alloc_cnt = peerid;
@@ -387,16 +391,11 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
       return 0;
     }
 
-  if(peerinfo->as_path == NULL &&
-     (peerinfo->as_path = bgpstream_as_path_create()) == NULL)
+  if((peerinfo->as_path_id =
+      bgpstream_as_path_store_get_path_id(iter->view->pathstore,
+                                          as_path)) == 0)
     {
-      return -1;
-    }
-
-  /** @todo call bgpstream_as_path_store_get_id here */
-  //assert(0);
-  if(bgpstream_as_path_copy(peerinfo->as_path, as_path, 0, 0) != 0)
-    {
+      fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
       return -1;
     }
 
@@ -428,18 +427,12 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
 static void pfx_peer_info_destroy(bgpview_t *view,
                                   bwv_pfx_peerinfo_t *v)
 {
-  bgpstream_as_path_destroy(v->as_path);
-  v->as_path = NULL;
-
   return;
 }
 
 static void pfx_peer_info_ext_destroy(bgpview_t *view,
                                       bwv_pfx_peerinfo_ext_t *v)
 {
-  bgpstream_as_path_destroy(v->as_path);
-  v->as_path = NULL;
-
   ASSERT_BWV_PFX_PEERINFO_EXT(view);
   if(v->user != NULL && view->pfx_peer_user_destructor != NULL)
     {
@@ -593,6 +586,7 @@ static int add_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx)
 bgpview_t *
 bgpview_create_shared(
                    bgpstream_peer_sig_map_t *peersigns,
+                   bgpstream_as_path_store_t *pathstore,
                    bgpview_destroy_user_t *bwv_user_destructor,
                    bgpview_destroy_user_t *bwv_peer_user_destructor,
                    bgpview_destroy_user_t *bwv_pfx_user_destructor,
@@ -631,6 +625,21 @@ bgpview_create_shared(
       view->peersigns_shared = 0;
     }
 
+  if(pathstore != NULL)
+    {
+      view->pathstore_shared = 1;
+      view->pathstore = pathstore;
+    }
+  else
+    {
+      if((view->pathstore = bgpstream_as_path_store_create()) == NULL)
+	{
+	  fprintf(stderr, "Failed to create AS Path Store\n");
+	  goto err;
+	}
+      view->pathstore_shared = 0;
+    }
+
   if((view->peerinfo = kh_init(bwv_peerid_peerinfo)) == NULL)
     {
       fprintf(stderr, "Failed to create peer info table\n");
@@ -663,10 +672,11 @@ bgpview_create(
                    bgpview_destroy_user_t *bwv_pfx_peer_user_destructor)
 {
   return bgpview_create_shared(NULL,
-                                       bwv_user_destructor,
-                                       bwv_peer_user_destructor,
-                                       bwv_pfx_user_destructor,
-                                       bwv_pfx_peer_user_destructor);
+                               NULL,
+                               bwv_user_destructor,
+                               bwv_peer_user_destructor,
+                               bwv_pfx_user_destructor,
+                               bwv_pfx_peer_user_destructor);
 }
 
 void bgpview_destroy(bgpview_t *view)
@@ -708,6 +718,12 @@ void bgpview_destroy(bgpview_t *view)
     {
       bgpstream_peer_sig_map_destroy(view->peersigns);
       view->peersigns = NULL;
+    }
+
+  if(view->pathstore_shared == 0 && view->pathstore != NULL)
+    {
+      bgpstream_as_path_store_destroy(view->pathstore);
+      view->pathstore = NULL;
     }
 
   if(view->peerinfo != NULL)
@@ -1875,7 +1891,11 @@ bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter)
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
 
-  return BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path;
+  bgpstream_as_path_store_path_t *store_path =
+    bgpstream_as_path_store_get_store_path(iter->view->pathstore,
+      BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
+
+  return bgpstream_as_path_store_path_get_path(store_path);
 }
 
 int
@@ -1886,11 +1906,19 @@ bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
 
-  bgpstream_as_path_t *dst =
-    BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path;
-  assert(dst != NULL);
+  uint32_t as_path_id = 0;
 
-  return bgpstream_as_path_copy(dst, as_path, 0, 0);
+  if((as_path_id = bgpstream_as_path_store_get_path_id(iter->view->pathstore,
+                                                       as_path)) == 0)
+    {
+      fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
+      return -1;
+    }
+
+  BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id =
+    as_path_id;
+
+  return 0;
 }
 
 bgpview_field_state_t
