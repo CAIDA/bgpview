@@ -371,6 +371,8 @@ static int flip_table(bvc_t *consumer, bgpview_iter_t *it)
   int asns_count = 0;
 
   /* origin AS */
+  bgpstream_as_path_t *as_path;
+  bgpstream_as_path_seg_t *origin_seg;
   uint32_t origin_asn;
   
   peras_info_t *info;
@@ -407,14 +409,27 @@ static int flip_table(bvc_t *consumer, bgpview_iter_t *it)
           peerid = bgpview_iter_peer_get_peer_id(it);
           sg = bgpview_iter_peer_get_sig(it);          
           
-            if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[i],
+          if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[i],
                                      peerid) == 0)
             {
               continue;
             }
           
           bgpstream_id_set_insert(ff_asns, sg->peer_asnumber);
-          origin_asn = bgpview_iter_pfx_peer_get_orig_asn(it);         
+
+          /** @todo correctly handle origin sets */
+          if((as_path =
+              bgpview_iter_pfx_peer_get_as_path(it)) == NULL ||
+             (origin_seg =
+              bgpstream_as_path_get_origin_seg(as_path)) == NULL ||
+             origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
+            {
+              origin_asn = 0;
+            }
+          else
+            {
+              origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
+            }
           
           found = 0;
           for(a = 0; a < STATE->valid_origins; a++)

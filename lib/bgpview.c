@@ -42,8 +42,8 @@
 /** Information about a prefix as seen from a peer */
 typedef struct bwv_pfx_peerinfo {
 
-  /** Origin ASN */
-  uint32_t orig_asn;
+  /** AS Path Store ID */
+  bgpstream_as_path_t *as_path;
 
   /** @todo add other pfx info fields here (AS path, etc) */
 
@@ -52,8 +52,8 @@ typedef struct bwv_pfx_peerinfo {
 /** Information about a prefix as seen from a peer */
 typedef struct bwv_pfx_peerinfo_ext {
 
-  /** Origin ASN */
-  uint32_t orig_asn;
+  /** AS Path Store ID */
+  bgpstream_as_path_t *as_path;
 
   /** @todo add other pfx info fields here (AS path, etc) */
 
@@ -340,7 +340,7 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
                                  bgpstream_pfx_t *prefix,
                                  bwv_peerid_pfxinfo_t *v,
                                  bgpstream_peer_id_t peerid,
-                                 uint32_t origin_asn)
+                                 bgpstream_as_path_t *as_path)
 {
   int i;
   bwv_pfx_peerinfo_t *peerinfo = NULL;
@@ -372,6 +372,8 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
               BWV_PFX_GET_PEER_EXT(v, i).user = NULL;
             }
           BWV_PFX_SET_PEER_STATE(v, i, BGPVIEW_FIELD_INVALID);
+
+          BWV_PFX_GET_PEER_PTR(iter->view, v, i)->as_path = NULL;
         }
 
       v->peers_alloc_cnt = peerid;
@@ -385,8 +387,21 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
       return 0;
     }
 
-  peerinfo->orig_asn = origin_asn;
+  if(peerinfo->as_path == NULL &&
+     (peerinfo->as_path = bgpstream_as_path_create()) == NULL)
+    {
+      return -1;
+    }
+
+  /** @todo call bgpstream_as_path_store_get_id here */
+  //assert(0);
+  if(bgpstream_as_path_copy(peerinfo->as_path, as_path, 0, 0) != 0)
+    {
+      return -1;
+    }
+
   BWV_PFX_SET_PEER_STATE(v, peerid, BGPVIEW_FIELD_INACTIVE);
+
   /** peerinfo->user remains untouched */
 
   /* and count this as a new inactive peer for this prefix */
@@ -413,12 +428,18 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
 static void pfx_peer_info_destroy(bgpview_t *view,
                                   bwv_pfx_peerinfo_t *v)
 {
+  bgpstream_as_path_destroy(v->as_path);
+  v->as_path = NULL;
+
   return;
 }
 
 static void pfx_peer_info_ext_destroy(bgpview_t *view,
                                       bwv_pfx_peerinfo_ext_t *v)
 {
+  bgpstream_as_path_destroy(v->as_path);
+  v->as_path = NULL;
+
   ASSERT_BWV_PFX_PEERINFO_EXT(view);
   if(v->user != NULL && view->pfx_peer_user_destructor != NULL)
     {
@@ -1522,7 +1543,7 @@ int
 bgpview_iter_add_pfx_peer(bgpview_iter_t *iter,
                                   bgpstream_pfx_t *pfx,
                                   bgpstream_peer_id_t peer_id,
-                                  uint32_t origin_asn)
+                                  bgpstream_as_path_t *as_path)
 {
   /* the peer must already exist */
   if(bgpview_iter_seek_peer(iter, peer_id,
@@ -1543,7 +1564,7 @@ bgpview_iter_add_pfx_peer(bgpview_iter_t *iter,
     }
 
   /* now insert the prefix-peer info */
-  return bgpview_iter_pfx_add_peer(iter, peer_id, origin_asn);
+  return bgpview_iter_pfx_add_peer(iter, peer_id, as_path);
 }
 
 int
@@ -1604,7 +1625,7 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter)
 int
 bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
                                   bgpstream_peer_id_t peer_id,
-                                  uint32_t origin_asn)
+                                  bgpstream_as_path_t *as_path)
 {
   bwv_peerid_pfxinfo_t *infos;
   bgpstream_pfx_t *pfx;
@@ -1618,7 +1639,7 @@ bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
   bgpview_iter_seek_peer(iter, peer_id,
                                  BGPVIEW_FIELD_ALL_VALID);
 
-  if(peerid_pfxinfo_insert(iter, pfx, infos, peer_id, origin_asn) != 0)
+  if(peerid_pfxinfo_insert(iter, pfx, infos, peer_id, as_path) != 0)
     {
       return -1;
     }
@@ -1847,26 +1868,29 @@ bgpview_iter_peer_set_user(bgpview_iter_t *iter, void *user)
   return 1;
 }
 
-int
-bgpview_iter_pfx_peer_get_orig_asn(bgpview_iter_t *iter)
+bgpstream_as_path_t *
+bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter)
 {
   bwv_peerid_pfxinfo_t *infos = pfx_get_peerinfos(iter);
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
 
-  return BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->orig_asn;
+  return BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path;
 }
 
 int
-bgpview_iter_pfx_peer_set_orig_asn(bgpview_iter_t *iter,
-                                           uint32_t asn)
+bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
+                                  bgpstream_as_path_t *as_path)
 {
   bwv_peerid_pfxinfo_t *infos = pfx_get_peerinfos(iter);
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
 
-  BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->orig_asn = asn;
-  return 0;
+  bgpstream_as_path_t *dst =
+    BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path;
+  assert(dst != NULL);
+
+  return bgpstream_as_path_copy(dst, as_path, 0, 0);
 }
 
 bgpview_field_state_t

@@ -57,7 +57,8 @@ static uint8_t                   test_peer_status;
 /* pfx row */
 static bgpstream_pfx_storage_t   test_prefix;
 static uint32_t                  test_prefix_first_addr;
-static uint32_t                  test_orig_asn;
+static bgpstream_as_path_t      *test_as_path;
+static bgpstream_as_path_seg_asn_t test_as_path_segs[100];
 
 static int filter_ff_peers(bgpview_iter_t *iter)
 {
@@ -83,7 +84,7 @@ static void create_test_data()
 
   /* FIRST PEER ASN */
   test_peer_asn = test_peer_first_asn = 1;
-  
+
   /* FIRST PEER STATUS */
   test_peer_status = 0x01;
 
@@ -92,8 +93,31 @@ static void create_test_data()
   test_prefix.address.version = BGPSTREAM_ADDR_VERSION_IPV4;
   test_prefix.mask_len = 24;
 
-  /* ORIG ASN */
-  test_orig_asn = 1;
+  /* AS PATH */
+  test_as_path = bgpstream_as_path_create();
+  assert(test_as_path != NULL);
+}
+
+static void build_as_path(uint32_t peer_asn)
+{
+  /* pick how many segments will be in this path */
+  int seg_cnt = rand() % 5;
+  int i;
+
+  /* randomly build the AS path, starting from the peer_asn */
+  test_as_path_segs[0].type = BGPSTREAM_AS_PATH_SEG_ASN;
+  test_as_path_segs[0].asn = peer_asn;
+  for(i=1; i<seg_cnt; i++)
+    {
+      test_as_path_segs[i].type = BGPSTREAM_AS_PATH_SEG_ASN;
+      test_as_path_segs[i].asn = i;//rand() % ASN_MAX;
+    }
+
+  /* now populate the path */
+  bgpstream_as_path_populate_from_data(test_as_path,
+                                       (uint8_t*)test_as_path_segs,
+                                       sizeof(bgpstream_as_path_seg_asn_t)
+                                       * seg_cnt);
 }
 
 static void usage(const char *name)
@@ -406,11 +430,8 @@ int main(int argc, char **argv)
             {
               test_prefix.address.ipv4.s_addr =
                 htonl(ntohl(test_prefix.address.ipv4.s_addr) + 256);
-              test_orig_asn = (test_orig_asn+1) % ASN_MAX;
-              if(test_orig_asn == 0)
-                {
-                  test_orig_asn++;
-                }
+
+              build_as_path(test_peer_asn);
 
              /* there is a 1/10 chance that we don't observe this prefix */
               if(use_random_pfxs && (rand() % 10) == 0)
@@ -421,7 +442,7 @@ int main(int argc, char **argv)
               if(bgpview_iter_add_pfx_peer(iter,
                                                    (bgpstream_pfx_t *)&test_prefix,
                                                    peer_id,
-                                                   test_orig_asn) != 0)
+                                                   test_as_path) != 0)
                 {
                   fprintf(stderr, "Could not add pfx info to table\n");
                   goto err;
@@ -456,9 +477,10 @@ int main(int argc, char **argv)
   bgpview_io_client_perr(client);
 
   /* cleanup */
-bgpview_io_client_free(client);
-bgpview_iter_destroy(iter);
+  bgpview_io_client_free(client);
+  bgpview_iter_destroy(iter);
   bgpview_destroy(view);
+  bgpstream_as_path_destroy(test_as_path);
   fprintf(stderr, "TEST: Shutdown complete\n");
 
   /* complete successfully */
@@ -472,6 +494,7 @@ bgpview_iter_destroy(iter);
   if(view != NULL) {
     bgpview_destroy(view);
   }
+  bgpstream_as_path_destroy(test_as_path);
 
   return -1;
 }

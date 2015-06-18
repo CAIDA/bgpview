@@ -24,6 +24,7 @@
 #ifndef __BGPVIEW_H
 #define __BGPVIEW_H
 
+#include "bgpstream_utils_as_path.h"
 #include "bgpstream_utils_peer_sig_map.h"
 
 /** @file
@@ -89,11 +90,15 @@ typedef enum {
   BGPVIEW_FIELD_ACTIVE | BGPVIEW_FIELD_INACTIVE
 
 
+/** @todo figure out how to signal no-export pfx-peer infos */
+# if 0
 /** if an origin AS number is within this range:
  *  [BGPVIEW_ASN_NOEXPORT_START,BGPVIEW_ASN_NOEXPORT_END]
  *  the pfx-peer info will not be exported (i.e. sent through the io channel) */
 #define BGPVIEW_ASN_NOEXPORT_START BGPVIEW_ASN_NOEXPORT_END - 255
 #define BGPVIEW_ASN_NOEXPORT_END   0xffffffff
+
+#endif
 
 /** @} */
 
@@ -665,11 +670,11 @@ bgpview_iter_remove_peer(bgpview_iter_t *iter);
 
 /** Insert a new pfx-peer information in the BGPView
  *
- * @param iter             pointer to a view iterator
- * @param pfx              pointer to the prefix
- * @param peer_id          peer identifier
- * @param origin_asn       origin AS number for the prefix as observed
- *                         by peer peer_id
+ * @param iter          pointer to a view iterator
+ * @param pfx           pointer to the prefix
+ * @param peer_id       peer identifier
+ * @param as_path       pointer to the AS path for the prefix as observed
+ *                      by peer peer_id
  * @return 0 if the insertion was successful, <0 otherwise
  *
  * In order for the function to succeed the peer must exist (it can be either
@@ -682,7 +687,7 @@ int
 bgpview_iter_add_pfx_peer(bgpview_iter_t *iter,
                           bgpstream_pfx_t *pfx,
                           bgpstream_peer_id_t peer_id,
-                          uint32_t origin_asn);
+                          bgpstream_as_path_t *as_path);
 
 /** Remove the current pfx currently referenced by the given iterator
  *
@@ -705,10 +710,10 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter);
 
 /** Insert a new peer info into the currently iterated pfx
  *
- * @param iter             pointer to a view iterator
- * @param peer_id          peer identifier
- * @param origin_asn       origin AS number for the prefix as observed
- *                         by peer peer_id
+ * @param iter          pointer to a view iterator
+ * @param peer_id       peer identifier
+ * @param as_path       pointer to the AS path for the prefix as observed
+ *                      by peer peer_id
  * @return 0 if the insertion was successful, <0 otherwise
  *
  * @note: in order for the function to succeed the peer must
@@ -719,7 +724,7 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter);
 int
 bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
                           bgpstream_peer_id_t peer_id,
-                          uint32_t origin_asn);
+                          bgpstream_as_path_t *as_path);
 
 /** Remove the current peer from the current prefix currently referenced by the
  * given iterator
@@ -888,30 +893,30 @@ int
 bgpview_iter_peer_set_user(bgpview_iter_t *iter, void *user);
 
 
-/** Get the origin AS number for the current pfx-peer structure pointed by
- *  the given iterator
+/** Get the path for the current pfx-peer structure pointed by the given
+ *  iterator
  *
  * @param iter          Pointer to an iterator structure
- * @return the origin AS number,
- *         -1 if the iterator is not initialized, or has reached the end of
- *         the peers for the given prefix.
+ * @return borrowed pointer to the AS path, NULL if the iterator is not
+ *         initialized, or has reached the end of the peers for the given
+ *         prefix.
  */
-int
-bgpview_iter_pfx_peer_get_orig_asn(bgpview_iter_t *iter);
+bgpstream_as_path_t *
+bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter);
 
-
-/** Set the origin AS number for the current pfx-peer structure pointed by
- *  the given iterator
+/** Set the AS path for the current pfx-peer structure pointed by the given
+ *  iterator
  *
  * @param iter          Pointer to an iterator structure
- * @param asn           Origin AS number
- * @return 0 if the process ends correctly, -1 if the iterator is not
- *         initialized, or has reached the end of the peers for the
- *         given prefix.
+ * @param as_path       Pointer to an AS Path to set
+ * @return 0 if the path was set successfully, -1 otherwise
+ *
+ * The AS Path is copied on insertion, so the caller maintains ownership of the
+ * path.
  */
 int
-bgpview_iter_pfx_peer_set_orig_asn(bgpview_iter_t *iter, uint32_t asn);
-
+bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
+                                  bgpstream_as_path_t *as_path);
 
 /** Get the state of the current pfx-peer pointed by the given iterator
  *

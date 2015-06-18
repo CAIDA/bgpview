@@ -242,6 +242,7 @@ static void pfxs_dump(bgpview_t *view,
 {
   bgpstream_pfx_t *pfx;
   char pfx_str[INET6_ADDRSTRLEN+3] = "";
+  char path_str[4096] = "";
 
   fprintf(stdout, "Prefixes (v4 %d, v6 %d):\n",
           bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),
@@ -262,9 +263,11 @@ static void pfxs_dump(bgpview_t *view,
           bgpview_iter_pfx_has_more_peer(it);
           bgpview_iter_pfx_next_peer(it))
         {
-          fprintf(stdout, "    %"PRIu16":\t%d\n",
+          bgpstream_as_path_snprintf(path_str, 4096,
+                                 bgpview_iter_pfx_peer_get_as_path(it));
+          fprintf(stdout, "    %"PRIu16":\t%s\n",
                   bgpview_iter_peer_get_peer_id(it),
-                  bgpview_iter_pfx_peer_get_orig_asn(it));
+                  path_str);
         }
     }
 }
@@ -285,7 +288,9 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
                           bgpview_filter_peer_cb_t *cb)
 {
   uint16_t peerid;
-  uint32_t orig_asn;
+
+  uint8_t *path_data;
+  uint64_t path_len;
 
   uint8_t *ptr = buf;
   size_t written = 0;
@@ -314,12 +319,18 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
         }
 
       peerid = bgpview_iter_peer_get_peer_id(it);
-      orig_asn = bgpview_iter_pfx_peer_get_orig_asn(it);
 
-      if(orig_asn >= BGPVIEW_ASN_NOEXPORT_START)
+      path_len =
+        bgpstream_as_path_get_data(bgpview_iter_pfx_peer_get_as_path(it),
+                                   &path_data);
+
+      /** @todo figure out how to filter paths */
+#if 0
+      if(orig_asn >= BGPWATCHER_VIEW_ASN_NOEXPORT_START)
         {
           continue;
         }
+#endif
 
       /* peer id */
       assert(peerid > 0);
@@ -328,9 +339,12 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
       SERIALIZE_VAL(peerid);
 
       /* orig_asn */
-      assert(orig_asn > 0);
-      orig_asn = htonl(orig_asn);
-      SERIALIZE_VAL(orig_asn);
+      /** @todo make platform independent (paths are in host byte order) */
+      SERIALIZE_VAL(path_len);
+      assert((len-written) >= path_len);
+      memcpy(ptr, path_data, path_len);
+      written += path_len;
+      ptr += path_len;
 
       (*peers_cnt)++;
     }
@@ -455,7 +469,8 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
   bgpstream_pfx_storage_t pfx;
   bgpstream_peer_id_t peerid;
 
-  uint32_t orig_asn;
+  bgpstream_as_path_t *path = NULL;
+  size_t path_len;
 
   zmq_msg_t msg;
   uint8_t *buf;
@@ -468,6 +483,12 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
   int pfx_peer_rx = 0;
 
   ASSERT_MORE;
+
+  /* create a path */
+  if((path = bgpstream_as_path_create()) == NULL)
+    {
+      return -1;
+    }
 
   /* foreach pfx, recv pfx.ip, pfx.len, [peers_cnt, peer_info] */
   for(i=0; i<UINT32_MAX; i++)
@@ -521,8 +542,15 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
           pfx_peer_rx++;
 
 	  /* orig asn */
-	  DESERIALIZE_VAL(orig_asn);
-	  orig_asn = ntohl(orig_asn);
+	  DESERIALIZE_VAL(path_len);
+          /* populate the path */
+          assert((len-read) >= path_len);
+          if(bgpstream_as_path_populate_from_data(path, buf, path_len) != 0)
+            {
+              return -1;
+            }
+          read+=path_len;
+          buf+=path_len;
 
           if(iter == NULL)
             {
@@ -538,7 +566,7 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
               if(bgpview_iter_add_pfx_peer(iter,
                                                    (bgpstream_pfx_t *)&pfx,
                                                    peerid_map[peerid],
-                                                   orig_asn) != 0)
+                                                   path) != 0)
                 {
                   fprintf(stderr, "Could not add prefix\n");
                   goto err;
@@ -549,7 +577,7 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
               /* we can use pfx_add_peer for efficiency */
               if(bgpview_iter_pfx_add_peer(iter,
                                                    peerid_map[peerid],
-                                                   orig_asn) != 0)
+                                                   path) != 0)
                 {
                   fprintf(stderr, "Could not add prefix\n");
                   goto err;
@@ -584,9 +612,12 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
   assert(pfx_rx == pfx_cnt);
   ASSERT_MORE;
 
+  bgpstream_as_path_destroy(path);
+
   return 0;
 
  err:
+  bgpstream_as_path_destroy(path);
   return -1;
 }
 
