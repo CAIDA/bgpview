@@ -41,7 +41,8 @@
 #define TEST_TABLE_SIZE_DEFAULT 50
 #define TEST_PEER_NUM_DEFAULT 1
 
-#define ASN_MAX 50000
+#define ORIG_ASN_MAX 50000
+#define CORE_ASN_MAX 10000
 
 static int full_feed_size = -1;
 
@@ -110,7 +111,8 @@ static void build_as_path(uint32_t peer_asn)
   for(i=1; i<seg_cnt; i++)
     {
       test_as_path_segs[i].type = BGPSTREAM_AS_PATH_SEG_ASN;
-      test_as_path_segs[i].asn = i;//rand() % ASN_MAX;
+      test_as_path_segs[i].asn =
+        (i==seg_cnt-1) ? rand() % ORIG_ASN_MAX : rand() % CORE_ASN_MAX;
     }
 
   /* now populate the path */
