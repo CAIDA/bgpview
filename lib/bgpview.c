@@ -43,7 +43,7 @@
 typedef struct bwv_pfx_peerinfo {
 
   /** AS Path Store ID */
-  uint32_t as_path_id;
+  bgpstream_as_path_store_path_id_t as_path_id;
 
   /** @todo add other pfx info fields here (AS path, etc) */
 
@@ -53,7 +53,7 @@ typedef struct bwv_pfx_peerinfo {
 typedef struct bwv_pfx_peerinfo_ext {
 
   /** AS Path Store ID */
-  uint32_t as_path_id;
+  bgpstream_as_path_store_path_id_t as_path_id;
 
   /** @todo add other pfx info fields here (AS path, etc) */
 
@@ -391,9 +391,9 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
       return 0;
     }
 
-  if((peerinfo->as_path_id =
-      bgpstream_as_path_store_get_path_id(iter->view->pathstore,
-                                          as_path)) == 0)
+  if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
+                                         as_path,
+                                         &peerinfo->as_path_id) != 0)
     {
       fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
       return -1;
@@ -1906,17 +1906,15 @@ bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
 
-  uint32_t as_path_id = 0;
+  bgpstream_as_path_store_path_id_t *id =
+    &(BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
 
-  if((as_path_id = bgpstream_as_path_store_get_path_id(iter->view->pathstore,
-                                                       as_path)) == 0)
+  if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
+                                         as_path, id) != 0)
     {
       fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
       return -1;
     }
-
-  BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id =
-    as_path_id;
 
   return 0;
 }
