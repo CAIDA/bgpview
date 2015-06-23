@@ -42,7 +42,7 @@
 #define TEST_PEER_NUM_DEFAULT 1
 
 #define ORIG_ASN_MAX 50000
-#define CORE_ASN_MAX 10000
+#define CORE_ASN_MAX 4000
 
 static int full_feed_size = -1;
 
@@ -101,18 +101,21 @@ static void create_test_data()
 
 static void build_as_path(uint32_t peer_asn)
 {
-  /* pick how many segments will be in this path */
-  int seg_cnt = rand() % 5;
+  /* pick how many segments will be in this path (1-3) */
+  int seg_cnt = (rand() % 3) + 1;
   int i;
+  uint32_t origin_asn = rand() % ORIG_ASN_MAX;
 
-  /* randomly build the AS path, starting from the peer_asn */
+  /* semi-randomly build the AS path, starting from the peer_asn */
   test_as_path_segs[0].type = BGPSTREAM_AS_PATH_SEG_ASN;
   test_as_path_segs[0].asn = peer_asn;
   for(i=1; i<seg_cnt; i++)
     {
       test_as_path_segs[i].type = BGPSTREAM_AS_PATH_SEG_ASN;
       test_as_path_segs[i].asn =
-        (i==seg_cnt-1) ? rand() % ORIG_ASN_MAX : rand() % CORE_ASN_MAX;
+        (i==seg_cnt-1) ?
+        origin_asn :
+        (peer_asn + origin_asn + i) % ORIG_ASN_MAX;
     }
 
   /* now populate the path */
