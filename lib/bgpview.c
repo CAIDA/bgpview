@@ -974,6 +974,10 @@ bgpview_iter_t *bgpview_iter_create(bgpview_t *view)
 {
   bgpview_iter_t *iter;
 
+  /* DEBUG REMOVE ME */
+  fprintf(stderr, "AS Path Store size: %d\n",
+          bgpstream_as_path_store_get_size(view->pathstore));
+
   if((iter = malloc_zero(sizeof(bgpview_iter_t))) == NULL)
     {
       return NULL;

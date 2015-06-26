@@ -109,14 +109,13 @@ static void build_as_path(uint32_t peer_asn)
   /* semi-randomly build the AS path, starting from the peer_asn */
   test_as_path_segs[0].type = BGPSTREAM_AS_PATH_SEG_ASN;
   test_as_path_segs[0].asn = peer_asn;
-  for(i=1; i<seg_cnt; i++)
+  for(i=1; i<seg_cnt-1; i++)
     {
       test_as_path_segs[i].type = BGPSTREAM_AS_PATH_SEG_ASN;
-      test_as_path_segs[i].asn =
-        (i==seg_cnt-1) ?
-        origin_asn :
-        (peer_asn + origin_asn + i) % ORIG_ASN_MAX;
+      test_as_path_segs[i].asn = (peer_asn + origin_asn + i) % ORIG_ASN_MAX;
     }
+  test_as_path_segs[seg_cnt-1].type = BGPSTREAM_AS_PATH_SEG_ASN;
+  test_as_path_segs[seg_cnt-1].asn = origin_asn;
 
   /* now populate the path */
   bgpstream_as_path_populate_from_data(test_as_path,
