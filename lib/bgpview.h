@@ -692,6 +692,29 @@ bgpview_iter_add_pfx_peer(bgpview_iter_t *iter,
                           bgpstream_peer_id_t peer_id,
                           bgpstream_as_path_t *as_path);
 
+/** Insert a new pfx-peer information in the BGP Watcher view (with an already
+ * known existing AS Path ID)
+ *
+ * @param iter          pointer to a view iterator
+ * @param pfx           pointer to the prefix
+ * @param peer_id       peer identifier
+ * @param path_id       AS Path Store ID of the corresponding AS Path
+ * @return 0 if the insertion was successful, <0 otherwise
+ *
+ * In order for the function to succeed the peer must exist (it can be either
+ * active or inactive).
+ * When a new pfx-peer is created its state is set to inactive.
+ * When this function returns successfully, the provided iterator will be
+ * pointing to the inserted prefix-peer (even if it already existed).
+ * The provided path ID must correspond to the appropriate AS Path in the store
+ * used by this view.
+ */
+int
+bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter,
+                                bgpstream_pfx_t *pfx,
+                                bgpstream_peer_id_t peer_id,
+                                bgpstream_as_path_store_path_id_t path_id);
+
 /** Remove the current pfx currently referenced by the given iterator
  *
  * @param iter             pointer to a view iterator
@@ -728,6 +751,25 @@ int
 bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
                           bgpstream_peer_id_t peer_id,
                           bgpstream_as_path_t *as_path);
+
+/** Insert a new peer info into the currently iterated pfx (with an already
+ * known existing AS Path ID)
+ *
+ * @param iter          pointer to a view iterator
+ * @param peer_id       peer identifier
+ * @param path_id       AS Path Store ID of the corresponding AS Path
+ * @return 0 if the insertion was successful, <0 otherwise
+ *
+ * In order for the function to succeed the peer must exist (it can be either
+ * active or inactive).
+ * When a new pfx-peer is created its state is set to inactive.
+ * The provided path ID must correspond to the appropriate AS Path in the store
+ * used by this view.
+ */
+int
+bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
+                                bgpstream_peer_id_t peer_id,
+                                bgpstream_as_path_store_path_id_t path_id);
 
 /** Remove the current peer from the current prefix currently referenced by the
  * given iterator

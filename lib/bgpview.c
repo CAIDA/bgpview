@@ -346,7 +346,7 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
                                  bgpstream_pfx_t *prefix,
                                  bwv_peerid_pfxinfo_t *v,
                                  bgpstream_peer_id_t peerid,
-                                 bgpstream_as_path_t *as_path)
+                                 bgpstream_as_path_store_path_id_t path_id)
 {
   int i;
   bwv_pfx_peerinfo_t *peerinfo = NULL;
@@ -391,13 +391,7 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
       return 0;
     }
 
-  if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
-                                         as_path,
-                                         &peerinfo->as_path_id) != 0)
-    {
-      fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
-      return -1;
-    }
+  peerinfo->as_path_id = path_id;
 
   BWV_PFX_SET_PEER_STATE(v, peerid, BGPVIEW_FIELD_INACTIVE);
 
@@ -1565,6 +1559,26 @@ bgpview_iter_add_pfx_peer(bgpview_iter_t *iter,
                                   bgpstream_peer_id_t peer_id,
                                   bgpstream_as_path_t *as_path)
 {
+  bgpstream_as_path_store_path_id_t path_id;
+
+  if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
+                                         as_path,
+                                         &path_id) != 0)
+    {
+      fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
+      return -1;
+    }
+
+  /* now insert the prefix-peer info */
+  return bgpview_iter_add_pfx_peer_by_id(iter, pfx, peer_id, path_id);
+}
+
+int
+bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter,
+                                bgpstream_pfx_t *pfx,
+                                bgpstream_peer_id_t peer_id,
+                                bgpstream_as_path_store_path_id_t path_id)
+{
   /* the peer must already exist */
   if(bgpview_iter_seek_peer(iter, peer_id,
                                     BGPVIEW_FIELD_ALL_VALID) == 0)
@@ -1584,7 +1598,7 @@ bgpview_iter_add_pfx_peer(bgpview_iter_t *iter,
     }
 
   /* now insert the prefix-peer info */
-  return bgpview_iter_pfx_add_peer(iter, peer_id, as_path);
+  return bgpview_iter_pfx_add_peer_by_id(iter, peer_id, path_id);
 }
 
 int
@@ -1647,6 +1661,24 @@ bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
                                   bgpstream_peer_id_t peer_id,
                                   bgpstream_as_path_t *as_path)
 {
+  bgpstream_as_path_store_path_id_t path_id;
+
+  if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
+                                         as_path,
+                                         &path_id) != 0)
+    {
+      fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
+      return -1;
+    }
+
+  return bgpview_iter_pfx_add_peer_by_id(iter, peer_id, path_id);
+}
+
+int
+bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
+                                bgpstream_peer_id_t peer_id,
+                                bgpstream_as_path_store_path_id_t path_id)
+{
   bwv_peerid_pfxinfo_t *infos;
   bgpstream_pfx_t *pfx;
 
@@ -1659,7 +1691,7 @@ bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
   bgpview_iter_seek_peer(iter, peer_id,
                                  BGPVIEW_FIELD_ALL_VALID);
 
-  if(peerid_pfxinfo_insert(iter, pfx, infos, peer_id, as_path) != 0)
+  if(peerid_pfxinfo_insert(iter, pfx, infos, peer_id, path_id) != 0)
     {
       return -1;
     }
