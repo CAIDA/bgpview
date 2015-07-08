@@ -32,6 +32,7 @@
 
 
 #define BUFFER_LEN 16384
+#define BUFFER_1M  1048576
 
 /* because the values of AF_INET* vary from system to system we need to use
    our own encoding for the version */
@@ -820,17 +821,29 @@ static int send_paths(void *dest, bgpview_iter_t *it)
   bgpstream_as_path_store_t *ps = bgpview_get_as_path_store(view);
   assert(ps != NULL);
 
+  size_t len = BUFFER_1M;
+  uint8_t *buf = NULL;
+  uint8_t *ptr = NULL;
+  size_t written = 0;
+  size_t s = 0;
+
   bgpstream_as_path_store_path_t *spath;
   bgpstream_as_path_t *path;
   uint32_t idx;
 
   uint8_t *path_data;
-  uint64_t path_len;
+  uint16_t path_len;
 
   int paths_tx = 0;
   uint32_t u32;
 
-  /** @todo consider serializing entire path table into one buffer and tx */
+  /* malloc the buffer */
+  if((ptr = buf = malloc(BUFFER_1M)) == NULL)
+    {
+      goto err;
+    }
+
+  /* add paths to the buffer until full, send, repeat */
 
   /* foreach path, send pathid and path */
   for(bgpstream_as_path_store_iter_first_path(ps);
@@ -842,16 +855,40 @@ static int send_paths(void *dest, bgpview_iter_t *it)
       assert(spath != NULL);
 
       idx = bgpstream_as_path_store_path_get_idx(spath);
-      if(zmq_send(dest, &idx, sizeof(idx), ZMQ_SNDMORE) != sizeof(idx))
-        {
-          goto err;
-        }
 
       path = bgpstream_as_path_store_path_get_path(spath);
       assert(path != NULL);
       path_len = bgpstream_as_path_get_data(path, &path_data);
+
+      /* do we need to send the buffer now? */
+      if((len-written) < (sizeof(idx)+sizeof(path_len)+path_len))
+        {
+          if(zmq_send(dest, buf, written, ZMQ_SNDMORE) != written)
+            {
+              goto err;
+            }
+          s = written = 0;
+          ptr = buf;
+        }
+
+      /* add the path index */
+      SERIALIZE_VAL(idx);
+
+      /* add the path len */
+      SERIALIZE_VAL(path_len);
+
       /** @todo make platform independent (paths are in host byte order) */
-      if(zmq_send(dest, path_data, path_len, ZMQ_SNDMORE) != path_len)
+      assert((len-written) >= path_len);
+      memcpy(ptr, path_data, path_len);
+      s = path_len;
+      written += s;
+      ptr += s;
+    }
+
+  /* send the last buffer */
+  if(written > 0)
+    {
+      if(zmq_send(dest, buf, written, ZMQ_SNDMORE) != written)
         {
           goto err;
         }
@@ -871,9 +908,12 @@ static int send_paths(void *dest, bgpview_iter_t *it)
       goto err;
     }
 
+  free(buf);
+
   return 0;
 
  err:
+  free(buf);
   return -1;
 }
 
@@ -881,16 +921,19 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
                       bgpstream_as_path_store_path_id_t **pathid_mapping)
 {
   uint32_t pc;
-  int i;
 
   uint32_t pathidx;
+  uint16_t pathlen;
 
   zmq_msg_t msg;
+  uint8_t *buf;
+  size_t len;
+  size_t read = 0;
+  size_t s = 0;
 
   bgpstream_as_path_store_path_id_t *idmap = NULL;
   int idmap_cnt = 0;
 
-  int rx_bytes = 0;
   int paths_rx = 0;
 
   bgpview_t *view = bgpview_iter_get_view(iter);
@@ -906,36 +949,30 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
   ASSERT_MORE;
 
-  /* foreach path, recv idx and path */
-  for(i=0; i<UINT32_MAX; i++)
+  /* receive the first message */
+  if(zmq_msg_init(&msg) == -1 || zmq_msg_recv(&msg, src, 0) == -1)
     {
-      /* path idx (or end-of-paths)*/
-      if((rx_bytes = zmq_recv(src, &pathidx, sizeof(pathidx), 0)) == -1)
-	{
-          fprintf(stderr, "Could not receive path idx\n");
-	  goto err;
-	}
-      if(rx_bytes == 0)
-        {
-          /* end of paths */
-          break;
-        }
-      if(rx_bytes != sizeof(pathidx))
-        {
-          fprintf(stderr, "Invalid path index\n");
-	  goto err;
-        }
+      fprintf(stderr, "Could not receive path message\n");
+      goto err;
+    }
+  buf = zmq_msg_data(&msg);
+  len = zmq_msg_size(&msg);
+  read = 0;
+  s = 0;
+
+  /* while the path message is not empty */
+  while(len > 0)
+    {
+      /* path idx */
+      DESERIALIZE_VAL(pathidx);
       ASSERT_MORE;
 
       /* by here we have a valid path to receive */
       paths_rx++;
 
-      /* receive the path */
-      if(zmq_msg_init(&msg) == -1 || zmq_msg_recv(&msg, src, 0) == -1)
-	{
-          fprintf(stderr, "Could not receive path message\n");
-	  goto err;
-	}
+      /* path len */
+      DESERIALIZE_VAL(pathlen);
+      ASSERT_MORE;
 
       if(iter == NULL)
         {
@@ -960,9 +997,7 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
         }
 
       /* populate the path structure */
-      if(bgpstream_as_path_populate_from_data_zc(path,
-                                                 zmq_msg_data(&msg),
-                                                 zmq_msg_size(&msg)) != 0)
+      if(bgpstream_as_path_populate_from_data_zc(path, buf, pathlen) != 0)
         {
           return -1;
         }
@@ -972,8 +1007,24 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
         {
           goto err;
         }
+      s = pathlen;
+      read += s;
+      buf += s;
 
-      zmq_msg_close(&msg);
+      if(read == len)
+        {
+          /* get another message */
+          zmq_msg_close(&msg);
+          if(zmq_msg_init(&msg) == -1 || zmq_msg_recv(&msg, src, 0) == -1)
+            {
+              fprintf(stderr, "Could not receive path message\n");
+              goto err;
+            }
+          buf = zmq_msg_data(&msg);
+          len = zmq_msg_size(&msg);
+          read = 0;
+          s = 0;
+        }
     }
 
   /* receive the number of paths */
