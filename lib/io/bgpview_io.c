@@ -289,8 +289,8 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
 {
   uint16_t peerid;
 
-  uint8_t *path_data;
-  uint64_t path_len;
+  bgpstream_as_path_store_path_t *spath;
+  uint32_t idx;
 
   uint8_t *ptr = buf;
   size_t written = 0;
@@ -320,13 +320,9 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
 
       peerid = bgpview_iter_peer_get_peer_id(it);
 
-      path_len =
-        bgpstream_as_path_get_data(bgpview_iter_pfx_peer_get_as_path(it),
-                                   &path_data);
-
-      /** @todo figure out how to filter paths */
+      /** @todo do we still need to filter based on path? */
 #if 0
-      if(orig_asn >= BGPWATCHER_VIEW_ASN_NOEXPORT_START)
+      if(orig_asn >= BGPVIEW_ASN_NOEXPORT_START)
         {
           continue;
         }
@@ -338,13 +334,10 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
       peerid = htons(peerid);
       SERIALIZE_VAL(peerid);
 
-      /* orig_asn */
-      /** @todo make platform independent (paths are in host byte order) */
-      SERIALIZE_VAL(path_len);
-      assert((len-written) >= path_len);
-      memcpy(ptr, path_data, path_len);
-      written += path_len;
-      ptr += path_len;
+      /* AS Path Index */
+      spath = bgpview_iter_pfx_peer_get_as_path_store_path(it);
+      idx = bgpstream_as_path_store_path_get_idx(spath);
+      SERIALIZE_VAL(idx);
 
       (*peers_cnt)++;
     }
@@ -460,7 +453,9 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
 
 static int recv_pfxs(void *src, bgpview_iter_t *iter,
                      bgpstream_peer_id_t *peerid_map,
-                     int peerid_map_cnt)
+                     int peerid_map_cnt,
+                     bgpstream_as_path_store_path_id_t *pathid_map,
+                     int pathid_map_cnt)
 {
   uint32_t pfx_cnt;
   uint16_t peer_cnt;
@@ -469,8 +464,7 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
   bgpstream_pfx_storage_t pfx;
   bgpstream_peer_id_t peerid;
 
-  bgpstream_as_path_t *path = NULL;
-  size_t path_len;
+  uint32_t pathidx;
 
   zmq_msg_t msg;
   uint8_t *buf;
@@ -483,12 +477,6 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
   int pfx_peer_rx = 0;
 
   ASSERT_MORE;
-
-  /* create a path */
-  if((path = bgpstream_as_path_create()) == NULL)
-    {
-      return -1;
-    }
 
   /* foreach pfx, recv pfx.ip, pfx.len, [peers_cnt, peer_info] */
   for(i=0; i<UINT32_MAX; i++)
@@ -541,16 +529,8 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
 
           pfx_peer_rx++;
 
-	  /* orig asn */
-	  DESERIALIZE_VAL(path_len);
-          /* populate the path */
-          assert((len-read) >= path_len);
-          if(bgpstream_as_path_populate_from_data(path, buf, path_len) != 0)
-            {
-              return -1;
-            }
-          read+=path_len;
-          buf+=path_len;
+          /* AS Path Index */
+	  DESERIALIZE_VAL(pathidx);
 
           if(iter == NULL)
             {
@@ -563,10 +543,10 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
           if(pfx_peers_added == 0)
             {
               /* we have to use add_pfx_peer */
-              if(bgpview_iter_add_pfx_peer(iter,
-                                                   (bgpstream_pfx_t *)&pfx,
-                                                   peerid_map[peerid],
-                                                   path) != 0)
+              if(bgpview_iter_add_pfx_peer_by_id(iter,
+                                                 (bgpstream_pfx_t *)&pfx,
+                                                 peerid_map[peerid],
+                                                 pathid_map[pathidx]) != 0)
                 {
                   fprintf(stderr, "Could not add prefix\n");
                   goto err;
@@ -575,9 +555,9 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
           else
             {
               /* we can use pfx_add_peer for efficiency */
-              if(bgpview_iter_pfx_add_peer(iter,
-                                                   peerid_map[peerid],
-                                                   path) != 0)
+              if(bgpview_iter_pfx_add_peer_by_id(iter,
+                                                 peerid_map[peerid],
+                                                 pathid_map[pathidx]) != 0)
                 {
                   fprintf(stderr, "Could not add prefix\n");
                   goto err;
@@ -612,12 +592,9 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
   assert(pfx_rx == pfx_cnt);
   ASSERT_MORE;
 
-  bgpstream_as_path_destroy(path);
-
   return 0;
 
  err:
-  bgpstream_as_path_destroy(path);
   return -1;
 }
 
@@ -836,6 +813,186 @@ static int recv_peers(void *src, bgpview_iter_t *iter,
   return -1;
 }
 
+static int send_paths(void *dest, bgpview_iter_t *it)
+{
+  bgpview_t *view = bgpview_iter_get_view(it);
+  assert(view != NULL);
+  bgpstream_as_path_store_t *ps = bgpview_get_as_path_store(view);
+  assert(ps != NULL);
+
+  bgpstream_as_path_store_path_t *spath;
+  bgpstream_as_path_t *path;
+  uint32_t idx;
+
+  uint8_t *path_data;
+  uint64_t path_len;
+
+  int paths_tx = 0;
+  uint32_t u32;
+
+  /** @todo consider serializing entire path table into one buffer and tx */
+
+  /* foreach path, send pathid and path */
+  for(bgpstream_as_path_store_iter_first_path(ps);
+      bgpstream_as_path_store_iter_has_more_path(ps);
+      bgpstream_as_path_store_iter_next_path(ps))
+    {
+      paths_tx++;
+      spath = bgpstream_as_path_store_iter_get_path(ps);
+      assert(spath != NULL);
+
+      idx = bgpstream_as_path_store_path_get_idx(spath);
+      if(zmq_send(dest, &idx, sizeof(idx), ZMQ_SNDMORE) != sizeof(idx))
+        {
+          goto err;
+        }
+
+      path = bgpstream_as_path_store_path_get_path(spath);
+      assert(path != NULL);
+      path_len = bgpstream_as_path_get_data(path, &path_data);
+      /** @todo make platform independent (paths are in host byte order) */
+      if(zmq_send(dest, path_data, path_len, ZMQ_SNDMORE) != path_len)
+        {
+          goto err;
+        }
+    }
+
+  /* send an empty frame to signify end of paths */
+  if(zmq_send(dest, "", 0, ZMQ_SNDMORE) != 0)
+    {
+      goto err;
+    }
+
+  /* now send the number of paths for cross validation */
+  assert(paths_tx <= UINT32_MAX);
+  u32 = htonl(paths_tx);
+  if(zmq_send(dest, &u32, sizeof(u32), ZMQ_SNDMORE) != sizeof(u32))
+    {
+      goto err;
+    }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+static int recv_paths(void *src, bgpview_iter_t *iter,
+                      bgpstream_as_path_store_path_id_t **pathid_mapping)
+{
+  uint32_t pc;
+  int i;
+
+  uint32_t pathidx;
+
+  zmq_msg_t msg;
+
+  bgpstream_as_path_store_path_id_t *idmap = NULL;
+  int idmap_cnt = 0;
+
+  int rx_bytes = 0;
+  int paths_rx = 0;
+
+  bgpview_t *view = bgpview_iter_get_view(iter);
+  bgpstream_as_path_store_t *store = bgpview_get_as_path_store(view);
+  assert(store != NULL);
+
+  bgpstream_as_path_t *path;
+  /* create a path */
+  if((path = bgpstream_as_path_create()) == NULL)
+    {
+      return -1;
+    }
+
+  ASSERT_MORE;
+
+  /* foreach path, recv idx and path */
+  for(i=0; i<UINT32_MAX; i++)
+    {
+      /* path idx (or end-of-paths)*/
+      if((rx_bytes = zmq_recv(src, &pathidx, sizeof(pathidx), 0)) == -1)
+	{
+          fprintf(stderr, "Could not receive path idx\n");
+	  goto err;
+	}
+      if(rx_bytes == 0)
+        {
+          /* end of paths */
+          break;
+        }
+      if(rx_bytes != sizeof(pathidx))
+        {
+          fprintf(stderr, "Invalid path index\n");
+	  goto err;
+        }
+      ASSERT_MORE;
+
+      /* by here we have a valid path to receive */
+      paths_rx++;
+
+      /* receive the path */
+      if(zmq_msg_init(&msg) == -1 || zmq_msg_recv(&msg, src, 0) == -1)
+	{
+          fprintf(stderr, "Could not receive path message\n");
+	  goto err;
+	}
+
+      if(iter == NULL)
+        {
+          continue;
+        }
+      /* all code below here has a valid view */
+
+      /* ensure we have enough space in the id map */
+      if((pathidx+1) > idmap_cnt)
+        {
+          idmap_cnt = pathidx == 0 ? 1 : pathidx*2;
+
+          if((idmap =
+              realloc(idmap,
+                      sizeof(bgpstream_as_path_store_path_id_t) * idmap_cnt))
+             == NULL)
+            {
+              goto err;
+            }
+
+          /* WARN: ids are garbage */
+        }
+
+      /* populate the path structure */
+      if(bgpstream_as_path_populate_from_data(path,
+                                              zmq_msg_data(&msg),
+                                              zmq_msg_size(&msg)) != 0)
+        {
+          return -1;
+        }
+
+      /* now add this path to the store */
+      if(bgpstream_as_path_store_get_path_id(store, path, &idmap[pathidx]) != 0)
+        {
+          goto err;
+        }
+
+      zmq_msg_close(&msg);
+    }
+
+  /* receive the number of paths */
+  if(zmq_recv(src, &pc, sizeof(pc), 0) != sizeof(pc))
+    {
+      fprintf(stderr, "Could not receive path cnt\n");
+      goto err;
+    }
+  pc = ntohl(pc);
+  assert(pc == paths_rx);
+
+  *pathid_mapping = idmap;
+  return idmap_cnt;
+
+ err:
+  zmq_msg_close(&msg);
+  return -1;
+}
+
 /* ========== PROTECTED FUNCTIONS ========== */
 
 int bgpview_send(void *dest, bgpview_t *view,
@@ -866,6 +1023,11 @@ int bgpview_send(void *dest, bgpview_t *view,
       goto err;
     }
 
+  if(send_paths(dest, it) != 0)
+    {
+      goto err;
+    }
+
   if(send_pfxs(dest, it, cb) != 0)
     {
       goto err;
@@ -890,6 +1052,10 @@ int bgpview_recv(void *src, bgpview_t *view)
 
   bgpstream_peer_id_t *peerid_map = NULL;
   int peerid_map_cnt = 0;
+
+  /* an array of path IDs */
+  bgpstream_as_path_store_path_id_t *pathid_map = NULL;
+  int pathid_map_cnt;
 
   bgpview_iter_t *it = NULL;
   if(view != NULL && (it = bgpview_iter_create(view)) == NULL)
@@ -916,8 +1082,17 @@ int bgpview_recv(void *src, bgpview_t *view)
     }
   ASSERT_MORE;
 
+  if((pathid_map_cnt = recv_paths(src, it, &pathid_map)) < 0)
+    {
+      fprintf(stderr, "Could not receive paths\n");
+      goto err;
+    }
+  ASSERT_MORE;
+
   /* pfxs */
-  if(recv_pfxs(src, it, peerid_map, peerid_map_cnt) != 0)
+  if(recv_pfxs(src, it,
+               peerid_map, peerid_map_cnt,
+               pathid_map, pathid_map_cnt) != 0)
     {
       fprintf(stderr, "Could not receive prefixes\n");
       goto err;
@@ -938,6 +1113,7 @@ int bgpview_recv(void *src, bgpview_t *view)
     }
 
   free(peerid_map);
+  free(pathid_map);
 
   return 0;
 
@@ -947,6 +1123,7 @@ int bgpview_recv(void *src, bgpview_t *view)
       bgpview_iter_destroy(it);
     }
   free(peerid_map);
+  free(pathid_map);
   return -1;
 }
 

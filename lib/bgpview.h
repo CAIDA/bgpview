@@ -366,6 +366,14 @@ void
 bgpview_set_pfx_peer_user_destructor(bgpview_t *view,
                                      bgpview_destroy_user_t *bwv_pfx_peer_user_destructor);
 
+/** Get the AS Path Store associated with this view
+ *
+ * @param view          pointer to the view to retrieve the AS Path Store for
+ * @return pointer to the AS Path Store used by the view
+ */
+bgpstream_as_path_store_t *
+bgpview_get_as_path_store(bgpview_t *view);
+
 /** @} */
 
 /**
@@ -948,6 +956,17 @@ bgpview_iter_peer_set_user(bgpview_iter_t *iter, void *user);
  */
 bgpstream_as_path_t *
 bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter);
+
+/** Get the AS Path Store Path for the current pfx-peer structure pointed at by
+ * the given iterator
+ *
+ * @param iter          Pointer to an iterator structure
+ * @return borrowed pointer to the AS Path Store Path, NULL if the iterator is
+ *         not initialized, or has reached the end of the peers for the given
+ *         prefix.
+ */
+bgpstream_as_path_store_path_t *
+bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter);
 
 /** Set the AS path for the current pfx-peer structure pointed by the given
  *  iterator

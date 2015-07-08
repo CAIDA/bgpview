@@ -962,6 +962,12 @@ bgpview_set_pfx_peer_user_destructor(bgpview_t *view,
   view->pfx_peer_user_destructor = bwv_pfx_peer_user_destructor;
 }
 
+bgpstream_as_path_store_t *
+bgpview_get_as_path_store(bgpview_t *view)
+{
+  return view->pathstore;
+}
+
 /* ==================== ITERATOR FUNCTIONS ==================== */
 
 bgpview_iter_t *bgpview_iter_create(bgpview_t *view)
@@ -1923,15 +1929,21 @@ bgpview_iter_peer_set_user(bgpview_iter_t *iter, void *user)
 bgpstream_as_path_t *
 bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter)
 {
+  bgpstream_as_path_store_path_t *store_path =
+    bgpview_iter_pfx_peer_get_as_path_store_path(iter);
+
+  return bgpstream_as_path_store_path_get_path(store_path);
+}
+
+bgpstream_as_path_store_path_t *
+bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter)
+{
   bwv_peerid_pfxinfo_t *infos = pfx_get_peerinfos(iter);
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
 
-  bgpstream_as_path_store_path_t *store_path =
-    bgpstream_as_path_store_get_store_path(iter->view->pathstore,
-      BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
-
-  return bgpstream_as_path_store_path_get_path(store_path);
+  return bgpstream_as_path_store_get_store_path(iter->view->pathstore,
+        BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
 }
 
 int
