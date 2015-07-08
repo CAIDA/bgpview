@@ -118,10 +118,10 @@ static void build_as_path(uint32_t peer_asn)
   test_as_path_segs[seg_cnt-1].asn = origin_asn;
 
   /* now populate the path */
-  bgpstream_as_path_populate_from_data(test_as_path,
-                                       (uint8_t*)test_as_path_segs,
-                                       sizeof(bgpstream_as_path_seg_asn_t)
-                                       * seg_cnt);
+  bgpstream_as_path_populate_from_data_zc(test_as_path,
+                                          (uint8_t*)test_as_path_segs,
+                                          sizeof(bgpstream_as_path_seg_asn_t)
+                                          * seg_cnt);
 }
 
 static void usage(const char *name)

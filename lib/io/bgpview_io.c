@@ -960,9 +960,9 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
         }
 
       /* populate the path structure */
-      if(bgpstream_as_path_populate_from_data(path,
-                                              zmq_msg_data(&msg),
-                                              zmq_msg_size(&msg)) != 0)
+      if(bgpstream_as_path_populate_from_data_zc(path,
+                                                 zmq_msg_data(&msg),
+                                                 zmq_msg_size(&msg)) != 0)
         {
           return -1;
         }
