@@ -44,6 +44,8 @@
 #define ORIG_ASN_MAX 50000
 #define CORE_ASN_MAX 4000
 
+#define MAX_PEER_CNT 1024
+
 static int full_feed_size = -1;
 
 /* pfx table */
@@ -51,8 +53,7 @@ static char                     *test_collector_name;
 static uint32_t                  test_time;
 static uint32_t                  test_peer_first_ip;
 static bgpstream_addr_storage_t  test_peer_ip;
-static uint32_t                  test_peer_first_asn;
-static uint32_t                  test_peer_asn;
+static uint32_t                  test_peer_asns[MAX_PEER_CNT];
 static uint8_t                   test_peer_status;
 
 /* pfx row */
@@ -71,6 +72,8 @@ static int filter_ff_peers(bgpview_iter_t *iter)
 
 static void create_test_data()
 {
+  int i;
+
   /* PREFIX TABLE */
 
   /* TIME */
@@ -83,8 +86,11 @@ static void create_test_data()
   test_peer_ip.ipv4.s_addr = test_peer_first_ip = 0x00FAD982; /* add one each time */
   test_peer_ip.version = BGPSTREAM_ADDR_VERSION_IPV4;
 
-  /* FIRST PEER ASN */
-  test_peer_asn = test_peer_first_asn = 1;
+  /* PEER ASNS */
+  for(i=0; i<MAX_PEER_CNT; i++)
+    {
+      test_peer_asns[i] = rand() % ORIG_ASN_MAX;
+    }
 
   /* FIRST PEER STATUS */
   test_peer_status = 0x01;
@@ -267,6 +273,7 @@ int main(int argc, char **argv)
 
 	case 'P':
 	  test_peer_num = atoi(optarg);
+          assert(test_peer_num <= MAX_PEER_CNT);
 	  break;
 
 	case 'r':
@@ -393,20 +400,18 @@ int main(int argc, char **argv)
 
       /* reset peer ip */
       test_peer_ip.ipv4.s_addr = test_peer_first_ip;
-      test_peer_asn = test_peer_first_asn;
 
       fprintf(stderr, "TEST: Simulating %d peer(s)\n", test_peer_num);
       for(peer = 0; peer < test_peer_num; peer++)
         {
           test_peer_ip.ipv4.s_addr = htonl(ntohl(test_peer_ip.ipv4.s_addr) + 1);
-          test_peer_asn = test_peer_asn + 1;
 
           // returns number from 0 to 2
 	  test_peer_status = (use_random_peers) ? rand() % 3 : 2;
           if((peer_id = bgpview_iter_add_peer(iter,
                                                       test_collector_name,
                                                       (bgpstream_ip_addr_t *)&test_peer_ip,
-                                                      test_peer_asn)) == 0)
+                                                      test_peer_asns[peer])) == 0)
             {
               fprintf(stderr, "Could not add peer to table\n");
               goto err;
@@ -416,7 +421,7 @@ int main(int argc, char **argv)
               fprintf(stderr, "Failed to activate peer\n");
               goto err;
             }
-          fprintf(stderr, "TEST: Added peer %d (asn: %"PRIu32") ", peer_id, test_peer_asn);
+          fprintf(stderr, "TEST: Added peer %d (asn: %"PRIu32") ", peer_id, test_peer_asns[peer]);
 
 	  if(test_peer_status != 2)
             {
@@ -435,7 +440,7 @@ int main(int argc, char **argv)
               test_prefix.address.ipv4.s_addr =
                 htonl(ntohl(test_prefix.address.ipv4.s_addr) + 256);
 
-              build_as_path(test_peer_asn);
+              build_as_path(test_peer_asns[peer]);
 
              /* there is a 1/10 chance that we don't observe this prefix */
               if(use_random_pfxs && (rand() % 10) == 0)
