@@ -832,6 +832,7 @@ static int send_paths(void *dest, bgpview_iter_t *it)
   uint32_t idx;
 
   uint8_t *path_data;
+  uint8_t is_core;
   uint16_t path_len;
 
   int paths_tx = 0;
@@ -856,12 +857,15 @@ static int send_paths(void *dest, bgpview_iter_t *it)
 
       idx = bgpstream_as_path_store_path_get_idx(spath);
 
+      is_core = bgpstream_as_path_store_path_is_core(spath);
+
       path = bgpstream_as_path_store_path_get_path(spath);
       assert(path != NULL);
       path_len = bgpstream_as_path_get_data(path, &path_data);
 
       /* do we need to send the buffer now? */
-      if((len-written) < (sizeof(idx)+sizeof(path_len)+path_len))
+      if((len-written) <
+         (sizeof(idx)+sizeof(is_core)+sizeof(path_len)+path_len))
         {
           if(zmq_send(dest, buf, written, ZMQ_SNDMORE) != written)
             {
@@ -873,6 +877,9 @@ static int send_paths(void *dest, bgpview_iter_t *it)
 
       /* add the path index */
       SERIALIZE_VAL(idx);
+
+      /* is this a core path? */
+      SERIALIZE_VAL(is_core);
 
       /* add the path len */
       SERIALIZE_VAL(path_len);
@@ -924,6 +931,7 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
   uint32_t pathidx;
   uint16_t pathlen;
+  uint8_t is_core;
 
   zmq_msg_t msg;
   uint8_t *buf;
@@ -963,12 +971,16 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
   /* while the path message is not empty */
   while(len > 0)
     {
+      /* by here we have a valid path to receive */
+      paths_rx++;
+
       /* path idx */
       DESERIALIZE_VAL(pathidx);
       ASSERT_MORE;
 
-      /* by here we have a valid path to receive */
-      paths_rx++;
+      /* is core */
+      DESERIALIZE_VAL(is_core);
+      ASSERT_MORE;
 
       /* path len */
       DESERIALIZE_VAL(pathlen);
@@ -996,14 +1008,9 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
           /* WARN: ids are garbage */
         }
 
-      /* populate the path structure */
-      if(bgpstream_as_path_populate_from_data_zc(path, buf, pathlen) != 0)
-        {
-          return -1;
-        }
-
       /* now add this path to the store */
-      if(bgpstream_as_path_store_get_path_id(store, path, &idmap[pathidx]) != 0)
+      if(bgpstream_as_path_store_insert_path(store, buf, pathlen,
+                                             is_core, &idmap[pathidx]) != 0)
         {
           goto err;
         }

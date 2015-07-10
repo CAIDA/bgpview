@@ -1566,17 +1566,39 @@ bgpview_iter_add_pfx_peer(bgpview_iter_t *iter,
                                   bgpstream_as_path_t *as_path)
 {
   bgpstream_as_path_store_path_id_t path_id;
+  bgpstream_peer_sig_t *ps;
+
+  /* the peer must already exist */
+  if(bgpview_iter_seek_peer(iter, peer_id,
+                                    BGPVIEW_FIELD_ALL_VALID) == 0)
+    {
+      return -1;
+    }
+  /* get the peer ASN */
+  ps = bgpview_iter_peer_get_sig(iter);
 
   if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
                                          as_path,
+                                         ps->peer_asnumber,
                                          &path_id) != 0)
     {
       fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
       return -1;
     }
 
+  /* now seek to the prefix */
+  if(bgpview_iter_seek_pfx(iter, pfx,
+                                   BGPVIEW_FIELD_ALL_VALID) == 0)
+    {
+      /* we have to first create (or un-invalid) the prefix */
+      if(add_pfx(iter, pfx) != 0)
+        {
+          return -1;
+        }
+    }
+
   /* now insert the prefix-peer info */
-  return bgpview_iter_add_pfx_peer_by_id(iter, pfx, peer_id, path_id);
+  return bgpview_iter_pfx_add_peer_by_id(iter, peer_id, path_id);
 }
 
 int
@@ -1667,17 +1689,41 @@ bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
                                   bgpstream_peer_id_t peer_id,
                                   bgpstream_as_path_t *as_path)
 {
+  bwv_peerid_pfxinfo_t *infos;
+  bgpstream_pfx_t *pfx;
   bgpstream_as_path_store_path_id_t path_id;
+  bgpstream_peer_sig_t *ps;
+
+  infos = pfx_get_peerinfos(iter);
+  assert(infos != NULL);
+
+  pfx = bgpview_iter_pfx_get_pfx(iter);
+  assert(pfx != NULL);
+
+  bgpview_iter_seek_peer(iter, peer_id,
+                                 BGPVIEW_FIELD_ALL_VALID);
+  /* get the peer ASN */
+  ps = bgpview_iter_peer_get_sig(iter);
 
   if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
                                          as_path,
+                                         ps->peer_asnumber,
                                          &path_id) != 0)
     {
       fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
       return -1;
     }
 
-  return bgpview_iter_pfx_add_peer_by_id(iter, peer_id, path_id);
+  if(peerid_pfxinfo_insert(iter, pfx, infos, peer_id, path_id) != 0)
+    {
+      return -1;
+    }
+
+  /* now seek the iterator to this pfx/peer */
+  iter->pfx_peer_it = peer_id;
+  iter->pfx_peer_it_valid = 1;
+  iter->pfx_peer_state_mask = BGPVIEW_FIELD_ALL_VALID;
+  return 0;
 }
 
 int
@@ -1685,6 +1731,7 @@ bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
                                 bgpstream_peer_id_t peer_id,
                                 bgpstream_as_path_store_path_id_t path_id)
 {
+  /* this code is mostly a duplicate of the above func, for efficiency */
   bwv_peerid_pfxinfo_t *infos;
   bgpstream_pfx_t *pfx;
 
@@ -1941,8 +1988,10 @@ bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter)
   bwv_peerid_pfxinfo_t *infos = pfx_get_peerinfos(iter);
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
+  bgpstream_peer_sig_t *ps = bgpview_iter_peer_get_sig(iter);
 
   return bgpstream_as_path_store_get_store_path(iter->view->pathstore,
+                                                ps->peer_asnumber,
         BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
 }
 
@@ -1957,8 +2006,12 @@ bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
   bgpstream_as_path_store_path_id_t *id =
     &(BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
 
+  bgpstream_peer_sig_t *ps = bgpview_iter_peer_get_sig(iter);
+
   if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
-                                         as_path, id) != 0)
+                                         as_path,
+                                         ps->peer_asnumber,
+                                         id) != 0)
     {
       fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
       return -1;
