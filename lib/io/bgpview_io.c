@@ -859,7 +859,7 @@ static int send_paths(void *dest, bgpview_iter_t *it)
 
       is_core = bgpstream_as_path_store_path_is_core(spath);
 
-      path = bgpstream_as_path_store_path_get_path(spath);
+      path = bgpstream_as_path_store_path_get_int_path(spath);
       assert(path != NULL);
       path_len = bgpstream_as_path_get_data(path, &path_data);
 

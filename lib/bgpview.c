@@ -1978,8 +1978,10 @@ bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter)
 {
   bgpstream_as_path_store_path_t *store_path =
     bgpview_iter_pfx_peer_get_as_path_store_path(iter);
+  bgpstream_peer_sig_t *ps = bgpview_iter_peer_get_sig(iter);
 
-  return bgpstream_as_path_store_path_get_path(store_path);
+  return bgpstream_as_path_store_path_get_path(store_path,
+                                               ps->peer_asnumber);
 }
 
 bgpstream_as_path_store_path_t *
@@ -1988,10 +1990,8 @@ bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter)
   bwv_peerid_pfxinfo_t *infos = pfx_get_peerinfos(iter);
   assert(infos);
   assert(bgpview_iter_pfx_has_more_peer(iter));
-  bgpstream_peer_sig_t *ps = bgpview_iter_peer_get_sig(iter);
 
   return bgpstream_as_path_store_get_store_path(iter->view->pathstore,
-                                                ps->peer_asnumber,
         BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
 }
 
