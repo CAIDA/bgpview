@@ -244,6 +244,7 @@ static void pfxs_dump(bgpview_t *view,
   bgpstream_pfx_t *pfx;
   char pfx_str[INET6_ADDRSTRLEN+3] = "";
   char path_str[4096] = "";
+  bgpstream_as_path_t *path = NULL;
 
   fprintf(stdout, "Prefixes (v4 %d, v6 %d):\n",
           bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),
@@ -264,8 +265,9 @@ static void pfxs_dump(bgpview_t *view,
           bgpview_iter_pfx_has_more_peer(it);
           bgpview_iter_pfx_next_peer(it))
         {
-          bgpstream_as_path_snprintf(path_str, 4096,
-                                 bgpview_iter_pfx_peer_get_as_path(it));
+          path = bgpview_iter_pfx_peer_get_as_path(it);
+          bgpstream_as_path_snprintf(path_str, 4096, path);
+          bgpstream_as_path_destroy(path);
           fprintf(stdout, "    %"PRIu16":\t%s\n",
                   bgpview_iter_peer_get_peer_id(it),
                   path_str);
