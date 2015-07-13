@@ -107,8 +107,8 @@ static void create_test_data()
 
 static void build_as_path(uint32_t peer_asn)
 {
-  /* pick how many segments will be in this path (1-3) */
-  int seg_cnt = (rand() % 3) + 1;
+  /* pick how many segments will be in this path (2-5) */
+  int seg_cnt = (rand() % 5) + 2;
   int i;
   uint32_t origin_asn = rand() % ORIG_ASN_MAX;
 
