@@ -979,6 +979,22 @@ bgpview_iter_pfx_peer_get_origin_seg(bgpview_iter_t *iter);
 bgpstream_as_path_store_path_t *
 bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter);
 
+/** Reset the AS Path Segment iterator for the current pfx-peer
+ *
+ * @param iter          Pointer to an iterator structure
+ */
+void
+bgpview_iter_pfx_peer_as_path_seg_iter_reset(bgpview_iter_t *iter);
+
+/** Get the next AS Path Segment for the current pfx-peer
+ *
+ * @param iter          Pointer to an iterator structure
+ * @return borrowed pointer to an AS Path Segment structure or NULL if there are
+ *         no more segments in the path
+ */
+bgpstream_as_path_seg_t *
+bgpview_iter_pfx_peer_as_path_seg_next(bgpview_iter_t *iter);
+
 /** Set the AS path for the current pfx-peer structure pointed by the given
  *  iterator
  *

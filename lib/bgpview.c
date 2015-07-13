@@ -288,6 +288,8 @@ struct bgpview_iter {
   int pfx_peer_it_valid;
   /** State mask used for pfx-peer iteration */
   uint8_t pfx_peer_state_mask;
+  /** AS Path Segment iterator */
+  bgpstream_as_path_store_path_iter_t pfx_peer_path_it;
 
   /** Current peerinfo */
   khiter_t peer_it;
@@ -2003,6 +2005,24 @@ bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter)
 
   return bgpstream_as_path_store_get_store_path(iter->view->pathstore,
         BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id);
+}
+
+void
+bgpview_iter_pfx_peer_as_path_seg_iter_reset(bgpview_iter_t *iter)
+{
+  bgpstream_as_path_store_path_t *spath =
+    bgpview_iter_pfx_peer_get_as_path_store_path(iter);
+  bgpstream_peer_sig_t *ps = bgpview_iter_peer_get_sig(iter);
+
+  bgpstream_as_path_store_path_iter_reset(spath,
+                                          &iter->pfx_peer_path_it,
+                                          ps->peer_asnumber);
+}
+
+bgpstream_as_path_seg_t *
+bgpview_iter_pfx_peer_as_path_seg_next(bgpview_iter_t *iter)
+{
+  return bgpstream_as_path_store_path_get_next_seg(&iter->pfx_peer_path_it);
 }
 
 int
