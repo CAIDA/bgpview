@@ -957,6 +957,17 @@ bgpview_iter_peer_set_user(bgpview_iter_t *iter, void *user);
 bgpstream_as_path_t *
 bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter);
 
+/** Get the origin segment for the current pfx-peer structure pointed by the
+ *  given iterator
+ *
+ * @param iter          Pointer to an iterator structure
+ * @return borrowed pointer to the origin AS segment, NULL if the iterator is
+ *         not initialized, or has reached the end of the peers for the given
+ *         prefix.
+ */
+bgpstream_as_path_seg_t *
+bgpview_iter_pfx_peer_get_origin_seg(bgpview_iter_t *iter);
+
 /** Get the AS Path Store Path for the current pfx-peer structure pointed at by
  * the given iterator
  *

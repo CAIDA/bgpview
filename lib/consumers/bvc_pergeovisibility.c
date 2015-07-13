@@ -641,7 +641,6 @@ static void geotag_v4table(bvc_t *consumer, bgpview_iter_t *it)
   uint32_t num_ips;
   int num_records;
 
-  bgpstream_as_path_t *as_path;
   bgpstream_as_path_seg_t *origin_seg;
   uint32_t origin_asn;
 
@@ -683,10 +682,8 @@ static void geotag_v4table(bvc_t *consumer, bgpview_iter_t *it)
           bgpstream_id_set_insert(ff_asns, sg->peer_asnumber);
 
           /** @todo correctly handle origin sets */
-          if((as_path =
-              bgpview_iter_pfx_peer_get_as_path(it)) == NULL ||
-             (origin_seg =
-              bgpstream_as_path_get_origin_seg(as_path)) == NULL ||
+          if((origin_seg =
+              bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL ||
              origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
             {
               origin_asn = 0;

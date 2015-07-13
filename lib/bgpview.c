@@ -1984,6 +1984,16 @@ bgpview_iter_pfx_peer_get_as_path(bgpview_iter_t *iter)
                                                ps->peer_asnumber);
 }
 
+bgpstream_as_path_seg_t *
+bgpview_iter_pfx_peer_get_origin_seg(bgpview_iter_t *iter)
+{
+  bgpstream_as_path_store_path_t *store_path =
+    bgpview_iter_pfx_peer_get_as_path_store_path(iter);
+  bgpstream_as_path_t *int_path =
+    bgpstream_as_path_store_path_get_int_path(store_path);
+  return bgpstream_as_path_get_origin_seg(int_path);
+}
+
 bgpstream_as_path_store_path_t *
 bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter)
 {
