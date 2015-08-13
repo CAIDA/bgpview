@@ -26,7 +26,6 @@
 #include <timeseries.h>
 
 #include "bgpstream_utils_id_set.h"
-#include "bgpwatcher_common.h"
 
 #include "bgpwatcher_view.h"
 
@@ -39,6 +38,12 @@
  * @author Alistair King
  *
  */
+
+/** Maximum length of the metric prefix string */
+#define BGPWATCHER_METRIC_PREFIX_LEN 1024
+
+/** Default value of the metric prefix string */
+#define BGPWATCHER_METRIC_PREFIX_DEFAULT "bgp"
 
 /**
  * @name Public Opaque Data Structures

@@ -16,30 +16,36 @@
 # Report any bugs, questions or comments to bgpstream-info@caida.org
 #
 
-SUBDIRS = consumers io
+SUBDIRS =
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
                 -I$(top_srcdir)/lib \
                 -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib/consumers \
-                -I$(top_srcdir)/bgpview/lib/io
+                -I$(top_srcdir)/bgpview/lib
 
-lib_LTLIBRARIES = libbgpwatcher.la
+noinst_LTLIBRARIES = libbgpwatcher_io.la
 
-include_HEADERS = 			\
-	bgpwatcher_view.h
+include_HEADERS =
 
-libbgpwatcher_la_SOURCES = 		\
-	bgpwatcher_view.h		\
-	bgpwatcher_view.c
+libbgpwatcher_io_la_SOURCES = 		\
+	bgpwatcher_common.h		\
+	bgpwatcher_common_int.h		\
+	bgpwatcher_common.c		\
+	bgpwatcher_client.h		\
+	bgpwatcher_client_int.h		\
+	bgpwatcher_client.c		\
+	bgpwatcher_client_broker.h	\
+	bgpwatcher_client_broker.c	\
+	bgpwatcher_server.h		\
+	bgpwatcher_server_int.h		\
+	bgpwatcher_server.c		\
+	bgpwatcher_store.h		\
+	bgpwatcher_store.c		\
+	bgpwatcher_view_io.h		\
+	bgpwatcher_view_io.c
 
-libbgpwatcher_la_LIBADD = $(top_builddir)/lib/libbgpstream.la \
-			  $(top_builddir)/common/libcccommon.la \
-			  $(top_builddir)/bgpview/lib/io/libbgpwatcher_io.la \
-			  $(top_builddir)/bgpview/lib/consumers/libbgpwatcher_consumers.la
-
-libbgpwatcher_la_LDFLAGS = -version-info @BGPSTREAM_MAJOR_VERSION@:@BGPSTREAM_MID_VERSION@:@BGPSTREAM_MINOR_VERSION@
+libbgpwatcher_io_la_LIBADD =
 
 ACLOCAL_AMFLAGS = -I m4
 

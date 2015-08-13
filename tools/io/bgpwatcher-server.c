@@ -80,7 +80,7 @@ static void usage(const char *name)
 	  BGPWATCHER_HEARTBEAT_INTERVAL_DEFAULT,
 	  BGPWATCHER_HEARTBEAT_LIVENESS_DEFAULT,
 	  BGPWATCHER_SERVER_WINDOW_LEN,
-          BGPWATCHER_METRIC_PREFIX_DEFAULT);
+          BGPWATCHER_SERVER_METRIC_PREFIX_DEFAULT);
 }
 
 int main(int argc, char **argv)
@@ -95,9 +95,9 @@ int main(int argc, char **argv)
 
   uint64_t heartbeat_interval = BGPWATCHER_HEARTBEAT_INTERVAL_DEFAULT;
   int heartbeat_liveness      = BGPWATCHER_HEARTBEAT_LIVENESS_DEFAULT;
-  char metric_prefix[BGPWATCHER_METRIC_PREFIX_LEN];
+  char metric_prefix[BGPWATCHER_SERVER_METRIC_PREFIX_LEN];
 
-  strcpy(metric_prefix, BGPWATCHER_METRIC_PREFIX_DEFAULT);
+  strcpy(metric_prefix, BGPWATCHER_SERVER_METRIC_PREFIX_DEFAULT);
 
   int window_len = BGPWATCHER_SERVER_WINDOW_LEN;
 

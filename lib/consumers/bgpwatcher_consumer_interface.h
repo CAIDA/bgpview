@@ -24,7 +24,6 @@
 #include <inttypes.h>
 
 #include "bgpwatcher_view.h"
-#include "bgpwatcher_common.h"
 #include "bgpwatcher_consumer_manager.h" /* for bwc_t */
 
 /** @file

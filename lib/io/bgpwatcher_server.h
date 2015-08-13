@@ -44,6 +44,12 @@
 /** The default number of views in the window */
 #define BGPWATCHER_SERVER_WINDOW_LEN 6
 
+/** Maximum length of the metric prefix string */
+#define BGPWATCHER_SERVER_METRIC_PREFIX_LEN 1024
+
+/** Default value of the metric prefix string */
+#define BGPWATCHER_SERVER_METRIC_PREFIX_DEFAULT "bgp"
+
 /** @} */
 
 /**

@@ -66,7 +66,10 @@ CONSUMER_SRCS += \
 #CONSUMER_LIBS += $(top_builddir)/lib/consumers/lib<name>/lib<name>.la
 #endif
 
-libbgpwatcher_consumers_la_SOURCES = $(CONSUMER_SRCS)
+libbgpwatcher_consumers_la_SOURCES = bgpwatcher_consumer_manager.h \
+				     bgpwatcher_consumer_manager.c \
+				     bgpwatcher_consumer_interface.h
+				     $(CONSUMER_SRCS)
 
 libbgpwatcher_consumers_la_LIBADD = $(CONSUMER_LIBS)
 

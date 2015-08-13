@@ -94,7 +94,7 @@ KHASH_INIT(strclient, char*, bgpwatcher_server_client_t*, 1,
 struct bgpwatcher_server {
 
   /** Metric prefix to output metrics */
-  char metric_prefix[BGPWATCHER_METRIC_PREFIX_LEN];
+  char metric_prefix[BGPWATCHER_SERVER_METRIC_PREFIX_LEN];
   
   /** Error status */
   bgpwatcher_err_t err;

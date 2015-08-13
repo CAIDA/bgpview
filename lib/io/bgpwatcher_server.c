@@ -36,7 +36,6 @@ enum {
   POLL_ITEM_CNT    = 1,
 };
 
-
 #define SERVER_METRIC_FORMAT "%s.meta.bgpwatcher.server"
 
 #define DUMP_METRIC(metric_prefix, value, time, fmt, ...)               \
@@ -835,7 +834,7 @@ bgpwatcher_server_t *bgpwatcher_server_init()
       goto err;
     }
 
-  strcpy(server->metric_prefix, BGPWATCHER_METRIC_PREFIX_DEFAULT);
+  strcpy(server->metric_prefix, BGPWATCHER_SERVER_METRIC_PREFIX_DEFAULT);
   
   return server;
 
@@ -850,7 +849,7 @@ bgpwatcher_server_t *bgpwatcher_server_init()
 
 void bgpwatcher_server_set_metric_prefix(bgpwatcher_server_t *server, char *metric_prefix)
 {
-  if(metric_prefix != NULL && strlen(metric_prefix) < BGPWATCHER_METRIC_PREFIX_LEN-1)
+  if(metric_prefix != NULL && strlen(metric_prefix) < BGPWATCHER_SERVER_METRIC_PREFIX_LEN-1)
     {
       strcpy(server->metric_prefix, metric_prefix);
     }
