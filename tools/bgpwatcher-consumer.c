@@ -272,9 +272,9 @@ int main(int argc, char **argv)
 	case '?':
 	case 'v':
 	  fprintf(stderr, "bgpwatcher version %d.%d.%d\n",
-		  BGPWATCHER_MAJOR_VERSION,
-		  BGPWATCHER_MID_VERSION,
-		  BGPWATCHER_MINOR_VERSION);
+		  BGPSTREAM_MAJOR_VERSION,
+		  BGPSTREAM_MID_VERSION,
+		  BGPSTREAM_MINOR_VERSION);
 	  usage(argv[0]);
 	  return 0;
 	  break;

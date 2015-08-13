@@ -22,7 +22,7 @@
 
 #include <stdint.h>
 
-#include <bgpstream_utils_addr.h>
+#include "bgpstream_utils_addr.h"
 
 /** @file
  *

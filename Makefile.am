@@ -16,10 +16,11 @@
 # Report any bugs, questions or comments to bgpstream-info@caida.org
 #
 
-SUBDIRS = common lib tools
+SUBDIRS = lib tools
 AM_CPPFLAGS = -I$(top_srcdir) \
 	      -I$(top_srcdir)/common \
 	      -I$(top_srcdir)/lib
+	      -I$(top_srcdir)/bgpview/lib
 
 EXTRA_DIST =
 

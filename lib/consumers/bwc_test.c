@@ -24,7 +24,7 @@
 #include "utils.h"
 
 #include "bgpwatcher_consumer_interface.h"
-#include <bgpstream_utils_pfx_set.h>
+#include "bgpstream_utils_pfx_set.h"
 
 #include "bwc_test.h"
 
