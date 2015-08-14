@@ -48,7 +48,7 @@
 
 #define MAXOPTS 1024
 
-struct bw_consumer_manager {
+struct bgpview_consumer_manager {
 
   /** Array of consumers
    * @note index of consumer is given by (bvc_id_t - 1)
@@ -177,7 +177,7 @@ static void consumer_destroy(bvc_t **consumer_p)
 }
 
 static int
-init_bvc_chain_state(bw_consumer_manager_t *mgr)
+init_bvc_chain_state(bgpview_consumer_manager_t *mgr)
 {
   int i;
   strcpy(mgr->chain_state.metric_prefix, BGPVIEW_METRIC_PREFIX_DEFAULT);
@@ -193,7 +193,7 @@ init_bvc_chain_state(bw_consumer_manager_t *mgr)
 }
 
 static void
-destroy_bvc_chain_state(bw_consumer_manager_t *mgr)
+destroy_bvc_chain_state(bgpview_consumer_manager_t *mgr)
 {
   int i;
   for(i=0; i< BGPSTREAM_MAX_IP_VERSION_IDX; i++)
@@ -207,15 +207,34 @@ destroy_bvc_chain_state(bw_consumer_manager_t *mgr)
 }
 
 
+
+/* ========== INTERESTS/VIEWS ========== */
+
+void bgpview_consumer_interest_dump(int interests)
+{
+  if(interests & BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
+    {
+      fprintf(stdout, "first-full ");
+    }
+  if(interests & BGPVIEW_CONSUMER_INTEREST_FULL)
+    {
+      fprintf(stdout, "full ");
+    }
+  if(interests & BGPVIEW_CONSUMER_INTEREST_PARTIAL)
+    {
+      fprintf(stdout, "partial");
+    }
+}
+
 /* ==================== PUBLIC MANAGER FUNCTIONS ==================== */
 
-bw_consumer_manager_t *bw_consumer_manager_create(timeseries_t *timeseries)
+bgpview_consumer_manager_t *bgpview_consumer_manager_create(timeseries_t *timeseries)
 {
-  bw_consumer_manager_t *mgr;
+  bgpview_consumer_manager_t *mgr;
   int id;
 
   /* allocate some memory for our state */
-  if((mgr = malloc_zero(sizeof(bw_consumer_manager_t))) == NULL)
+  if((mgr = malloc_zero(sizeof(bgpview_consumer_manager_t))) == NULL)
     {
       goto err;
     }
@@ -235,12 +254,12 @@ bw_consumer_manager_t *bw_consumer_manager_create(timeseries_t *timeseries)
 
   return mgr;
  err:
-  bw_consumer_manager_destroy(&mgr);
+  bgpview_consumer_manager_destroy(&mgr);
   return NULL;
 }
 
 void
-bw_consumer_manager_set_metric_prefix(bw_consumer_manager_t *mgr, char *metric_prefix)
+bgpview_consumer_manager_set_metric_prefix(bgpview_consumer_manager_t *mgr, char *metric_prefix)
 {
   if(metric_prefix == NULL || strlen(metric_prefix) >= BGPVIEW_METRIC_PREFIX_LEN)
     {
@@ -249,10 +268,10 @@ bw_consumer_manager_set_metric_prefix(bw_consumer_manager_t *mgr, char *metric_p
   strcpy(mgr->chain_state.metric_prefix, metric_prefix);
 }
 
-void bw_consumer_manager_destroy(bw_consumer_manager_t **mgr_p)
+void bgpview_consumer_manager_destroy(bgpview_consumer_manager_t **mgr_p)
 {
   assert(mgr_p != NULL);
-  bw_consumer_manager_t *mgr = *mgr_p;
+  bgpview_consumer_manager_t *mgr = *mgr_p;
   *mgr_p = NULL;
   int id;
   
@@ -268,7 +287,7 @@ void bw_consumer_manager_destroy(bw_consumer_manager_t **mgr_p)
   return;
 }
 
-int bw_consumer_manager_enable_consumer(bvc_t *consumer, const char *options)
+int bgpview_consumer_manager_enable_consumer(bvc_t *consumer, const char *options)
 {
   char *local_args = NULL;
   char *process_argv[MAXOPTS];
@@ -301,7 +320,7 @@ int bw_consumer_manager_enable_consumer(bvc_t *consumer, const char *options)
   return rc;
 }
 
-bvc_t *bw_consumer_manager_enable_consumer_from_str(bw_consumer_manager_t *mgr,
+bvc_t *bgpview_consumer_manager_enable_consumer_from_str(bgpview_consumer_manager_t *mgr,
 						    const char *cmd)
 {
   char *strcpy = NULL;
@@ -324,13 +343,13 @@ bvc_t *bw_consumer_manager_enable_consumer_from_str(bw_consumer_manager_t *mgr,
       args++;
     }
 
-  if((consumer = bw_consumer_manager_get_consumer_by_name(mgr, cmd)) == NULL)
+  if((consumer = bgpview_consumer_manager_get_consumer_by_name(mgr, cmd)) == NULL)
     {
       fprintf(stderr, "ERROR: Invalid consumer name (%s)\n", cmd);
       goto err;
     }
 
-  if(bw_consumer_manager_enable_consumer(consumer, args) != 0)
+  if(bgpview_consumer_manager_enable_consumer(consumer, args) != 0)
     {
       fprintf(stderr, "ERROR: Failed to initialize consumer (%s)\n", cmd);
       goto err;
@@ -348,7 +367,7 @@ bvc_t *bw_consumer_manager_enable_consumer_from_str(bw_consumer_manager_t *mgr,
   return NULL;
 }
 
-bvc_t *bw_consumer_manager_get_consumer_by_id(bw_consumer_manager_t *mgr,
+bvc_t *bgpview_consumer_manager_get_consumer_by_id(bgpview_consumer_manager_t *mgr,
 					      bvc_id_t id)
 {
   assert(mgr != NULL);
@@ -359,7 +378,7 @@ bvc_t *bw_consumer_manager_get_consumer_by_id(bw_consumer_manager_t *mgr,
   return mgr->consumers[id - 1];
 }
 
-bvc_t *bw_consumer_manager_get_consumer_by_name(bw_consumer_manager_t *mgr,
+bvc_t *bgpview_consumer_manager_get_consumer_by_name(bgpview_consumer_manager_t *mgr,
 						const char *name)
 {
   bvc_t *consumer;
@@ -367,7 +386,7 @@ bvc_t *bw_consumer_manager_get_consumer_by_name(bw_consumer_manager_t *mgr,
 
   for(id = BVC_ID_FIRST; id <= BVC_ID_LAST; id++)
     {
-      if((consumer = bw_consumer_manager_get_consumer_by_id(mgr, id)) != NULL &&
+      if((consumer = bgpview_consumer_manager_get_consumer_by_id(mgr, id)) != NULL &&
 	 strncasecmp(consumer->name, name, strlen(consumer->name)) == 0)
 	{
 	  return consumer;
@@ -377,12 +396,12 @@ bvc_t *bw_consumer_manager_get_consumer_by_name(bw_consumer_manager_t *mgr,
   return NULL;
 }
 
-bvc_t **bw_consumer_manager_get_all_consumers(bw_consumer_manager_t *mgr)
+bvc_t **bgpview_consumer_manager_get_all_consumers(bgpview_consumer_manager_t *mgr)
 {
   return mgr->consumers;
 }
 
-int bw_consumer_manager_process_view(bw_consumer_manager_t *mgr,
+int bgpview_consumer_manager_process_view(bgpview_consumer_manager_t *mgr,
 				     uint8_t interests,
 				     bgpview_t *view)
 {
@@ -392,7 +411,7 @@ int bw_consumer_manager_process_view(bw_consumer_manager_t *mgr,
 
   for(id = BVC_ID_FIRST; id <= BVC_ID_LAST; id++)
   {
-    if((consumer = bw_consumer_manager_get_consumer_by_id(mgr, id)) == NULL ||
+    if((consumer = bgpview_consumer_manager_get_consumer_by_id(mgr, id)) == NULL ||
        bvc_is_enabled(consumer) == 0)
       {
 	continue;

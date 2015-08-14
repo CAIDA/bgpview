@@ -73,7 +73,7 @@
     0, NULL
 
 /** Structure which represents a metadata consumer */
-struct bwc
+struct bvc
 {
   /**
    * @name Consumer information fields
@@ -111,7 +111,7 @@ struct bwc
    * @warning the strings contained in argv will be free'd once this function
    * returns. Ensure you make appropriate copies as needed.
    */
-  int (*init)(struct bwc *consumer, int argc, char **argv);
+  int (*init)(struct bvc *consumer, int argc, char **argv);
 
   /** Shutdown and free consumer-specific state for this consumer
    *
@@ -120,7 +120,7 @@ struct bwc
    * @note consumers should *only* free consumer-specific state. All other state
    * will be free'd for them by the consumer manager.
    */
-  void (*destroy)(struct bwc *consumer);
+  void (*destroy)(struct bvc *consumer);
 
   /** Process a new BGPView table
    *
@@ -130,7 +130,7 @@ struct bwc
    *
    * This is the core of the consumer API
    */
-  int (*process_view)(struct bwc *consumer, uint8_t interests,
+  int (*process_view)(struct bvc *consumer, uint8_t interests,
 		      bgpview_t *view);
 
   /** }@ */

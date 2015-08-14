@@ -35,9 +35,9 @@ libbgpview_la_SOURCES = 		\
 	bgpview.c
 
 libbgpview_la_LIBADD = $(top_builddir)/lib/libbgpstream.la \
-			  $(top_builddir)/common/libcccommon.la \
-			  $(top_builddir)/bgpview/lib/io/libbgpview_io.la \
-			  $(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la
+		       $(top_builddir)/common/libcccommon.la \
+		       $(top_builddir)/bgpview/lib/io/libbgpview_io.la \
+		       $(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la
 
 libbgpview_la_LDFLAGS = -version-info @BGPSTREAM_MAJOR_VERSION@:@BGPSTREAM_MID_VERSION@:@BGPSTREAM_MINOR_VERSION@
 

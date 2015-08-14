@@ -25,6 +25,7 @@
 #include <sys/socket.h>
 
 #include "bgpview_io_common.h"
+#include "bgpview_consumer_manager.h" /* for interests */
 #include "bgpstream_utils_pfx.h"
 
 /** @file

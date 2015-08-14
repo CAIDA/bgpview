@@ -35,7 +35,7 @@
 #include "config.h"
 #include "utils.h"
 
-static bw_consumer_manager_t *manager = NULL;
+static bgpview_consumer_manager_t *manager = NULL;
 static timeseries_t *timeseries = NULL;
 
 static void timeseries_usage()
@@ -69,7 +69,7 @@ static void consumer_usage()
   int i;
 
   /* get the available consumers from the manager */
-  avail_consumers = bw_consumer_manager_get_all_consumers(manager);
+  avail_consumers = bgpview_consumer_manager_get_all_consumers(manager);
 
   fprintf(stderr,
 	  "                               available consumers:\n");
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
     }
   
   /* better just grab a pointer to the manager */
-  if((manager = bw_consumer_manager_create(timeseries)) == NULL)
+  if((manager = bgpview_consumer_manager_create(timeseries)) == NULL)
     {
       fprintf(stderr, "ERROR: Could not initialize consumer manager\n");
       return -1;
@@ -291,7 +291,7 @@ int main(int argc, char **argv)
 
   if(metric_prefix != NULL)
     {
-      bw_consumer_manager_set_metric_prefix(manager, metric_prefix);
+      bgpview_consumer_manager_set_metric_prefix(manager, metric_prefix);
     }
 
   if(consumer_cmds_cnt == 0)
@@ -353,7 +353,7 @@ int main(int argc, char **argv)
   for(i=0; i<consumer_cmds_cnt; i++)
     {
       assert(consumer_cmds[i] != NULL);
-      if(bw_consumer_manager_enable_consumer_from_str(manager,
+      if(bgpview_consumer_manager_enable_consumer_from_str(manager,
 						      consumer_cmds[i]) == NULL)
         {
           usage(argv[0]);
@@ -427,7 +427,7 @@ int main(int argc, char **argv)
                                      BGPVIEW_IO_CLIENT_RECV_MODE_BLOCK,
                                      view)) > 0)
     {
-      if(bw_consumer_manager_process_view(manager, rx_interests, view) != 0)
+      if(bgpview_consumer_manager_process_view(manager, rx_interests, view) != 0)
 	{
 	  fprintf(stderr, "ERROR: Failed to process view at %d\n",
 		  bgpview_get_time(view));
@@ -452,7 +452,7 @@ int main(int argc, char **argv)
   /* cleanup */
   bgpview_io_client_free(client);
   bgpview_destroy(view);
-  bw_consumer_manager_destroy(&manager);
+  bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
   if(metric_prefix !=NULL)
     {
@@ -473,7 +473,7 @@ int main(int argc, char **argv)
       free(metric_prefix);
     }
   bgpview_destroy(view);
-  bw_consumer_manager_destroy(&manager);
+  bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
   return -1;
 }

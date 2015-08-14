@@ -154,22 +154,6 @@ uint8_t bgpview_consumer_interest_recv(void *src)
   return 0;
 }
 
-void bgpview_consumer_interest_dump(int interests)
-{
-  if(interests & BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
-    {
-      fprintf(stdout, "first-full ");
-    }
-  if(interests & BGPVIEW_CONSUMER_INTEREST_FULL)
-    {
-      fprintf(stdout, "full ");
-    }
-  if(interests & BGPVIEW_CONSUMER_INTEREST_PARTIAL)
-    {
-      fprintf(stdout, "partial");
-    }
-}
-
 /* ========== PUBLIC FUNCTIONS BELOW HERE ========== */
 /*      See bgpview_io_common.h for declarations     */
 

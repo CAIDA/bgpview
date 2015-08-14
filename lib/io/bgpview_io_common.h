@@ -90,32 +90,6 @@ typedef struct bgpview_io_err {
  *
  * @{ */
 
-/** Consumer interests
- *
- * A consumer has interests: it interested in being sent notifications about
- * something. E.g. a new prefix table being available.
- */
-typedef enum {
-  BGPVIEW_CONSUMER_INTEREST_FIRSTFULL    = 0b001,
-  BGPVIEW_CONSUMER_INTEREST_FULL         = 0b010,
-  BGPVIEW_CONSUMER_INTEREST_PARTIAL      = 0b100,
-} bgpview_consumer_interest_t;
-
-/* Consumer subscription strings.
- *
- * 0MQ subscriptions are simply a prefix match on the first message part. We can
- * leverage this to get hierarchical subscriptions (i.e. the most general
- * subscription should be the shortest, and all others should contain the
- * subscription of their parent. Clear as mud?
- */
-#define BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL "P"
-
-#define BGPVIEW_CONSUMER_INTEREST_SUB_FULL    \
-  BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL"F"
-
-#define BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL \
-  BGPVIEW_CONSUMER_INTEREST_SUB_FULL"1"
-
 /** Producer Intents
  *
  * A producer has intents: it intends to send messages about something. E.g. a
@@ -185,11 +159,5 @@ int bgpview_io_err_is_err(bgpview_io_err_t *err);
  * @param err       pointer to bgpview error status instance
  */
 void bgpview_io_err_perr(bgpview_io_err_t *err);
-
-/** Dump the given interests to stdout in a human-readable format
- *
- * @param interests     set of interests
- */
-void bgpview_consumer_interest_dump(int interests);
 
 #endif

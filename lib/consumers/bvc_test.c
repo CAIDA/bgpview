@@ -133,7 +133,7 @@ void bvc_test_destroy(bvc_t *consumer)
       return;
     }
 
-  fprintf(stdout, "BWC-TEST: %d views processed\n",
+  fprintf(stdout, "BVC-TEST: %d views processed\n",
 	  STATE->view_cnt);
 
   /* destroy things here */
@@ -147,7 +147,7 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
 {
   bvc_test_state_t *state = STATE;
 
-  fprintf(stdout, "BWC-TEST: Interests: ");
+  fprintf(stdout, "BVC-TEST: Interests: ");
   bgpview_consumer_interest_dump(interests);
   fprintf(stdout, "\n");
 
@@ -159,17 +159,17 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
     }
   else
     {
-      fprintf(stdout, "BWC-TEST: Time:      %"PRIu32"\n",
+      fprintf(stdout, "BVC-TEST: Time:      %"PRIu32"\n",
 	      bgpview_get_time(view));
-      fprintf(stdout, "BWC-TEST: IPv4-Pfxs: %"PRIu32"\n",
+      fprintf(stdout, "BVC-TEST: IPv4-Pfxs: %"PRIu32"\n",
 	      bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
-      fprintf(stdout, "BWC-TEST: IPv6-Pfxs: %"PRIu32"\n",
+      fprintf(stdout, "BVC-TEST: IPv6-Pfxs: %"PRIu32"\n",
 	      bgpview_v6pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
       fprintf(stdout, "--------------------\n");
     }
 
   timeseries_set_single(BVC_GET_TIMESERIES(consumer),
-			"bwc-test.v4pfxs_cnt",
+			"bvc-test.v4pfxs_cnt",
 			bgpview_v4pfx_cnt(view,
 						  BGPVIEW_FIELD_ACTIVE),
 			bgpview_get_time(view));

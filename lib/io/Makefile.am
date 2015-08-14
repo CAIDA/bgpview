@@ -22,7 +22,8 @@ AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
                 -I$(top_srcdir)/lib \
                 -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib
+                -I$(top_srcdir)/bgpview/lib \
+                -I$(top_srcdir)/bgpview/lib/consumers
 
 noinst_LTLIBRARIES = libbgpview_io.la
 

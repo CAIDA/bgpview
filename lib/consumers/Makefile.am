@@ -22,7 +22,8 @@ AM_CPPFLAGS = 	-I$(top_srcdir)			\
 		-I$(top_srcdir)/common 		\
 		-I$(top_srcdir)/lib		\
 		-I$(top_srcdir)/lib/utils	\
-		-I$(top_srcdir)/bgpview/lib
+		-I$(top_srcdir)/bgpview/lib	\
+		-I$(top_srcdir)/bgpview/lib/consumers
 
 noinst_LTLIBRARIES = libbgpview_consumers.la
 
@@ -66,10 +67,10 @@ CONSUMER_SRCS += \
 #CONSUMER_LIBS += $(top_builddir)/lib/consumers/lib<name>/lib<name>.la
 #endif
 
-libbgpview_consumers_la_SOURCES = bgpview_consumer_manager.h \
-				     bgpview_consumer_manager.c \
-				     bgpview_consumer_interface.h
-				     $(CONSUMER_SRCS)
+libbgpview_consumers_la_SOURCES = bgpview_consumer_manager.h   \
+				  bgpview_consumer_manager.c   \
+				  bgpview_consumer_interface.h \
+				  $(CONSUMER_SRCS)
 
 libbgpview_consumers_la_LIBADD = $(CONSUMER_LIBS)
 
