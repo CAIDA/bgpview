@@ -1,5 +1,5 @@
 /*
- * This file is part of bgpwatcher
+ * This file is part of bgpstream
  *
  * Copyright (C) 2015 The Regents of the University of California.
  * Authors: Alistair King, Chiara Orsini
