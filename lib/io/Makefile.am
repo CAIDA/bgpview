@@ -24,28 +24,28 @@ AM_CPPFLAGS = 	-I$(top_srcdir) \
                 -I$(top_srcdir)/lib/utils \
                 -I$(top_srcdir)/bgpview/lib
 
-noinst_LTLIBRARIES = libbgpwatcher_io.la
+noinst_LTLIBRARIES = libbgpview_io.la
 
 include_HEADERS =
 
-libbgpwatcher_io_la_SOURCES = 		\
-	bgpwatcher_common.h		\
-	bgpwatcher_common_int.h		\
-	bgpwatcher_common.c		\
-	bgpwatcher_client.h		\
-	bgpwatcher_client_int.h		\
-	bgpwatcher_client.c		\
-	bgpwatcher_client_broker.h	\
-	bgpwatcher_client_broker.c	\
-	bgpwatcher_server.h		\
-	bgpwatcher_server_int.h		\
-	bgpwatcher_server.c		\
-	bgpwatcher_store.h		\
-	bgpwatcher_store.c		\
-	bgpwatcher_view_io.h		\
-	bgpwatcher_view_io.c
+libbgpview_io_la_SOURCES = 		\
+	bgpview_io_common.h		\
+	bgpview_io_common_int.h		\
+	bgpview_io_common.c		\
+	bgpview_io_client.h		\
+	bgpview_io_client_int.h		\
+	bgpview_io_client.c		\
+	bgpview_io_client_broker.h	\
+	bgpview_io_client_broker.c	\
+	bgpview_io_server.h		\
+	bgpview_io_server_int.h		\
+	bgpview_io_server.c		\
+	bgpview_io_store.h		\
+	bgpview_io_store.c		\
+	bgpview_io.h		\
+	bgpview_io.c
 
-libbgpwatcher_io_la_LIBADD =
+libbgpview_io_la_LIBADD =
 
 ACLOCAL_AMFLAGS = -I m4
 

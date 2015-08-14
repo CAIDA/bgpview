@@ -25,21 +25,21 @@ AM_CPPFLAGS = 	-I$(top_srcdir) \
                 -I$(top_srcdir)/bgpview/lib/consumers \
                 -I$(top_srcdir)/bgpview/lib/io
 
-lib_LTLIBRARIES = libbgpwatcher.la
+lib_LTLIBRARIES = libbgpview.la
 
 include_HEADERS = 			\
-	bgpwatcher_view.h
+	bgpview.h
 
-libbgpwatcher_la_SOURCES = 		\
-	bgpwatcher_view.h		\
-	bgpwatcher_view.c
+libbgpview_la_SOURCES = 		\
+	bgpview.h		\
+	bgpview.c
 
-libbgpwatcher_la_LIBADD = $(top_builddir)/lib/libbgpstream.la \
+libbgpview_la_LIBADD = $(top_builddir)/lib/libbgpstream.la \
 			  $(top_builddir)/common/libcccommon.la \
-			  $(top_builddir)/bgpview/lib/io/libbgpwatcher_io.la \
-			  $(top_builddir)/bgpview/lib/consumers/libbgpwatcher_consumers.la
+			  $(top_builddir)/bgpview/lib/io/libbgpview_io.la \
+			  $(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la
 
-libbgpwatcher_la_LDFLAGS = -version-info @BGPSTREAM_MAJOR_VERSION@:@BGPSTREAM_MID_VERSION@:@BGPSTREAM_MINOR_VERSION@
+libbgpview_la_LDFLAGS = -version-info @BGPSTREAM_MAJOR_VERSION@:@BGPSTREAM_MID_VERSION@:@BGPSTREAM_MINOR_VERSION@
 
 ACLOCAL_AMFLAGS = -I m4
 

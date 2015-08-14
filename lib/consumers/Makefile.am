@@ -24,7 +24,7 @@ AM_CPPFLAGS = 	-I$(top_srcdir)			\
 		-I$(top_srcdir)/lib/utils	\
 		-I$(top_srcdir)/bgpview/lib
 
-noinst_LTLIBRARIES = libbgpwatcher_consumers.la
+noinst_LTLIBRARIES = libbgpview_consumers.la
 
 include_HEADERS =
 
@@ -33,45 +33,45 @@ CONSUMER_LIBS=
 
 # Test Consumer
 CONSUMER_SRCS += \
-	bwc_test.c \
-	bwc_test.h
+	bvc_test.c \
+	bvc_test.h
 
 # Performance Monitor Consumer
 CONSUMER_SRCS += \
-	bwc_perfmonitor.c \
-	bwc_perfmonitor.h
+	bvc_perfmonitor.c \
+	bvc_perfmonitor.h
 
 # Visibility Consumer
 CONSUMER_SRCS += \
-	bwc_visibility.c \
-	bwc_visibility.h
+	bvc_visibility.c \
+	bvc_visibility.h
 
 # Per-AS Visibility Consumer (depends on Visibility)
 CONSUMER_SRCS += \
-	bwc_perasvisibility.c \
-	bwc_perasvisibility.h
+	bvc_perasvisibility.c \
+	bvc_perasvisibility.h
 
 # Per-Geo Visibility Consumer (depends on Visibility)
 CONSUMER_SRCS += \
-	bwc_pergeovisibility.c \
-	bwc_pergeovisibility.h
+	bvc_pergeovisibility.c \
+	bvc_pergeovisibility.h
 
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>
 #AM_CPPFLAGS += -I$(top_srcdir)/lib/consumers/lib<name>
 #CONSUMER_SRCS += \
-#	bwc_<name>.c \
-#	bwc_<name>.h
+#	bvc_<name>.c \
+#	bvc_<name>.h
 #CONSUMER_LIBS += $(top_builddir)/lib/consumers/lib<name>/lib<name>.la
 #endif
 
-libbgpwatcher_consumers_la_SOURCES = bgpwatcher_consumer_manager.h \
-				     bgpwatcher_consumer_manager.c \
-				     bgpwatcher_consumer_interface.h
+libbgpview_consumers_la_SOURCES = bgpview_consumer_manager.h \
+				     bgpview_consumer_manager.c \
+				     bgpview_consumer_interface.h
 				     $(CONSUMER_SRCS)
 
-libbgpwatcher_consumers_la_LIBADD = $(CONSUMER_LIBS)
+libbgpview_consumers_la_LIBADD = $(CONSUMER_LIBS)
 
 ACLOCAL_AMFLAGS = -I m4
 
