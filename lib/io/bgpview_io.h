@@ -53,4 +53,22 @@ int bgpview_io_send(void *dest, bgpview_t *view,
  */
 int bgpview_io_recv(void *src, bgpview_t *view);
 
+/** Write the given view to the given file
+ *
+ * @param outfile       wandio file handle to write to
+ * @param view          pointer to the view to send
+ * @param cb            callback function to use to filter peers (may be NULL)
+ * @return 0 if the view was written successfully, -1 otherwise
+ */
+int bgpview_io_write(iow_t *outfile, bgpview_t *view,
+                     bgpview_filter_peer_cb_t *cb);
+
+/** Receive a view from the given file
+ *
+ * @param infile        wandio file handle to read from
+ * @param view          pointer to the clear/new view to receive into
+ * @return pointer to the view instance received, NULL if an error occurred.
+ */
+int bgpview_io_read(io_t *infile, bgpview_t *view);
+
 #endif /* __BGPVIEW_IO_H */

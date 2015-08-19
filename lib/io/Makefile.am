@@ -43,6 +43,7 @@ libbgpview_io_la_SOURCES = 		\
 	bgpview_io_client.c		\
 	bgpview_io_client_broker.h	\
 	bgpview_io_client_broker.c	\
+	bgpview_io_file.c		\
 	bgpview_io_server.h		\
 	bgpview_io_server_int.h		\
 	bgpview_io_server.c		\
