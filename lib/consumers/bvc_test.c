@@ -28,7 +28,7 @@
 #include "utils.h"
 
 #include "bgpview.h"
-#include "bgpview_io.h" //< for bgpview_io_dump
+#include "bgpview_io.h" /*< for bgpview_io_dump */
 
 #include "bgpview_consumer_interface.h"
 #include "bgpstream_utils_pfx_set.h"

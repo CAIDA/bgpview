@@ -140,12 +140,15 @@ typedef enum bvc_id
      *  origin ASns, i.e. MOAS */
     BVC_ID_MOAS               = 7,
 
+    /** Writes views to files */
+    BVC_ID_ARCHIVER           = 8,
+
     /** @todo add more consumers here */
 
     /** Lowest numbered bgpview consumer ID */
     BVC_ID_FIRST      = BVC_ID_TEST,
     /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_MOAS,
+    BVC_ID_LAST       = BVC_ID_ARCHIVER,
 
   } bvc_id_t;
 

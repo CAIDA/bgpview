@@ -54,6 +54,9 @@
 /* Moas consumer */
 #include "bvc_moas.h"
 
+/* Archiver consumer */
+#include "bvc_archiver.h"
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -75,11 +78,7 @@ struct bgpview_consumer_manager {
 /** Convenience typedef for the backend alloc function type */
 typedef bvc_t* (*consumer_alloc_func_t)();
 
-/** Array of backend allocation functions.
- *
- * @note the indexes of these functions must exactly match the ID-1 in
- * timeseries_backend_id_t.
- */
+/** Array of backend allocation functions. */
 static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to test backend alloc function */
@@ -102,6 +101,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to moas alloc function */
   bvc_moas_alloc,
+
+  /** Pointer to archiver alloc function */
+  bvc_archiver_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */

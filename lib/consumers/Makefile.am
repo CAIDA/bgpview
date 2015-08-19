@@ -75,6 +75,10 @@ CONSUMER_SRCS += \
 	bvc_moas.c \
 	bvc_moas.h
 
+# Archiver consumer
+CONSUMER_SRCS += \
+	bvc_archiver.c \
+	bvc_archiver.h
 
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
