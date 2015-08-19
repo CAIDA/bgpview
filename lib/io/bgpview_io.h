@@ -24,17 +24,26 @@
 #ifndef __BGPVIEW_IO_H
 #define __BGPVIEW_IO_H
 
+#include <wandio.h>
+
 #include "bgpview.h"
+
+/** Dump the given BGP View to stdout
+ *
+ * @param view        pointer to a view structure
+ */
+void
+bgpview_io_dump(bgpview_t *view);
 
 /** Send the given view to the given socket
  *
- * @param dest          socket to send the prefix to
+ * @param dest          socket to send the view to
  * @param view          pointer to the view to send
  * @param cb            callback function to use to filter peers (may be NULL)
  * @return 0 if the view was sent successfully, -1 otherwise
  */
-int bgpview_send(void *dest, bgpview_t *view,
-                         bgpview_filter_peer_cb_t *cb);
+int bgpview_io_send(void *dest, bgpview_t *view,
+                    bgpview_filter_peer_cb_t *cb);
 
 /** Receive a view from the given socket
  *
@@ -42,6 +51,6 @@ int bgpview_send(void *dest, bgpview_t *view,
  * @param view          pointer to the clear/new view to receive into
  * @return pointer to the view instance received, NULL if an error occurred.
  */
-int bgpview_recv(void *src, bgpview_t *view);
+int bgpview_io_recv(void *src, bgpview_t *view);
 
 #endif /* __BGPVIEW_IO_H */

@@ -385,7 +385,7 @@ static int handle_recv_view(bgpview_io_server_t *server,
     }
 
   /* receive the view */
-  if(bgpview_recv(server->client_socket, view) != 0)
+  if(bgpview_io_recv(server->client_socket, view) != 0)
     {
       goto err;
     }
@@ -686,7 +686,7 @@ static int run_server(bgpview_io_server_t *server)
     }
 
   /* now grab the message type */
-  msg_type = bgpview_recv_type(server->client_socket, 0);
+  msg_type = bgpview_io_recv_type(server->client_socket, 0);
 
   /* check if this client is already registered */
   if((client = client_get(server, &client_id)) == NULL)
@@ -1027,7 +1027,7 @@ int bgpview_io_server_publish_view(bgpview_io_server_t *server,
   fprintf(stderr, "DEBUG: Publishing view:\n");
   if(bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE) < 100)
     {
-      bgpview_dump(view);
+      bgpview_io_dump(view);
     }
 #endif
 
@@ -1053,7 +1053,7 @@ int bgpview_io_server_publish_view(bgpview_io_server_t *server,
     }
 
   /* NULL -> no peer filtering */
-  if(bgpview_send(server->client_pub_socket, view, NULL) != 0)
+  if(bgpview_io_send(server->client_pub_socket, view, NULL) != 0)
     {
       return -1;
     }

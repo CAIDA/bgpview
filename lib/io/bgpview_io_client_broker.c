@@ -513,7 +513,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
           return -1;
         }
 
-      msg_type = bgpview_recv_type(broker->server_socket, ZMQ_DONTWAIT);
+      msg_type = bgpview_io_recv_type(broker->server_socket, ZMQ_DONTWAIT);
 
       if(zctx_interrupted != 0)
         {
@@ -689,7 +689,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
     }
 
   /* peek at the first frame (msg type) */
-  if((msg_type = bgpview_recv_type(broker->master_zocket, 0))
+  if((msg_type = bgpview_io_recv_type(broker->master_zocket, 0))
      != BGPVIEW_MSG_TYPE_UNKNOWN)
     {
       if(msg_type != BGPVIEW_MSG_TYPE_VIEW)

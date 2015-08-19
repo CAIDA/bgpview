@@ -62,7 +62,7 @@ static char *recv_str(void *src)
 
 /* ========== MESSAGE TYPES ========== */
 
-bgpview_msg_type_t bgpview_recv_type(void *src, int flags)
+bgpview_msg_type_t bgpview_io_recv_type(void *src, int flags)
 {
   bgpview_msg_type_t type = BGPVIEW_MSG_TYPE_UNKNOWN;
 

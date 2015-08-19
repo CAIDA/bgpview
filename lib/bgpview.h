@@ -228,12 +228,6 @@ bgpview_gc(bgpview_t *view);
 void
 bgpview_disable_user_data(bgpview_t *view);
 
-/** Dump the given BGP View to stdout
- *
- * @param view        pointer to a view structure
- */
-void
-bgpview_dump(bgpview_t *view);
 
 /**
  * @name Simple Accessor Functions

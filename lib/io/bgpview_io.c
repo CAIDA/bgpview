@@ -1059,8 +1059,42 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
 /* ========== PROTECTED FUNCTIONS ========== */
 
-int bgpview_send(void *dest, bgpview_t *view,
-                         bgpview_filter_peer_cb_t *cb)
+void bgpview_io_dump(bgpview_t *view)
+{
+  bgpview_iter_t *it = NULL;
+
+  if(view == NULL)
+    {
+      fprintf(stdout,
+	      "------------------------------\n"
+              "NULL\n"
+	      "------------------------------\n\n");
+    }
+  else
+    {
+      it = bgpview_iter_create(view);
+      assert(it);
+
+      fprintf(stdout,
+	      "------------------------------\n"
+	      "Time:\t%"PRIu32"\n"
+	      "Created:\t%ld\n",
+	      bgpview_get_time(view),
+	      (long)bgpview_get_time_created(view));
+
+      peers_dump(view, it);
+
+      pfxs_dump(view, it);
+
+      fprintf(stdout,
+	      "------------------------------\n\n");
+
+      bgpview_iter_destroy(it);
+    }
+}
+
+int bgpview_io_send(void *dest, bgpview_t *view,
+                    bgpview_filter_peer_cb_t *cb)
 {
   uint32_t u32;
 
@@ -1110,7 +1144,7 @@ int bgpview_send(void *dest, bgpview_t *view,
   return -1;
 }
 
-int bgpview_recv(void *src, bgpview_t *view)
+int bgpview_io_recv(void *src, bgpview_t *view)
 {
   uint32_t u32;
 
@@ -1189,40 +1223,4 @@ int bgpview_recv(void *src, bgpview_t *view)
   free(peerid_map);
   free(pathid_map);
   return -1;
-}
-
-/* ========== PUBLIC FUNCTIONS (exposed through bgpview.h) ========== */
-
-void bgpview_dump(bgpview_t *view)
-{
-  bgpview_iter_t *it = NULL;
-
-  if(view == NULL)
-    {
-      fprintf(stdout,
-	      "------------------------------\n"
-              "NULL\n"
-	      "------------------------------\n\n");
-    }
-  else
-    {
-      it = bgpview_iter_create(view);
-      assert(it);
-
-      fprintf(stdout,
-	      "------------------------------\n"
-	      "Time:\t%"PRIu32"\n"
-	      "Created:\t%ld\n",
-	      bgpview_get_time(view),
-	      (long)bgpview_get_time_created(view));
-
-      peers_dump(view, it);
-
-      pfxs_dump(view, it);
-
-      fprintf(stdout,
-	      "------------------------------\n\n");
-
-      bgpview_iter_destroy(it);
-    }
 }

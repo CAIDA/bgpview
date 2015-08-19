@@ -206,7 +206,7 @@ int bgpview_io_client_send_view(bgpview_io_client_t *client,
     }
 
   /* now just transmit the view */
-  if(bgpview_send(client->broker_zocket, view, cb) != 0)
+  if(bgpview_io_send(client->broker_zocket, view, cb) != 0)
     {
       goto err;
     }
@@ -237,7 +237,7 @@ int bgpview_io_client_recv_view(bgpview_io_client_t *client,
 	  return -1;
         }
 
-  if(bgpview_recv(client->broker_zocket, view) != 0)
+  if(bgpview_io_recv(client->broker_zocket, view) != 0)
     {
       bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
 			     "Failed to receive view");

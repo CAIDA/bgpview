@@ -28,7 +28,10 @@ AM_CPPFLAGS = 	-I$(top_srcdir)			\
 		-I$(top_srcdir)/lib		\
 		-I$(top_srcdir)/lib/utils	\
 		-I$(top_srcdir)/bgpview/lib	\
+		-I$(top_srcdir)/bgpview/lib/io	\
 		-I$(top_srcdir)/bgpview/lib/consumers
+
+# BGPView IO is needed for bgpview_io_dump and bgpview_io_write
 
 noinst_LTLIBRARIES = libbgpview_consumers.la
 
