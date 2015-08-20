@@ -798,18 +798,8 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
     }
   else
     {
-      /* this is a message for us, just shut down */
-      if(broker->shutdown_time == 0)
-        {
-          fprintf(stderr,
-                  "INFO: Got $TERM, shutting down client broker on next "
-                  "cycle\n");
-          broker->shutdown_time = clock + CFG->shutdown_linger;
-        }
-      if(is_shutdown_time(broker, clock) != 0)
-        {
-          return -1;
-        }
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
+                             "Invalid msg from master");
     }
 
   if(handle_timeouts(broker, clock) != 0)
@@ -832,6 +822,70 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
   return -1;
 
  err:
+  return -1;
+}
+
+static int handle_signal_msg(zloop_t *loop, zsock_t *reader, void *arg)
+{
+  bgpview_io_client_broker_t *broker = (bgpview_io_client_broker_t*)arg;
+  uint64_t clock = zclock_time();
+
+  zmsg_t *msg = NULL;
+  char *command = NULL;
+
+  if(is_shutdown_time(broker, clock) != 0)
+    {
+      return -1;
+    }
+
+  if((msg = zmsg_recv(broker->signal_pipe)) == NULL)
+    {
+      goto interrupt;
+    }
+  if((command = zmsg_popstr(msg)) == NULL)
+    {
+      goto quit;
+    }
+  if(strcmp(command, "$TERM") == 0)
+    {
+      /* this is a message for us, just shut down */
+      if(broker->shutdown_time == 0)
+        {
+          fprintf(stderr,
+                  "INFO: Got $TERM, shutting down client broker on next "
+                  "cycle\n");
+          broker->shutdown_time = clock + CFG->shutdown_linger;
+        }
+      if(is_shutdown_time(broker, clock) != 0)
+        {
+          goto quit;
+        }
+    }
+  else
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
+                             "Invalid signal from master");
+      goto quit;
+    }
+
+  if(handle_timeouts(broker, clock) != 0)
+    {
+      goto quit;
+    }
+
+  zmsg_destroy(&msg);
+  free(command);
+  return 0;
+
+ interrupt:
+  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INTERRUPT, "Caught interrupt");
+  zmsg_destroy(&msg);
+  free(command);
+  return -1;
+
+ quit:
+  zmsg_destroy(&msg);
+  free(command);
   return -1;
 }
 
@@ -896,10 +950,19 @@ static int init_reactor(bgpview_io_client_broker_t *broker)
       return -1;
     }
 
+  /* add signal pipe to reactor */
+  if(zloop_reader(broker->loop, broker->signal_pipe,
+                  handle_signal_msg, broker) != 0)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Could not add signal pipe to reactor");
+      return -1;
+    }
+
   return 0;
 }
 
-static bgpview_io_client_broker_t *broker_init(zsock_t *master_pipe,
+static bgpview_io_client_broker_t *broker_init(zsock_t *signal_pipe,
                                    bgpview_io_client_broker_config_t *cfg)
 {
   bgpview_io_client_broker_t *broker;
@@ -911,10 +974,12 @@ static bgpview_io_client_broker_t *broker_init(zsock_t *master_pipe,
       return NULL;
     }
 
-  broker->master_pipe = master_pipe;
-  broker->master_zocket = zsock_resolve(master_pipe);
-  assert(broker->master_zocket != NULL);
   broker->cfg = cfg;
+
+  broker->signal_pipe = signal_pipe;
+  broker->master_pipe = CFG->master_pipe;
+  broker->master_zocket = zsock_resolve(broker->master_pipe);
+  assert(broker->master_zocket != NULL);
 
   /* init counters from options */
   reset_heartbeat_liveness(broker);
@@ -972,6 +1037,10 @@ void bgpview_io_client_broker_run(zsock_t *pipe, void *args)
       broker_free(&broker);
       return;
     }
+
+  /* send a term on the master socket in case someone is listening */
+  zsock_set_sndtimeo(broker->master_pipe, 0);
+  zstr_send(broker->master_pipe, "$TERM");
 
   broker_free(&broker);
   return;

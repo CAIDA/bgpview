@@ -59,6 +59,9 @@ struct bgpview_io_client {
   /** handle to communicate with our broker */
   zactor_t *broker;
 
+  /** Socket to communicate data with the broker */
+  zsock_t *broker_sock;
+
   /** raw socket to the broker */
   void *broker_zocket;
 

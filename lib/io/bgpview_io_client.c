@@ -58,7 +58,7 @@ int send_view_hdrs(bgpview_io_client_t *client, bgpview_t *view)
               bgpview_msg_type_size_t, ZMQ_SNDMORE)
      != bgpview_msg_type_size_t)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+      bgpview_io_err_set_err(ERR, errno,
 			     "Could not add request type to message");
       goto err;
     }
@@ -144,6 +144,33 @@ bgpview_io_client_t *bgpview_io_client_init(uint8_t interests, uint8_t intents)
   BCFG.request_timeout = BGPVIEW_IO_CLIENT_REQUEST_TIMEOUT_DEFAULT;
   BCFG.request_retries = BGPVIEW_IO_CLIENT_REQUEST_RETRIES_DEFAULT;
 
+  /* establish a pipe between us and the broker */
+  if((client->broker_sock = zsock_new(ZMQ_PAIR)) == NULL)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Failed to create socket end");
+      goto err;
+    }
+  if((BCFG.master_pipe = zsock_new(ZMQ_PAIR)) == NULL)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Failed to create socket end");
+      goto err;
+    }
+  /* bind and connect pipe ends */
+  if(zsock_bind(client->broker_sock, "inproc://client-broker") != 0)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Failed to bind broker socket");
+      goto err;
+    }
+  if(zsock_connect(BCFG.master_pipe, "inproc://client-broker") != 0)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Failed to connect broker socket");
+      goto err;
+    }
+
   return client;
 
  err:
@@ -182,7 +209,7 @@ int bgpview_io_client_start(bgpview_io_client_t *client)
     }
 
   /* store a pointer to the socket we will use to talk with the broker */
-  client->broker_zocket = zactor_resolve(client->broker);
+  client->broker_zocket = zsock_resolve(client->broker_sock);
   assert(client->broker_zocket != NULL);
 
   return 0;
@@ -281,7 +308,9 @@ void bgpview_io_client_free(bgpview_io_client_t *client)
   free(BCFG.identity);
   BCFG.identity = NULL;
 
-  /* frees our sockets */
+  zsock_destroy(&client->broker_sock);
+  zsock_destroy(&BCFG.master_pipe);
+
   zctx_destroy(&BCFG.ctx);
 
   free(client);

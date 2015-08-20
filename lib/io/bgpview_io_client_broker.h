@@ -166,6 +166,9 @@ typedef struct bgpview_io_client_broker_config {
    */
   char *identity;
 
+  /** Pointer to the pipe used to talk to the master */
+  zsock_t *master_pipe;
+
 } bgpview_io_client_broker_config_t;
 
 
@@ -174,6 +177,9 @@ typedef struct bgpview_io_client_broker {
 
   /** Pointer to the config info that our master prepared for us (READ-ONLY) */
   bgpview_io_client_broker_config_t *cfg;
+
+  /** Pointer to the pipe used to get/send signals to/from the master */
+  zsock_t *signal_pipe;
 
   /** Pointer to the pipe used to talk to the master */
   zsock_t *master_pipe;
