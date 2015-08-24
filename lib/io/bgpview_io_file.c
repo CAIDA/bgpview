@@ -55,25 +55,73 @@
     WRITE_VAL(mgc);                             \
   } while(0)
 
+#define READ_VAL(to)                            \
+  do {                                                          \
+    if(wandio_read(infile, &to, sizeof(to)) != sizeof(to))      \
+      {                                                         \
+        fprintf(stderr, "%s: Could not read %s from file\n",    \
+                __func__, STR(to));                             \
+      }                                                         \
+  } while(0)
+
+/** Checks if the given magic number is present in the file. If it is, the magic
+    is consumed, otherwise the stream is left untouched */
+static int check_magic(io_t *infile, uint32_t magic)
+{
+  uint64_t buf;
+  uint32_t mgc;
+  off_t read;
+  if(wandio_peek(infile, &buf, sizeof(uint64_t)) != sizeof(uint64_t))
+    {
+      fprintf(stderr, "Could not peek at bytes\n");
+      return 0;
+    }
+
+  buf = ntohll(buf);
+
+  /* check the generic magic */
+  mgc = (uint32_t)(buf >> 32);
+  if(mgc != VIEW_MAGIC)
+    {
+      return 0;
+    }
+
+  /* now, check the specific magic */
+  mgc = (buf & 0xffffffff);
+  if(mgc != magic)
+    {
+      return 0;
+    }
+
+  /* now consume the magic! */
+  read = wandio_read(infile, &buf, sizeof(uint64_t));
+  assert(read == sizeof(uint64_t));
+
+  return 1;
+}
+
 static int write_ip(iow_t *outfile, bgpstream_ip_addr_t *ip)
 {
+  uint8_t len;
   switch(ip->version)
     {
     case BGPSTREAM_ADDR_VERSION_IPV4:
+      len = sizeof(uint32_t);
+      WRITE_VAL(len);
       if(wandio_wwrite(outfile,
                        &((bgpstream_ipv4_addr_t *)ip)->ipv4.s_addr,
-                       sizeof(uint32_t))
-         == sizeof(uint32_t))
+                       len) == len)
         {
           return 0;
         }
       break;
 
     case BGPSTREAM_ADDR_VERSION_IPV6:
+      len = sizeof(uint8_t)*16;
+      WRITE_VAL(len);
       if(wandio_wwrite(outfile,
                        &((bgpstream_ipv6_addr_t *)ip)->ipv6.s6_addr,
-                       (sizeof(uint8_t)*16))
-         == sizeof(uint8_t)*16)
+                       len) == len)
         {
           return 0;
         }
@@ -86,14 +134,53 @@ static int write_ip(iow_t *outfile, bgpstream_ip_addr_t *ip)
   return -1;
 }
 
+static int read_ip(io_t *infile, bgpstream_addr_storage_t *ip)
+{
+  assert(ip != NULL);
+
+  uint8_t len;
+  READ_VAL(len);
+
+  /* 4 bytes means ipv4, 16 means ipv6 */
+  if(len == sizeof(uint32_t))
+    {
+      /* v4 */
+      ip->version = BGPSTREAM_ADDR_VERSION_IPV4;
+      if(wandio_read(infile, &ip->ipv4.s_addr, len) != len)
+        {
+          goto err;
+        }
+    }
+  else if(len == sizeof(uint8_t)*16)
+    {
+      /* v6 */
+      ip->version = BGPSTREAM_ADDR_VERSION_IPV6;
+      if(wandio_read(infile, &ip->ipv6.s6_addr, len) != len)
+        {
+          goto err;
+        }
+    }
+  else
+    {
+      /* invalid ip address */
+      fprintf(stderr, "Invalid IP address (len: %d)\n", len);
+      goto err;
+    }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
 static int send_peers(iow_t *outfile, bgpview_iter_t *it,
                       bgpview_filter_peer_cb_t *cb)
 {
+  uint8_t u8;
   uint16_t u16;
   uint32_t u32;
 
   bgpstream_peer_sig_t *ps;
-  size_t len;
 
   int peers_tx = 0;
 
@@ -101,6 +188,9 @@ static int send_peers(iow_t *outfile, bgpview_iter_t *it,
 
   bgpview_t *view = bgpview_iter_get_view(it);
   assert(view != NULL);
+
+  /* an assumption we make... */
+  assert(BGPSTREAM_UTILS_STR_NAME_LEN < UINT8_MAX);
 
   /* foreach peer, send peerid, collector string, peer ip (version, address),
      peer asn */
@@ -131,8 +221,9 @@ static int send_peers(iow_t *outfile, bgpview_iter_t *it,
 
       ps = bgpview_iter_peer_get_sig(it);
       assert(ps);
-      len = strlen(ps->collector_str);
-      if(wandio_wwrite(outfile, &ps->collector_str, len) != len)
+      u8 = strlen(ps->collector_str);
+      WRITE_VAL(u8);
+      if(wandio_wwrite(outfile, &ps->collector_str, u8) != u8)
 	{
 	  goto err;
 	}
@@ -283,6 +374,223 @@ static int send_pfxs(iow_t *outfile, bgpview_iter_t *it,
   return -1;
 }
 
+static int recv_peers(io_t *infile, bgpview_iter_t *iter,
+                      bgpstream_peer_id_t **peerid_mapping)
+{
+  uint16_t pc;
+  int i, j;
+
+  bgpstream_peer_id_t peerid_orig;
+  bgpstream_peer_id_t peerid_new;
+
+  bgpstream_peer_sig_t ps;
+  uint8_t len;
+
+  bgpstream_peer_id_t *idmap = NULL;
+  int idmap_cnt = 0;
+
+  int peers_rx = 0;
+
+  /* foreach peer, recv peerid, collector string, peer ip (version, address),
+     peer asn */
+  for(i=0; i<UINT16_MAX; i++)
+    {
+      /* peerid (or end-of-peers)*/
+      if(check_magic(infile, VIEW_PEER_END_MAGIC) != 0)
+        {
+          /* end of peers */
+          break;
+        }
+
+      READ_VAL(peerid_orig);
+      peerid_orig = ntohs(peerid_orig);
+
+      /* by here we have a valid peer to receive */
+      peers_rx++;
+
+      /* collector name */
+      READ_VAL(len);
+      if(wandio_read(infile, ps.collector_str, len) != len)
+        {
+          fprintf(stderr, "ERROR: Could not read collector name\n");
+	  goto err;
+	}
+      ps.collector_str[len] = '\0';
+
+      /* peer ip */
+      if(read_ip(infile, &ps.peer_ip_addr) != 0)
+	{
+          fprintf(stderr, "ERROR: Could not read peer ip\n");
+	  goto err;
+	}
+
+      /* peer asn */
+      READ_VAL(ps.peer_asnumber);
+      ps.peer_asnumber = ntohl(ps.peer_asnumber);
+
+      if(iter == NULL)
+        {
+          continue;
+        }
+      /* all code below here has a valid view */
+
+      /* ensure we have enough space in the id map */
+      if((peerid_orig+1) > idmap_cnt)
+        {
+          if((idmap =
+              realloc(idmap,
+                      sizeof(bgpstream_peer_id_t) * (peerid_orig+1))) == NULL)
+            {
+              goto err;
+            }
+
+          /* now set all ids to 0 (reserved) */
+          for(j=idmap_cnt; j<= peerid_orig; j++)
+            {
+              idmap[j] = 0;
+            }
+          idmap_cnt = peerid_orig+1;
+        }
+
+      /* now ask the view to add this peer */
+      peerid_new = bgpview_iter_add_peer(iter,
+                                         ps.collector_str,
+                                         (bgpstream_ip_addr_t*)&ps.peer_ip_addr,
+                                         ps.peer_asnumber);
+      assert(peerid_new != 0);
+      idmap[peerid_orig] = peerid_new;
+
+      bgpview_iter_activate_peer(iter);
+    }
+
+  /* receive the number of peers */
+  READ_VAL(pc);
+  pc = ntohs(pc);
+  assert(pc == peers_rx);
+
+  *peerid_mapping = idmap;
+  return idmap_cnt;
+
+ err:
+  return -1;
+}
+
+static int recv_pfxs(io_t *infile, bgpview_iter_t *iter,
+                     bgpstream_peer_id_t *peerid_map,
+                     int peerid_map_cnt)
+{
+  uint32_t pfx_cnt;
+  uint16_t peer_cnt;
+  int i, j;
+
+  bgpstream_pfx_storage_t pfx;
+  bgpstream_peer_id_t peerid;
+
+  uint32_t orig_asn;
+
+  int pfx_peers_added = 0;
+
+  int pfx_rx = 0;
+  int pfx_peer_rx = 0;
+
+  /* foreach pfx, recv pfx.ip, pfx.len, [peers_cnt, peer_info] */
+  for(i=0; i<UINT32_MAX; i++)
+    {
+      if(check_magic(infile, VIEW_PFX_END_MAGIC) != 0)
+        {
+          /* end of pfxs */
+          break;
+        }
+      pfx_rx++;
+
+      /* pfx_ip */
+      if(read_ip(infile, &pfx.address) != 0)
+	{
+          fprintf(stderr, "ERROR: Could not read pfx ip\n");
+	  goto err;
+	}
+
+      /* pfx len */
+      READ_VAL(pfx.mask_len);
+
+      pfx_peers_added = 0;
+      pfx_peer_rx = 0;
+
+      for(j=0; j<UINT16_MAX; j++)
+	{
+          if(check_magic(infile, VIEW_PEER_END_MAGIC) != 0)
+            {
+              /* end of peers */
+              break;
+            }
+
+	  /* peer id */
+	  READ_VAL(peerid);
+	  peerid = ntohs(peerid);
+
+          pfx_peer_rx++;
+
+	  /* orig asn */
+	  READ_VAL(orig_asn);
+	  orig_asn = ntohl(orig_asn);
+
+          if(iter == NULL)
+            {
+              continue;
+            }
+          /* all code below here has a valid iter */
+
+          assert(peerid < peerid_map_cnt);
+
+          if(pfx_peers_added == 0)
+            {
+              /* we have to use add_pfx_peer */
+              if(bgpview_iter_add_pfx_peer(iter, (bgpstream_pfx_t *)&pfx,
+                                           peerid_map[peerid],
+                                           orig_asn) != 0)
+                {
+                  fprintf(stderr, "Could not add prefix\n");
+                  goto err;
+                }
+            }
+          else
+            {
+              /* we can use pfx_add_peer for efficiency */
+              if(bgpview_iter_pfx_add_peer(iter, peerid_map[peerid],
+                                           orig_asn) != 0)
+                {
+                  fprintf(stderr, "Could not add prefix\n");
+                  goto err;
+                }
+            }
+
+          pfx_peers_added++;
+
+          /* now we have to activate it */
+          if(bgpview_iter_pfx_activate_peer(iter) < 0)
+            {
+              fprintf(stderr, "Could not activate prefix\n");
+              goto err;
+            }
+	}
+
+      /* peer cnt */
+      READ_VAL(peer_cnt);
+      peer_cnt = ntohs(peer_cnt);
+      assert(peer_cnt == pfx_peer_rx);
+    }
+
+  /* pfx cnt */
+  READ_VAL(pfx_cnt);
+  pfx_cnt = ntohl(pfx_cnt);
+  assert(pfx_rx == pfx_cnt);
+
+  return 0;
+
+ err:
+  return -1;
+}
+
 
 /* ========== PUBLIC FUNCTIONS ========== */
 
@@ -337,6 +645,69 @@ int bgpview_io_write(iow_t *outfile, bgpview_t *view,
 
 int bgpview_io_read(io_t *infile, bgpview_t *view)
 {
-  /* if the view is NULL, then just read and discard */
+  uint32_t u32;
+
+  bgpstream_peer_id_t *peerid_map = NULL;
+  int peerid_map_cnt = 0;
+
+  bgpview_iter_t *it = NULL;
+  if(view != NULL && (it = bgpview_iter_create(view)) == NULL)
+    {
+      goto err;
+    }
+
+  /* check for eof */
+  if(wandio_peek(infile, &u32, sizeof(u32)) == 0)
+    {
+      return 0;
+    }
+
+  if(check_magic(infile, VIEW_START_MAGIC) == 0)
+    {
+      fprintf(stderr, "ERROR: Missing view-start magic number\n");
+      goto err;
+    }
+
+  /* time */
+  READ_VAL(u32);
+  if(view != NULL)
+    {
+      bgpview_set_time(view, ntohl(u32));
+    }
+
+  if((peerid_map_cnt = recv_peers(infile, it, &peerid_map)) < 0)
+    {
+      fprintf(stderr, "ERROR: Could not read peer table\n");
+      goto err;
+    }
+
+  /* pfxs */
+  if(recv_pfxs(infile, it, peerid_map, peerid_map_cnt) != 0)
+    {
+      fprintf(stderr, "ERROR: Could not read prefixes\n");
+      goto err;
+    }
+
+  if(check_magic(infile, VIEW_END_MAGIC) == 0)
+    {
+      fprintf(stderr, "ERROR: Missing end-of-view magic number\n");
+    }
+
+  if(it != NULL)
+    {
+      bgpview_iter_destroy(it);
+    }
+
+  free(peerid_map);
+
+  /* valid view */
+  return 1;
+
+ err:
+  if(it != NULL)
+    {
+      bgpview_iter_destroy(it);
+    }
+  free(peerid_map);
   return -1;
 }

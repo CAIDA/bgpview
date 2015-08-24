@@ -67,7 +67,8 @@ int bgpview_io_write(iow_t *outfile, bgpview_t *view,
  *
  * @param infile        wandio file handle to read from
  * @param view          pointer to the clear/new view to receive into
- * @return pointer to the view instance received, NULL if an error occurred.
+ * @return 1 if a view was successfully read, 0 if EOF was reached, -1 if an
+ * error occurred
  */
 int bgpview_io_read(io_t *infile, bgpview_t *view);
 
