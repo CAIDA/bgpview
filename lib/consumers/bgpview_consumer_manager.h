@@ -132,12 +132,16 @@ typedef enum bvc_id
     /** Writes information about per-Geo visibility information to Charthouse */
     BVC_ID_PERGEOVISIBILITY   = 5,
 
+    /** Writes information about prefixes that have been visible in a given time
+     *  window */
+    BVC_ID_ANNOUNCEDPFXS      = 6,
+
     /** @todo add more consumers here */
 
     /** Lowest numbered bgpview consumer ID */
     BVC_ID_FIRST      = BVC_ID_TEST,
     /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_PERGEOVISIBILITY,
+    BVC_ID_LAST       = BVC_ID_ANNOUNCEDPFXS,
 
   } bvc_id_t;
 

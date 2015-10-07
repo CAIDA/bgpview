@@ -62,6 +62,11 @@ CONSUMER_SRCS += \
 	bvc_pergeovisibility.c \
 	bvc_pergeovisibility.h
 
+# Announced Prefixes Consumer (depends on Visibility)
+CONSUMER_SRCS += \
+	bvc_announcedpfxs.c \
+	bvc_announcedpfxs.h
+
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>

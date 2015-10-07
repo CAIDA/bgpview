@@ -48,6 +48,9 @@
 /* Per-Geo Visibility consumer */
 #include "bvc_pergeovisibility.h"
 
+/* Announced Prefixes consumer */
+#include "bvc_announcedpfxs.h"
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -90,6 +93,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to per-geo vis alloc function */
   bvc_pergeovisibility_alloc,
+
+  /** Pointer to announcedpfxs alloc function */
+  bvc_announcedpfxs_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
