@@ -29,8 +29,6 @@ AM_CPPFLAGS = -I$(top_srcdir) \
 	      -I$(top_srcdir)/bgpview/lib/io \
 	      -I$(top_srcdir)/bgpview/lib/consumers
 
-TOOL_LIBS = -L$(top_builddir)/lib -L$(top_builddir)/bgpview/lib
-
 dist_bin_SCRIPTS =
 
 bin_PROGRAMS =	bgpview-server \
@@ -40,21 +38,21 @@ bin_PROGRAMS =	bgpview-server \
 # runs the bgpview server
 bgpview_server_SOURCES = \
 	bgpview-server.c
-bgpview_server_LDADD = -lbgpview -lbgpstream
-bgpview_server_LDFLAGS = $(TOOL_LIBS)
+bgpview_server_LDADD = $(top_builddir)/lib/libbgpstream.la \
+		       $(top_builddir)/bgpview/lib/libbgpview.la
 
 
 # connects to the bgpview server and drives consumer plugins
 bgpview_consumer_SOURCES = \
 	bgpview-consumer.c
-bgpview_consumer_LDADD = -lbgpview -lbgpstream
-bgpview_consumer_LDFLAGS = $(TOOL_LIBS)
+bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpstream.la \
+		         $(top_builddir)/bgpview/lib/libbgpview.la
 
 # acts as a dummy producer for the bgpview server
 bgpview_test_producer_SOURCES = \
 	bgpview-test-producer.c
-bgpview_test_producer_LDADD = -lbgpview -lbgpstream
-bgpview_test_producer_LDFLAGS = $(TOOL_LIBS)
+bgpview_test_producer_LDADD = $(top_builddir)/lib/libbgpstream.la \
+			      $(top_builddir)/bgpview/lib/libbgpview.la
 
 ACLOCAL_AMFLAGS = -I m4
 
