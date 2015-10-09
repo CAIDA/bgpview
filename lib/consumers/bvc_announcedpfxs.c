@@ -56,8 +56,6 @@
 #define MAX_PFX4_LEN 24
 /** Default compression level of output file */
 #define DEFAULT_COMPRESS_LEVEL 6
-/** Default permission for output folder */
-#define FOLDER_PERMISSION_MODE (S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
 
 
 #define STATE					\
@@ -108,7 +106,7 @@ typedef struct bvc_announcedpfxs_state {
   uint32_t next_output_time;
 
   /** output folder */
-  char output_folder[BUFFER_LEN];
+  char output_folder[PATH_MAX];
 
   /* map prefix last seen timestamp pointer */
   bwv_v4pfx_timestamp_t *v4pfx_ts;
@@ -124,65 +122,6 @@ typedef struct bvc_announcedpfxs_state {
   
 } bvc_announcedpfxs_state_t;
 
-
-/** Recursively create directories and subdirectories */
-static int rec_mkdir(const char *dir) {
-
-  if(dir == NULL)
-    {
-      return -1;
-    }
-  
-  char file_path[PATH_MAX];
-  int ret = snprintf(file_path, PATH_MAX,"%s",dir);
-  file_path[PATH_MAX-1] = '\0';
-  if(ret >= PATH_MAX || ret < 0)
-    {
-      fprintf(stderr, "ERROR: invalid folder %s\n", file_path);
-    }
-  
-  char* i = &file_path[0];
-  char* p = strchr(i, '/');
-  while(p != NULL)
-    {
-      /* if not root */
-      if(p != &file_path[0])
-        {
-          *p='\0';
-          errno = 0;
-          if(mkdir(file_path, FOLDER_PERMISSION_MODE) == -1)
-            {
-              if (errno != EEXIST)
-                {
-                  fprintf(stderr, "ERROR: could not create folder %s (%s)\n", file_path, dir);
-                  perror("rec_mkdir");                         
-                  return -1;
-                }
-            }
-          *p='/';                
-        }
-      
-      i = p+1;      
-      p = strchr(i, '/');
-    }
-
-  /* printing the last part of the path */
-  if(*i != '\0')
-    {
-      errno = 0;
-      if(mkdir(file_path, FOLDER_PERMISSION_MODE) == -1)
-        {
-          if (errno != EEXIST)
-            {
-              fprintf(stderr, "ERROR: could not create folder %s (%s)\n", file_path, dir);
-              perror("rec_mkdir");                         
-              return -1;
-            }
-        }          
-    }
-
-  return 0;
-}
 
 /** Create timeseries metrics */
 
@@ -265,7 +204,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
           break;
         case 'o':
           strncpy(state->output_folder, optarg, BUFFER_LEN-1);
-          state->output_folder[BUFFER_LEN-1] = '\0';
+          state->output_folder[PATH_MAX-1] = '\0';
           break;
         case '?':
         case ':':
@@ -313,15 +252,7 @@ int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
   fprintf(stderr, "INFO: window size: %"PRIu32"\n", state->window_size);
   fprintf(stderr, "INFO: output interval: %"PRIu32"\n", state->out_interval);
   fprintf(stderr, "INFO: output folder: %s\n", state->output_folder);
-          
-
-  /* create folder with read/write/search permissions for owner and group, 
-   * and with read/search permissions for others */
-  if(rec_mkdir(state->output_folder) != 0)
-    {
-          goto err;
-    }
-  
+            
   /* init */
   if((state->v4pfx_ts = kh_init(bwv_v4pfx_timestamp)) == NULL)
     {
@@ -446,20 +377,11 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
   if(state->next_output_time <= current_view_ts)
     {
       iow_t *f;
-      char complete_folder[BUFFER_LEN];
-      char date_sub[BUFFER_LEN];
       char filename[BUFFER_LEN];
       char buffer_str[BUFFER_LEN];
-      time_t timestamp = current_view_ts;
-      struct tm *p_time = gmtime(&timestamp);
-      
-      strftime(date_sub, sizeof(date_sub), "%Y/%m/%d", p_time);
-      sprintf(complete_folder,"%s/%s", state->output_folder, date_sub);
-      if(rec_mkdir(complete_folder) != 0)
-        {
-              return -1;
-        }
-      sprintf(filename,"%s/%"PRIu32"_w%"PRIu32"_prefixes.txt.gz", complete_folder, current_view_ts, state->window_size);
+
+      sprintf(filename,"%s/%"PRIu32"_w%"PRIu32"_prefixes.txt.gz",
+              state->output_folder, current_view_ts, state->window_size);
 
       /* open file for writing */
       if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
@@ -488,10 +410,20 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
                   kh_del(bwv_v4pfx_timestamp, state->v4pfx_ts, k);
                 }
             }
-        }
-      
+        }      
       wandio_wdestroy(f);
 
+      /* generate the .done file */
+      sprintf(filename,"%s/%"PRIu32"_w%"PRIu32"_prefixes.txt.gz.done",
+              state->output_folder, current_view_ts, state->window_size);
+      if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
+    	{
+          fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
+          return -1;
+    	}
+      wandio_wdestroy(f);
+      
+      
       /* update next output time */
       state->next_output_time = state->next_output_time + state->out_interval;
     }
