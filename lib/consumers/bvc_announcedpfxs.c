@@ -96,7 +96,10 @@ typedef struct bvc_announcedpfxs_state {
   /** window size: i.e. for how long a prefix
    *  is considered "announced"  */
   uint32_t window_size;
-  
+
+  /** first timestamp processed by view consumer */
+  uint32_t first_ts;
+
   /** output interval: how frequently the plugin
    *  output prefixes*/
   uint32_t out_interval;
@@ -119,6 +122,7 @@ typedef struct bvc_announcedpfxs_state {
   int processed_delay_idx;
   int processing_time_idx;
   int ipv4_visible_pfxs_count_idx;
+  int window_size_idx;
   
 } bvc_announcedpfxs_state_t;
 
@@ -158,6 +162,14 @@ static int create_ts_metrics(bvc_t *consumer)
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_TH_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size, "v4pfx_count");             
   if((state->ipv4_visible_pfxs_count_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_TH_FORMAT,
+           CHAIN_STATE->metric_prefix, state->window_size, "window_size");
+  if((state->window_size_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
@@ -240,6 +252,7 @@ int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
   state->out_interval = OUTPUT_INTERVAL;
   strncpy(state->output_folder, "./", BUFFER_LEN);
   state->next_output_time = 0;
+  state->first_ts = 0;
   state->v4pfx_ts = NULL;
 
   /* parse the command line args */
@@ -305,6 +318,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
 
   uint32_t current_view_ts = bgpview_get_time(view);
   uint32_t last_valid_timestamp = current_view_ts - state->window_size;
+  uint32_t current_window_size = 0;
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
   bgpstream_peer_id_t peerid;
@@ -366,22 +380,42 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
 
   bgpview_iter_destroy(it);
 
+    /* update first timestamp */
+  if(state->first_ts == 0)
+    {
+      state->first_ts = current_view_ts;
+    }
+
+  /* compute the current window size*/
+  current_window_size = state->window_size;
+  if(current_view_ts - state->first_ts < state->window_size)
+    {
+      current_window_size = current_view_ts - state->first_ts;
+    }
+
   /* init next output time */
   if(state->next_output_time == 0)
     {
-      state->next_output_time = current_view_ts + state->out_interval;
+      state->next_output_time = current_view_ts + state->out_interval - (current_view_ts % state->out_interval);
+    }
+
+  /* compute ts to use in timeseries and files */
+  uint32_t ts = last_valid_timestamp;
+  if(last_valid_timestamp < state->first_ts)
+    {
+      ts = state->first_ts;
     }
 
   
-  /* verify whether new information needs to be printed */
+  iow_t *f;
+  char filename[BUFFER_LEN];
+  char buffer_str[BUFFER_LEN];
+
+  /* Open file if new information needs to be printed */
   if(state->next_output_time <= current_view_ts)
     {
-      iow_t *f;
-      char filename[BUFFER_LEN];
-      char buffer_str[BUFFER_LEN];
-
-      sprintf(filename,"%s/%"PRIu32"_w%"PRIu32"_prefixes.txt.gz",
-              state->output_folder, current_view_ts, state->window_size);
+      sprintf(filename,"%s/"NAME".%"PRIu32".w%"PRIu32".gz",
+              state->output_folder, ts, current_window_size);
 
       /* open file for writing */
       if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
@@ -389,14 +423,17 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
           fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
           return -1;
     	}
+    }
 
-      /* prefix map iteration */
-      for(k = kh_begin(state->v4pfx_ts); k < kh_end(state->v4pfx_ts); ++k)
+  /* prefix map iteration and update*/
+  for(k = kh_begin(state->v4pfx_ts); k < kh_end(state->v4pfx_ts); ++k)
+    {
+      if(kh_exist(state->v4pfx_ts, k))
         {
-          if(kh_exist(state->v4pfx_ts, k))
+          /* print prefix if within the window */
+          if(kh_value(state->v4pfx_ts,k) >= last_valid_timestamp)
             {
-              /* print prefix if within the window */
-              if(kh_value(state->v4pfx_ts,k) >= last_valid_timestamp)
+              if(state->next_output_time <= current_view_ts)
                 {
                   if(bgpstream_pfx_snprintf(buffer_str, INET6_ADDRSTRLEN+3,
                                             (bgpstream_pfx_t *) &kh_key(state->v4pfx_ts, k)) != NULL)
@@ -404,30 +441,32 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
                       wandio_printf(f,"%s\n", buffer_str);
                     }
                 }
-              /* otherwise remove it from the map */
-              else
-                {
-                  kh_del(bwv_v4pfx_timestamp, state->v4pfx_ts, k);
-                }
             }
-        }      
+          /* otherwise remove it from the map */
+          else
+            {
+              kh_del(bwv_v4pfx_timestamp, state->v4pfx_ts, k);
+            }
+        }
+    }
+
+  /* Close file and generate .done if new information was printed */
+  if(state->next_output_time <= current_view_ts)
+    {
       wandio_wdestroy(f);
 
       /* generate the .done file */
-      sprintf(filename,"%s/%"PRIu32"_w%"PRIu32"_prefixes.txt.gz.done",
-              state->output_folder, current_view_ts, state->window_size);
+      sprintf(filename,"%s/"NAME".%"PRIu32".w%"PRIu32".gz.done",
+              state->output_folder, ts, current_window_size);
       if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
     	{
           fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
           return -1;
     	}
       wandio_wdestroy(f);
-      
-      
       /* update next output time */
       state->next_output_time = state->next_output_time + state->out_interval;
     }
-
 
   /* compute processed delay */
   state->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
@@ -446,7 +485,10 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
   timeseries_kp_set(state->kp, state->ipv4_visible_pfxs_count_idx,
                     kh_size(state->v4pfx_ts));
 
-  if(timeseries_kp_flush(STATE->kp, bgpview_get_time(view)) != 0)
+  timeseries_kp_set(state->kp, state->window_size_idx,
+                    current_window_size);
+
+  if(timeseries_kp_flush(STATE->kp, ts) != 0)
     {
       return -1;
     }
