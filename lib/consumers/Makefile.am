@@ -67,6 +67,12 @@ CONSUMER_SRCS += \
 	bvc_announcedpfxs.c \
 	bvc_announcedpfxs.h
 
+# Moas Consumer (depends on Visibility)
+CONSUMER_SRCS += \
+	bvc_moas.c \
+	bvc_moas.h
+
+
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>

@@ -136,12 +136,16 @@ typedef enum bvc_id
      *  window */
     BVC_ID_ANNOUNCEDPFXS      = 6,
 
+    /** Writes information about prefixes that have are announce by multiple
+     *  origin ASns, i.e. MOAS */
+    BVC_ID_MOAS               = 7,
+
     /** @todo add more consumers here */
 
     /** Lowest numbered bgpview consumer ID */
     BVC_ID_FIRST      = BVC_ID_TEST,
     /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_ANNOUNCEDPFXS,
+    BVC_ID_LAST       = BVC_ID_MOAS,
 
   } bvc_id_t;
 

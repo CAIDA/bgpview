@@ -51,6 +51,9 @@
 /* Announced Prefixes consumer */
 #include "bvc_announcedpfxs.h"
 
+/* Moas consumer */
+#include "bvc_moas.h"
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -96,6 +99,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to announcedpfxs alloc function */
   bvc_announcedpfxs_alloc,
+
+  /** Pointer to moas alloc function */
+  bvc_moas_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
