@@ -405,13 +405,12 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
     {
       ts = state->first_ts;
     }
-
   
-  iow_t *f;
+  iow_t *f = NULL;
   char filename[BUFFER_LEN];
   char buffer_str[BUFFER_LEN];
 
-  /* Open file if new information needs to be printed */
+  /* Check if  new information needs to be printed */
   if(state->next_output_time <= current_view_ts)
     {
       sprintf(filename,"%s/"NAME".%"PRIu32".w%"PRIu32".gz",
@@ -424,7 +423,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
           return -1;
     	}
     }
-
+  
   /* prefix map iteration and update*/
   for(k = kh_begin(state->v4pfx_ts); k < kh_end(state->v4pfx_ts); ++k)
     {
@@ -438,11 +437,15 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
                   if(bgpstream_pfx_snprintf(buffer_str, INET6_ADDRSTRLEN+3,
                                             (bgpstream_pfx_t *) &kh_key(state->v4pfx_ts, k)) != NULL)
                     {
-                      wandio_printf(f,"%s\n", buffer_str);
+                      if( wandio_printf(f,"%s\n", buffer_str) == -1)
+                        {
+                          fprintf(stderr, "ERROR: Could not write %s file\n",filename);
+                          return -1;
+                        }
                     }
                 }
             }
-          /* otherwise remove it from the map */
+          /* remove stale entry from prefix list */
           else
             {
               kh_del(bwv_v4pfx_timestamp, state->v4pfx_ts, k);
@@ -450,9 +453,9 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
         }
     }
 
-  /* Close file and generate .done if new information was printed */
   if(state->next_output_time <= current_view_ts)
     {
+      /* Close file and generate .done if new information was printed */
       wandio_wdestroy(f);
 
       /* generate the .done file */
