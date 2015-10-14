@@ -310,7 +310,7 @@ int bgpview_consumer_manager_enable_consumer(bvc_t *consumer, const char *option
   /* first we need to parse the options */
   if(options != NULL && (len = strlen(options)) > 0)
     {
-      local_args = strndup(options, len);
+      local_args = strdup(options);
       parse_cmd(local_args, &process_argc, process_argv, MAXOPTS,
 		consumer->name);
     }
