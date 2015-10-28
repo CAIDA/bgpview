@@ -100,10 +100,16 @@ CONSUMER_SRCS += \
 	bvc_pfxorigins.c \
 	bvc_pfxorigins.h
 
+# Routed Space Monitor Consumer (no dependencies)
+CONSUMER_SRCS += \
+	bvc_routedspacemonitor.c \
+	bvc_routedspacemonitor.h
+
 # My View Process Consumer (no dependencies)
 CONSUMER_SRCS += \
 	bvc_myviewprocess.c \
 	bvc_myviewprocess.h
+
 
 # -- sample how to add conditional consumer
 #if WITH_<NAME>

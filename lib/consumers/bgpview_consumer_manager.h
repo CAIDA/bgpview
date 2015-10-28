@@ -136,7 +136,7 @@ typedef enum bvc_id
      *  window */
     BVC_ID_ANNOUNCEDPFXS      = 6,
 
-    /** Writes information about prefixes that have are announce by multiple
+    /** Writes information about prefixes that have been announced by multiple
      *  origin ASns, i.e. MOAS */
     BVC_ID_MOAS               = 7,
     
@@ -155,9 +155,12 @@ typedef enum bvc_id
     /** Outputs the current origin ASns observed for each routed prefix */
     BVC_ID_PFXORIGINS         = 12,
 
+    /** Generates information about routed prefixes in a given time window  */
+    BVC_ID_ROUTEDSPACEMONITOR = 13,
+
     /** It can be used as a template, it writes generic information about the 
      *  number of view processed and the number of elements in the current view  */
-    BVC_ID_MYVIEWPROCESS      = 13,
+    BVC_ID_MYVIEWPROCESS      = 14,
 
     /** @todo add more consumers here */
 
@@ -166,6 +169,7 @@ typedef enum bvc_id
 
     /** Highest numbered bgpview consumer ID */
     BVC_ID_LAST       = BVC_ID_MYVIEWPROCESS,
+
 
   } bvc_id_t;
 
