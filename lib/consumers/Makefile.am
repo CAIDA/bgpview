@@ -95,6 +95,11 @@ CONSUMER_SRCS += \
 	bvc_triplets.c \
 	bvc_triplets.h
 
+# My View Process Consumer (no dependencies)
+CONSUMER_SRCS += \
+	bvc_myviewprocess.c \
+	bvc_myviewprocess.h
+
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>

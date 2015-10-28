@@ -139,7 +139,7 @@ typedef enum bvc_id
     /** Writes information about prefixes that have are announce by multiple
      *  origin ASns, i.e. MOAS */
     BVC_ID_MOAS               = 7,
-
+    
     /** Writes views to files */
     BVC_ID_ARCHIVER           = 8,
     
@@ -150,14 +150,19 @@ typedef enum bvc_id
     BVC_ID_EDGES              = 10,
 
     /** Writes information about prefixes that are reachable through  triplets */
-    BVC_ID_TRIPLETS              = 11,
+    BVC_ID_TRIPLETS           = 11,
+
+    /** It can be used as a template, it writes generic information about the 
+     *  number of view processed and the number of elements in the current view  */
+    BVC_ID_MYVIEWPROCESS      = 12,
 
     /** @todo add more consumers here */
 
     /** Lowest numbered bgpview consumer ID */
     BVC_ID_FIRST      = BVC_ID_TEST,
+
     /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_TRIPLETS,
+    BVC_ID_LAST       = BVC_ID_MYVIEWPROCESS,
 
   } bvc_id_t;
 
