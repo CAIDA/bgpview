@@ -57,6 +57,7 @@
 /* Archiver consumer */
 #include "bvc_archiver.h"
 
+<<<<<<< HEAD
 /* Submoas consumer */
 #include "bvc_submoas.h"
 

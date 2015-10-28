@@ -58,7 +58,7 @@ static bvc_t bvc_myviewprocess = {
 /* our 'instance' */
 typedef struct bvc_myviewprocess_state {
 
-  /* count how many view have 
+  /* count how many views have
    * been processed */
   int view_counter;
 
@@ -127,7 +127,6 @@ int bvc_myviewprocess_init(bvc_t *consumer, int argc, char **argv)
 
   /* allocate dynamic memory HERE */
 
-  
   /* set defaults */
 
   state->view_counter = 0;
@@ -143,7 +142,7 @@ int bvc_myviewprocess_init(bvc_t *consumer, int argc, char **argv)
 
   /* react to args HERE */
 
-  
+
   return 0;
 
  err:
@@ -154,7 +153,7 @@ int bvc_myviewprocess_init(bvc_t *consumer, int argc, char **argv)
 void bvc_myviewprocess_destroy(bvc_t *consumer)
 {
   bvc_myviewprocess_state_t *state = STATE;
-  
+
   if(state == NULL)
     {
       return;
@@ -173,7 +172,7 @@ int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
 {
   bvc_myviewprocess_state_t *state = STATE;
   bgpview_iter_t *it;
-  
+
   /* create a new iterator */
   if((it = bgpview_iter_create(view)) == NULL)
     {
@@ -186,8 +185,17 @@ int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
   /* reset the elements counter */
   state->current_view_elements = 0;
 
-  
-  /* iterate through all peer of the current view 
+
+  FILE *fw, *fwall;
+  char fname[35];
+  char fnameall[40];
+
+  sprintf(fname, "/home/dgiordan/output/view_%d.txt", state->view_counter);
+  sprintf(fname, "/home/dgiordan/output/all_view_%d.txt", state->view_counter);
+
+  fw = fopen(fname, "w");
+  fwall = fopen(fnameall, "w");
+  /* iterate through all peer of the current view
    *  - active peers only
    */
   for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
@@ -200,20 +208,19 @@ int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
        * bgpstream_peer_id_t id = bgpview_iter_peer_get_peer_id(it);
        *
        * PEER SIGNATURE (i.e. collector, peer ASn, peer IP):
-       * bgpstream_peer_sig_t *s = bgpview_iter_peer_get_sig(it);       
+       * bgpstream_peer_sig_t *s = bgpview_iter_peer_get_sig(it);
        *
        * NUMBER OF CURRENTLY ANNOUNCED THE PFX
        * int announced_pfxs = bgpview_iter_peer_get_pfx_cnt(it, 0, BGPVIEW_FIELD_ACTIVE);
        * *0 -> ipv4 + ipv6
-       * 
+       *
        */
     }
 
-  
-  /* iterate through all prefixes of the current view 
+  /* iterate through all prefixes of the current view
    *  - both ipv4 and ipv6 prefixes are considered
    *  - active prefixes only (i.e. do not consider prefixes that have
-   *    been withdrawn) 
+   *    been withdrawn)
    */
   for(bgpview_iter_first_pfx(it, 0 /* all ip versions*/, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(it);
@@ -228,8 +235,13 @@ int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
        * NUMBER OF PEERS CURRENTLY ANNOUNCING THE PFX
        * int peers_cnt = bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
        */
-      
-      /* iterate over all the peers that currently observe the current pfx */
+	  int i;
+	  int position = 0;
+	  int all_position = 0;
+	  int prefix_asn[100] = { 0 };
+	  int all_prefix_asn[100] = { 0 };
+
+	  /* iterate over all the peers that currently observe the current pfx */
       for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
           bgpview_iter_pfx_has_more_peer(it);
           bgpview_iter_pfx_next_peer(it))
@@ -239,14 +251,74 @@ int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
            * ORIGIN ASN:
            * int origin_asn = bgpview_iter_pfx_peer_get_orig_asn(it);
            */
-          
+
+		  bgpstream_as_path_seg_t * segment=bgpview_iter_pfx_peer_get_origin_seg(it);
+
+		  if(segment->type == BGPSTREAM_AS_PATH_SEG_ASN){
+			  bgpstream_as_path_seg_asn_t * my_segment = (bgpstream_as_path_seg_asn_t*)segment;
+			  int asn_present=0;
+			  for(i=0; i< position && i<100 && asn_present == 0;i++)
+				  if(prefix_asn[i]==my_segment->asn)
+					  asn_present=1;
+			  if( asn_present == 0 && position <100){
+				  prefix_asn[position]=my_segment->asn;
+				  position +=1;
+			  }
+
+			  all_prefix_asn[all_position]=my_segment->asn;
+			  all_position+=1;
+		  }
+		  if(segment->type == BGPSTREAM_AS_PATH_SEG_SET ||
+				  segment->type == BGPSTREAM_AS_PATH_SEG_CONFED_SET ||
+				  segment->type == BGPSTREAM_AS_PATH_SEG_CONFED_SEQ){
+			  /*
+			   * Do not consider them since they carry the ordered set of ASes a route in
+			   * the UPDATE message has traversed.
+			   *
+			   */
+
+		  }
           state->current_view_elements++;
         }
-      
+
+	  bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
+
+	  bgpstream_ip_addr_t addr = pfx->address;
+
+	  if(addr.version == BGPSTREAM_ADDR_VERSION_IPV4){
+
+		  char str[INET_ADDRSTRLEN];
+
+		  uint8_t netmask = pfx->mask_len;
+
+          bgpstream_addr_ntop(str, INET_ADDRSTRLEN, &(pfx->address));
+
+          for(i=0; i<position; i++)
+        	  fprintf(fw,"%s/%u %u\n",str,netmask,prefix_asn[i]);
+          for(i=0; i<all_position; i++)
+        	  fprintf(fwall,"%s/%u %u\n",str,netmask,all_prefix_asn[i]);
+
+	  }
+	  if(addr.version == BGPSTREAM_ADDR_VERSION_IPV6){
+
+		  char str[INET6_ADDRSTRLEN];
+
+		  uint8_t netmask = pfx->mask_len;
+
+          bgpstream_addr_ntop(str, INET6_ADDRSTRLEN, &(pfx->address));
+
+          for(i=0; i<position; i++)
+        	  fprintf(fw,"%s/%u %u\n",str,netmask,prefix_asn[i]);
+          for(i=0; i<all_position; i++)
+        	  fprintf(fwall,"%s/%u %u\n",str,netmask,all_prefix_asn[i]);
+	  }
     }
+  fclose(fw);
+  fclose(fwall);
 
 
-  /* print the number of views processed so far 
+
+  /* print the number of views processed so far
    * FORMAT: <ts> num-views: <num-views> */
   printf("%"PRIu32" num-views: %d\n", bgpview_get_time(view), state->view_counter);
 

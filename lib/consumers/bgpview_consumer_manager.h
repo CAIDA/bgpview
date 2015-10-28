@@ -162,6 +162,10 @@ typedef enum bvc_id
      *  number of view processed and the number of elements in the current view  */
     BVC_ID_MYVIEWPROCESS      = 14,
 
+    /** It can be used as a template, it writes generic information about the 
+     *  number of view processed and the number of elements in the current view  */
+    BVC_ID_MYVIEWPROCESS      = 9,
+
     /** @todo add more consumers here */
 
     /** Lowest numbered bgpview consumer ID */
