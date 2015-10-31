@@ -30,20 +30,19 @@
 #include "utils.h"
 #include "khash.h"
 
-#include "bgpstream_utils_pfx_set.h"
-
 #include "bgpview_consumer_interface.h"
 
 #include "bvc_perasvisibility.h"
+#include "bgpstream_utils_patricia.h"
 
 
 #define NAME                         "per-as-visibility"
 #define CONSUMER_METRIC_PREFIX       "prefix-visibility.asn"
 
-#define BUFFER_LEN 1024
 #define METRIC_PREFIX_TH_FORMAT    "%s."CONSUMER_METRIC_PREFIX".%"PRIu32".v%d.visibility_threshold.%s.%s"
 #define META_METRIC_PREFIX_FORMAT  "%s.meta.bgpview.consumer."NAME".%s"
 
+#define BUFFER_LEN 1024
 #define MAX_NUM_PEERS 1024
 
 
@@ -89,6 +88,11 @@ typedef struct pervis_info {
 
 } pervis_info_t;
 
+
+/** peras_info_t
+ *  network visibility information related to a single
+ *  origin AS number
+ */
 typedef struct peras_info {
 
   pervis_info_t info [VIS_THRESHOLDS_CNT];
@@ -98,11 +102,8 @@ typedef struct peras_info {
 
 /** Hash table: <origin ASn,pfxs info> */
 KHASH_INIT(as_pfxs_info,
-	   uint32_t,
-	   peras_info_t,
-	   1,
-	   kh_int_hash_func,
-	   kh_int_hash_equal);
+	   uint32_t, peras_info_t, 1,
+	   kh_int_hash_func, kh_int_hash_equal);
 
 
 /* our 'instance' */
@@ -111,9 +112,6 @@ typedef struct bvc_perasvisibility_state {
   /** Contains information about the prefixes
    *  announced by a specific ASn */
   khash_t(as_pfxs_info) *as_pfxs_vis;
-
-  /** Timeseries Key Package */
-  timeseries_kp_t *kp;
 
   /** Re-usable variables that are used in the flip table
    *  function: we make them part of the state to avoid
@@ -125,6 +123,9 @@ typedef struct bvc_perasvisibility_state {
 
   /* Thresholds values */
   double thresholds[VIS_THRESHOLDS_CNT];
+
+  /** Timeseries Key Package */
+  timeseries_kp_t *kp;
 
   /* META metric values */
   uint32_t arrival_delay;
@@ -597,10 +598,15 @@ void bvc_perasvisibility_destroy(bvc_t *consumer)
 int bvc_perasvisibility_process_view(bvc_t *consumer, uint8_t interests,
 				     bgpview_t *view)
 {
-
   bvc_perasvisibility_state_t *state = STATE;
 
-  bgpview_iter_t *it;
+  if(BVC_GET_CHAIN_STATE(consumer)->usable_table_flag[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] == 0 &&
+     BVC_GET_CHAIN_STATE(consumer)->usable_table_flag[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)] == 0 )
+    {
+      fprintf(stderr,
+              "ERROR: Per-AS Visibility can't use this table %"PRIu32"\n", bgpview_get_time(view));
+      return 0;
+    }
 
   /* compute arrival delay */
   state->arrival_delay = zclock_time()/1000 - bgpview_get_time(view);
@@ -615,6 +621,7 @@ int bvc_perasvisibility_process_view(bvc_t *consumer, uint8_t interests,
     }
 
   /* create a new iterator */
+  bgpview_iter_t *it;
   if((it = bgpview_iter_create(view)) == NULL)
     {
       return -1;
