@@ -254,7 +254,7 @@ static int peras_info_init(bvc_t *consumer, peras_info_t *per_as, uint32_t asn)
   for(int i = 0; i < VIS_THRESHOLDS_CNT; i++)
     {
       /* create all Patricia Trees */
-      if((per_as->info[i].pt = bgpstream_patricia_tree_create()) == NULL)
+      if((per_as->info[i].pt = bgpstream_patricia_tree_create(NULL)) == NULL)
         {
           return -1;
         }

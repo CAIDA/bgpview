@@ -343,7 +343,7 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo, char *conti
   for(int i = 0; i < VIS_THRESHOLDS_CNT; i++)
     {
       /* create all Patricia Trees */
-      if((per_geo->info[i].pt = bgpstream_patricia_tree_create()) == NULL)
+      if((per_geo->info[i].pt = bgpstream_patricia_tree_create(NULL)) == NULL)
         {
           return -1;
         }
