@@ -685,7 +685,7 @@ bgpview_iter_remove_peer(bgpview_iter_t *iter);
  * @param pfx           pointer to the prefix
  * @param peer_id       peer identifier
  * @param as_path       pointer to the AS path for the prefix as observed
- *                      by peer peer_id
+ *                      by peer peer_id (NULL for no path)
  * @return 0 if the insertion was successful, <0 otherwise
  *
  * In order for the function to succeed the peer must exist (it can be either
@@ -747,7 +747,7 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter);
  * @param iter          pointer to a view iterator
  * @param peer_id       peer identifier
  * @param as_path       pointer to the AS path for the prefix as observed
- *                      by peer peer_id
+ *                      by peer peer_id (NULL for no path)
  * @return 0 if the insertion was successful, <0 otherwise
  *
  * @note: in order for the function to succeed the peer must
