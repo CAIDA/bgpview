@@ -2050,6 +2050,20 @@ bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
   return 0;
 }
 
+int
+bgpview_iter_pfx_peer_set_as_path_by_id(bgpview_iter_t *iter,
+                                bgpstream_as_path_store_path_id_t path_id)
+{
+  bwv_peerid_pfxinfo_t *infos = pfx_get_peerinfos(iter);
+  assert(infos);
+  assert(bgpview_iter_pfx_has_more_peer(iter));
+
+  (BWV_PFX_GET_PEER_PTR(iter->view, infos, iter->pfx_peer_it)->as_path_id)
+    = path_id;
+
+  return 0;
+}
+
 bgpview_field_state_t
 bgpview_iter_pfx_peer_get_state(bgpview_iter_t *iter)
 {

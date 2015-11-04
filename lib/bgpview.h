@@ -1009,6 +1009,19 @@ int
 bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
                                   bgpstream_as_path_t *as_path);
 
+/** Set the AS path for the current pfx-peer structure pointed by the given
+ *  iterator
+ *
+ * @param iter          Pointer to an iterator structure
+ * @param path_id       Pointer to an AS Path to set
+ * @return 0 if the path was set successfully, -1 otherwise
+ *
+ * The given AS path ID must already exist in the path store used by the view.
+ */
+int
+bgpview_iter_pfx_peer_set_as_path_by_id(bgpview_iter_t *iter,
+                                bgpstream_as_path_store_path_id_t path_id);
+
 /** Get the state of the current pfx-peer pointed by the given iterator
  *
  * @param iter          Pointer to an iterator structure
