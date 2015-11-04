@@ -99,8 +99,8 @@ typedef struct moas_signature {
 /** print the moas signature <n-asns> <asn1> <asn2> ... in the buffer */
 char *print_moas_info(moas_signature_t *ms, moas_properties_t *mpro, char *buffer, const int buffer_len)
 {
-  assert(buffer); 
-  assert(buffer_len > 0); 
+  assert(buffer);
+  assert(buffer_len > 0);
   int written;
   int ret;
   int i;
@@ -115,7 +115,7 @@ char *print_moas_info(moas_signature_t *ms, moas_properties_t *mpro, char *buffe
       return NULL;
     }
   written += ret;
-  
+
   /* printing  unique number of origins*/
   ret =snprintf(buffer+written, buffer_len - written -1, "%"PRIu8"|", ms->n);
   if(ret < 0 || ret >= buffer_len - written -1)
@@ -124,7 +124,7 @@ char *print_moas_info(moas_signature_t *ms, moas_properties_t *mpro, char *buffe
       return NULL;
     }
   written += ret;
-  
+
   /* printing <origin,visibility> pairs*/
   for(i = 0; i < ms->n; i++)
     {
@@ -140,7 +140,7 @@ char *print_moas_info(moas_signature_t *ms, moas_properties_t *mpro, char *buffe
   /* removing last space from string*/
   buffer[written-1] = '\0';
 
-  return buffer;  
+  return buffer;
 }
 
 /** MOAS signature hash function */
@@ -192,7 +192,7 @@ static int moasinfo_map_equal(moas_signature_t ms1,
               return 0;
             }
         }
-      return 1;     
+      return 1;
     }
   return 0;
 }
@@ -235,7 +235,7 @@ typedef struct bvc_moas_state {
 
   /** MOASes observed in the current window */
   pfx_moasinfo_map_t *current_moases;
-  
+
   /** Total number of prefixes that are currently
       active */
   uint32_t pfxs_count;
@@ -248,14 +248,14 @@ typedef struct bvc_moas_state {
   uint32_t new_recurring_moas_pfxs_count;
   uint32_t ongoing_moas_pfxs_count;
   uint32_t finished_moas_pfxs_count;
-  
+
   /** diff ts when the view arrived */
   uint32_t arrival_delay;
   /** diff ts when the view processing finished */
   uint32_t processed_delay;
   /** processing time */
   uint32_t processing_time;
-  
+
   /** Timeseries Key Package */
   timeseries_kp_t *kp;
 
@@ -270,7 +270,7 @@ typedef struct bvc_moas_state {
   int new_recurring_moas_pfxs_count_idx;
   int ongoing_moas_pfxs_count_idx;
   int finished_moas_pfxs_count_idx;
-  
+
 } bvc_moas_state_t;
 
 
@@ -288,14 +288,14 @@ static int output_timeseries(bvc_t *consumer, uint32_t ts)
   timeseries_kp_set(state->kp, state->ongoing_moas_pfxs_count_idx, state->ongoing_moas_pfxs_count);
   timeseries_kp_set(state->kp, state->finished_moas_pfxs_count_idx, state->finished_moas_pfxs_count);
   timeseries_kp_set(state->kp, state->current_window_size_idx, state->current_window_size);
-    
+
   if(timeseries_kp_flush(state->kp, ts) != 0)
     {
       fprintf(stderr, "Error: could not flush timeseries\n");
       return -1;
     }
-  
-  return 0; 
+
+  return 0;
 }
 
 
@@ -332,7 +332,7 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
       return -1;
     }
 
-  
+
   /* for each prefix */
   for(p = kh_begin(state->current_moases); p!= kh_end(state->current_moases); p++)
     {
@@ -348,7 +348,7 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
                 {
                  ms = &kh_key(per_pfx_moases, m);
                  mpro = &kh_val(per_pfx_moases, m);
-                 
+
                  /* outdated moas, remove it */
                  if(mpro->end < last_valid_ts)
                    {
@@ -360,11 +360,11 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
                      if(mpro->end == ts)
                        {
                          state->moas_pfxs_count++;
-                         
+
                          /* NEW MOAS */
                          if(mpro->start == ts)
                            {
-                           
+
                              /* observed for the first time in the window  */
                              if(mpro->first_seen == ts)
                                {
@@ -410,7 +410,7 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
                          if(mpro->end < ts)
                            {
                              if(mpro->start > 0)
-                               {                                 
+                               {
                                  /* FINISHED MOAS */
                                  if(wandio_printf(f,"%"PRIu32"|%s|FINISHED|%s\n",
                                                    ts,
@@ -533,7 +533,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "pfxs_count");             
+           CHAIN_STATE->metric_prefix, state->window_size, "pfxs_count");
   if((state->pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -541,7 +541,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "moas_pfxs_count");             
+           CHAIN_STATE->metric_prefix, state->window_size, "moas_pfxs_count");
   if((state->moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -549,7 +549,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "new_moas_pfxs_count");             
+           CHAIN_STATE->metric_prefix, state->window_size, "new_moas_pfxs_count");
   if((state->new_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -557,7 +557,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "new_recurring_moas_pfxs_count");             
+           CHAIN_STATE->metric_prefix, state->window_size, "new_recurring_moas_pfxs_count");
   if((state->new_recurring_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -565,7 +565,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "ongoing_moas_pfxs_count");             
+           CHAIN_STATE->metric_prefix, state->window_size, "ongoing_moas_pfxs_count");
   if((state->ongoing_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -573,7 +573,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
     snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "finished_moas_pfxs_count");             
+           CHAIN_STATE->metric_prefix, state->window_size, "finished_moas_pfxs_count");
   if((state->finished_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -582,15 +582,15 @@ static int create_ts_metrics(bvc_t *consumer)
 
   /* Meta metrics */
   snprintf(buffer, MAX_BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "arrival_delay");             
+           CHAIN_STATE->metric_prefix, state->window_size, "arrival_delay");
   if((state->arrival_delay_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
       return -1;
     }
-  
+
   snprintf(buffer, MAX_BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "processed_delay");             
+           CHAIN_STATE->metric_prefix, state->window_size, "processed_delay");
   if((state->processed_delay_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -598,7 +598,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "processing_time");             
+           CHAIN_STATE->metric_prefix, state->window_size, "processing_time");
   if((state->processing_time_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -652,7 +652,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
           return -1;
         }
     }
-  
+
 
   /* checking that output_folder is a valid folder */
   struct stat st;
@@ -672,7 +672,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
       return -1;
       }
     }
-  
+
   return 0;
 }
 
@@ -699,7 +699,7 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
   strncpy(state->output_folder, DEFAULT_OUTPUT_FOLDER, MAX_BUFFER_LEN);
   state->output_folder[MAX_BUFFER_LEN -1] = '\0';
   state->current_moases = NULL;
-  
+
   /* parse the command line args */
   if(parse_args(consumer, argc, argv) != 0)
     {
@@ -717,13 +717,13 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
       fprintf(stderr, "Error: Could not create current_moases\n");
       goto err;
     }
-  
+
   if((state->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) == NULL)
     {
       fprintf(stderr, "Error: Could not create timeseries key package\n");
       goto err;
     }
-  
+
   if(create_ts_metrics(consumer) != 0)
     {
       goto err;
@@ -740,12 +740,12 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
 void bvc_moas_destroy(bvc_t *consumer)
 {
   bvc_moas_state_t *state = STATE;
-  
+
   if(state != NULL)
     {
-      
+
       if(state->current_moases != NULL)
-        {         
+        {
           khiter_t p;
           for(p = kh_begin(state->current_moases); p!= kh_end(state->current_moases); p++)
             {
@@ -770,7 +770,7 @@ void bvc_moas_destroy(bvc_t *consumer)
 int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
 {
   bvc_moas_state_t *state = STATE;
-  
+
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
   bgpstream_peer_id_t peerid;
@@ -784,7 +784,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   uint32_t peers_cnt;
   uint32_t origins_visibility[MAX_UNIQUE_ORIGINS];
   state->pfxs_count = 0;
-  
+
 
   /* initialize ms origins to all zeroes*/
   ms.n = 0;
@@ -801,7 +801,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
               "to be run first\n");
       return -1;
     }
-  
+
   /* compute arrival delay */
   state->arrival_delay = zclock_time()/1000 - bgpview_get_time(view);
 
@@ -820,7 +820,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
     {
       state->current_window_size = state->window_size;
     }
-  
+
   /* create view iterator */
   if((it = bgpview_iter_create(view)) == NULL)
     {
@@ -837,7 +837,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
       peers_cnt = 0;
       last_origin_asn = 0;
       ms.n = 0;
-        
+
       for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
           bgpview_iter_pfx_has_more_peer(it);
           bgpview_iter_pfx_next_peer(it))
@@ -847,17 +847,19 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
           if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx], peerid))
             {
               /* get origin asn */
-              /** @todo correctly handle origin sets */
-              if((origin_seg =
-                  bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL ||
-                 origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
+              if((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL)
                 {
-                  origin_asn = 0;
+                  return -1;
                 }
-              else
+              /* we do not consider sets and confederations for the moment */
+              /* TODO (extend the code to deal with segments */
+              if(origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
                 {
-                  origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
+                  continue;
                 }
+
+              origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
+
 
               /* in order to improve performance we group together the entries having the
                * same origin ASn, and we call the update function only when we find new
@@ -877,7 +879,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
                       peers_cnt++;
                     }
                   else
-                    {                      
+                    {
                       /* update current prefix */
                       for(i = 0; i < ms.n; i++)
                         {
@@ -895,7 +897,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
                           origins_visibility[ms.n] = peers_cnt;
                           ms.n++;
                         }
-                      
+
                       last_origin_asn = origin_asn;
                       peers_cnt = 1;
                     }
@@ -924,7 +926,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
               ms.n++;
             }
 
-          /* if the program is here, at least one full feed peer 
+          /* if the program is here, at least one full feed peer
            * observed the prefix */
           state->pfxs_count++;
         }
@@ -937,7 +939,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
             {
               return -1;
             }
-        }      
+        }
     }
 
   bgpview_iter_destroy(it);
@@ -957,7 +959,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   {
     return -1;
   }
-  
+
 
   return 0;
 }
