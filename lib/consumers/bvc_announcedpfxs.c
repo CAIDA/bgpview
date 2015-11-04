@@ -398,13 +398,6 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
     {
       state->next_output_time = current_view_ts + state->out_interval - (current_view_ts % state->out_interval);
     }
-
-  /* compute ts to use in timeseries and files */
-  uint32_t ts = last_valid_timestamp;
-  if(last_valid_timestamp < state->first_ts)
-    {
-      ts = state->first_ts;
-    }
   
   iow_t *f = NULL;
   char filename[BUFFER_LEN];
@@ -414,7 +407,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
   if(state->next_output_time <= current_view_ts)
     {
       sprintf(filename,"%s/"NAME".%"PRIu32".w%"PRIu32".gz",
-              state->output_folder, ts, current_window_size);
+              state->output_folder, current_view_ts, current_window_size);
 
       /* open file for writing */
       if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
@@ -460,7 +453,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
 
       /* generate the .done file */
       sprintf(filename,"%s/"NAME".%"PRIu32".w%"PRIu32".gz.done",
-              state->output_folder, ts, current_window_size);
+              state->output_folder, current_view_ts, current_window_size);
       if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
     	{
           fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
