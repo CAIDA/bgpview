@@ -491,7 +491,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
   timeseries_kp_set(state->kp, state->window_size_idx,
                     current_window_size);
 
-  if(timeseries_kp_flush(STATE->kp, ts) != 0)
+  if(timeseries_kp_flush(STATE->kp, current_view_ts) != 0)
     {
       return -1;
     }
