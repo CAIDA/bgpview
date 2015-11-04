@@ -775,6 +775,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   bgpstream_pfx_t *pfx;
   bgpstream_peer_id_t peerid;
   int ipv_idx;
+  bgpstream_as_path_seg_t *origin_seg;
   uint32_t origin_asn;
   uint32_t last_origin_asn;
   uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
@@ -846,7 +847,17 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
           if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx], peerid))
             {
               /* get origin asn */
-              origin_asn = bgpview_iter_pfx_peer_get_orig_asn(it);
+              /** @todo correctly handle origin sets */
+              if((origin_seg =
+                  bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL ||
+                 origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
+                {
+                  origin_asn = 0;
+                }
+              else
+                {
+                  origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
+                }
 
               /* in order to improve performance we group together the entries having the
                * same origin ASn, and we call the update function only when we find new
