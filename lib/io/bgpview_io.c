@@ -946,15 +946,21 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
   int paths_rx = 0;
 
-  bgpview_t *view = bgpview_iter_get_view(iter);
-  bgpstream_as_path_store_t *store = bgpview_get_as_path_store(view);
-  assert(store != NULL);
+  bgpview_t *view = NULL;
+  bgpstream_as_path_store_t *store = NULL;
+  bgpstream_as_path_t *path = NULL;
 
-  bgpstream_as_path_t *path;
-  /* create a path */
-  if((path = bgpstream_as_path_create()) == NULL)
+  /* only if we have a valid iterator */
+  if(iter != NULL)
     {
-      return -1;
+      view = bgpview_iter_get_view(iter);
+      store = bgpview_get_as_path_store(view);
+
+      /* create a path */
+      if((path = bgpstream_as_path_create()) == NULL)
+        {
+          return -1;
+        }
     }
 
   ASSERT_MORE;
@@ -988,34 +994,32 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
       DESERIALIZE_VAL(pathlen);
       ASSERT_MORE;
 
-      if(iter == NULL)
+      if(iter != NULL)
         {
-          continue;
-        }
-      /* all code below here has a valid view */
+          /* ensure we have enough space in the id map */
+          if((pathidx+1) > idmap_cnt)
+            {
+              idmap_cnt = pathidx == 0 ? 1 : pathidx*2;
 
-      /* ensure we have enough space in the id map */
-      if((pathidx+1) > idmap_cnt)
-        {
-          idmap_cnt = pathidx == 0 ? 1 : pathidx*2;
+              if((idmap =
+                  realloc(idmap,
+                          sizeof(bgpstream_as_path_store_path_id_t) * idmap_cnt))
+                 == NULL)
+                {
+                  goto err;
+                }
 
-          if((idmap =
-              realloc(idmap,
-                      sizeof(bgpstream_as_path_store_path_id_t) * idmap_cnt))
-             == NULL)
+              /* WARN: ids are garbage */
+            }
+
+          /* now add this path to the store */
+          if(bgpstream_as_path_store_insert_path(store, buf, pathlen,
+                                                 is_core, &idmap[pathidx]) != 0)
             {
               goto err;
             }
-
-          /* WARN: ids are garbage */
         }
 
-      /* now add this path to the store */
-      if(bgpstream_as_path_store_insert_path(store, buf, pathlen,
-                                             is_core, &idmap[pathidx]) != 0)
-        {
-          goto err;
-        }
       s = pathlen;
       read += s;
       buf += s;
