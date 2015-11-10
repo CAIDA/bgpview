@@ -366,7 +366,7 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo, char *conti
           /* visible_ips_cnt */
           snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_IP_TH_FORMAT,
                    CHAIN_STATE->metric_prefix, continent, iso2_cc, bgpstream_idx2number(v), threshold_string(i),
-                   "visible_subnets_cnt");
+                   v == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4) ? "visible_slash24_cnt" : "visible_slash64_cnt");
           if((per_geo->info[i].subnet_cnt_idx[v] = timeseries_kp_add_key(state->kp, buffer)) == -1)
             {
               return -1;
