@@ -339,8 +339,8 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo, char *conti
 {
   bvc_pergeovisibility_state_t *state = STATE;
   char buffer[BUFFER_LEN];
-
-  for(int i = 0; i < VIS_THRESHOLDS_CNT; i++)
+  int i,v;
+  for(i = 0; i < VIS_THRESHOLDS_CNT; i++)
     {
       /* create all Patricia Trees */
       if((per_geo->info[i].pt = bgpstream_patricia_tree_create(NULL)) == NULL)
@@ -353,7 +353,7 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo, char *conti
           return -1;
         }
       /* create indexes for timeseries */
-      for(int v = 0; v < MAX_IP_VERSION_ALLOWED; v++)
+      for(v = 0; v < MAX_IP_VERSION_ALLOWED; v++)
         {
           /* visible_prefixes_cnt */
           snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_IP_TH_FORMAT,
@@ -401,7 +401,8 @@ static int pergeo_info_update(bvc_t *consumer, pergeo_info_t *per_geo, bgpstream
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
    * only if the prefix belongs there */
-  for(int i = VIS_THRESHOLDS_CNT-1; i >= 0; i--)
+  int i, j;
+  for(i = VIS_THRESHOLDS_CNT-1; i >= 0; i--)
     {
       if(ratio >= state->thresholds[i])
         {
@@ -411,7 +412,7 @@ static int pergeo_info_update(bvc_t *consumer, pergeo_info_t *per_geo, bgpstream
               return -1;
             }
           /* add origin ASns to asns set */
-          for(int j = 0; j < state->valid_origins; j++)
+          for(j = 0; j < state->valid_origins; j++)
             {
               bgpstream_id_set_insert(per_geo->info[i].asns, state->origin_asns[j]);
             }
@@ -423,7 +424,8 @@ static int pergeo_info_update(bvc_t *consumer, pergeo_info_t *per_geo, bgpstream
 
 static void pergeo_info_destroy(pergeo_info_t *per_geo)
 {
-  for(int i = 0; i < VIS_THRESHOLDS_CNT; i++)
+  int i;
+  for(i = 0; i < VIS_THRESHOLDS_CNT; i++)
     {
       bgpstream_patricia_tree_destroy(per_geo->info[i].pt);
       bgpstream_id_set_destroy(per_geo->info[i].asns);

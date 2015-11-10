@@ -250,8 +250,8 @@ static int peras_info_init(bvc_t *consumer, peras_info_t *per_as, uint32_t asn)
 {
   bvc_perasvisibility_state_t *state = STATE;
   char buffer[BUFFER_LEN];
-
-  for(int i = 0; i < VIS_THRESHOLDS_CNT; i++)
+  int i, v;
+  for(i = 0; i < VIS_THRESHOLDS_CNT; i++)
     {
       /* create all Patricia Trees */
       if((per_as->info[i].pt = bgpstream_patricia_tree_create(NULL)) == NULL)
@@ -259,7 +259,7 @@ static int peras_info_init(bvc_t *consumer, peras_info_t *per_as, uint32_t asn)
           return -1;
         }
       /* create indexes for timeseries */
-      for(int v=0; v < BGPSTREAM_MAX_IP_VERSION_IDX; v++)
+      for(v=0; v < BGPSTREAM_MAX_IP_VERSION_IDX; v++)
         {
           /* visible_prefixes_cnt */
           snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_TH_FORMAT,
@@ -273,7 +273,7 @@ static int peras_info_init(bvc_t *consumer, peras_info_t *per_as, uint32_t asn)
           /* visible_ips_cnt */
           snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_TH_FORMAT,
                    CHAIN_STATE->metric_prefix, asn, bgpstream_idx2number(v), threshold_string(i),
-                   "visible_subnets_cnt");
+                   v == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4) ? "visible_slash24_cnt" : "visible_slash64_cnt");
           if((per_as->info[i].subnet_cnt_idx[v] =
               timeseries_kp_add_key(state->kp, buffer)) == -1)
             {
@@ -319,7 +319,8 @@ static int peras_info_update(bvc_t *consumer, peras_info_t *per_as, bgpstream_pf
 
 static void peras_info_destroy(peras_info_t per_as)
 {
-  for(int i = 0; i < VIS_THRESHOLDS_CNT; i++)
+  int i;
+  for(i = 0; i < VIS_THRESHOLDS_CNT; i++)
     {
       bgpstream_patricia_tree_destroy(per_as.info[i].pt);
     }
@@ -340,9 +341,9 @@ static int update_pfx_asns_information(bvc_t *consumer, bgpstream_pfx_t *pfx)
   khiter_t k = 0;
   int khret;
   peras_info_t *all_infos;
-
+  int i;
   /* check if the origin ASn is already in the as_pfxs_vis hash map */
-  for(int i = 0; i < state->valid_origins; i++)
+  for(i = 0; i < state->valid_origins; i++)
     {
       /* if it is the first time we observe this ASn, then we
        * have to initialized its information */
