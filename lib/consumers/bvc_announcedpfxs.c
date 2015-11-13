@@ -486,7 +486,8 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
 
   if(timeseries_kp_flush(STATE->kp, current_view_ts) != 0)
     {
-      return -1;
+      fprintf(stderr, "Warning: could not flush %s %"PRIu32"\n",
+              NAME, bgpview_get_time(view));
     }
 
   return 0;
