@@ -459,7 +459,8 @@ int bvc_visibility_process_view(bvc_t *consumer, uint8_t interests,
   /* now flush the kp */
   if(timeseries_kp_flush(STATE->kp, bgpview_get_time(view)) != 0)
     {
-      return -1;
+      fprintf(stderr, "Warning: could not flush %s %"PRIu32"\n",
+              NAME, bgpview_get_time(view));
     }
 
   return 0;

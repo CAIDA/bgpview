@@ -291,8 +291,8 @@ static int output_timeseries(bvc_t *consumer, uint32_t ts)
 
   if(timeseries_kp_flush(state->kp, ts) != 0)
     {
-      fprintf(stderr, "Error: could not flush timeseries\n");
-      return -1;
+      fprintf(stderr, "Warning: could not flush %s %"PRIu32"\n",
+              NAME, ts);
     }
 
   return 0;
