@@ -301,7 +301,8 @@ static int peras_info_update(bvc_t *consumer, peras_info_t *per_as, bgpstream_pf
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
    * only if the prefix belongs there */
-  for(int i = VIS_THRESHOLDS_CNT-1; i >= 0; i--)
+  int i;
+  for(i = VIS_THRESHOLDS_CNT-1; i >= 0; i--)
     {
       if(ratio >= state->thresholds[i])
         {
