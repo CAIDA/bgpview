@@ -34,7 +34,10 @@
 #define VIEW_START_MAGIC    0x53545254 /* STRT */
 #define VIEW_END_MAGIC      0x56454E44   /* VEND */
 #define VIEW_PEER_END_MAGIC 0x50454E44 /* PEND */
+#define VIEW_PATH_END_MAGIC 0x50415448 /* PATH */
 #define VIEW_PFX_END_MAGIC  0x58454E44 /* XEND */
+
+#define BUFFER_LEN 1024
 
 /* ========== UTILITIES ========== */
 
@@ -173,7 +176,7 @@ static int read_ip(io_t *infile, bgpstream_addr_storage_t *ip)
   return -1;
 }
 
-static int send_peers(iow_t *outfile, bgpview_iter_t *it,
+static int write_peers(iow_t *outfile, bgpview_iter_t *it,
                       bgpview_filter_peer_cb_t *cb)
 {
   uint8_t u8;
@@ -254,11 +257,78 @@ static int send_peers(iow_t *outfile, bgpview_iter_t *it,
   return -1;
 }
 
-static int send_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
+static int write_paths(iow_t *outfile, bgpview_iter_t *it)
+{
+  bgpview_t *view = bgpview_iter_get_view(it);
+  assert(view != NULL);
+  bgpstream_as_path_store_t *ps = bgpview_get_as_path_store(view);
+  assert(ps != NULL);
+
+  bgpstream_as_path_store_path_t *spath;
+  bgpstream_as_path_t *path;
+  uint32_t idx;
+
+  uint8_t *path_data;
+  uint8_t is_core;
+  uint16_t path_len;
+
+  int paths_tx = 0;
+  uint32_t u32;
+
+  /* foreach path, send pathid and path */
+  for(bgpstream_as_path_store_iter_first_path(ps);
+      bgpstream_as_path_store_iter_has_more_path(ps);
+      bgpstream_as_path_store_iter_next_path(ps))
+    {
+      paths_tx++;
+      spath = bgpstream_as_path_store_iter_get_path(ps);
+      assert(spath != NULL);
+
+      idx = bgpstream_as_path_store_path_get_idx(spath);
+
+      is_core = bgpstream_as_path_store_path_is_core(spath);
+
+      path = bgpstream_as_path_store_path_get_int_path(spath);
+      assert(path != NULL);
+      path_len = bgpstream_as_path_get_data(path, &path_data);
+
+      /* add the path index */
+      WRITE_VAL(idx);
+
+      /* is this a core path? */
+      WRITE_VAL(is_core);
+
+      /* add the path len */
+      WRITE_VAL(path_len);
+
+      /** @todo make platform independent (paths are in host byte order) */
+      if(wandio_wwrite(outfile, path_data, path_len) != path_len)
+	{
+	  goto err;
+	}
+    }
+
+  /* write end-of-paths magic number */
+  WRITE_MAGIC(VIEW_PATH_END_MAGIC);
+
+  /* now send the number of paths for cross validation */
+  assert(paths_tx <= UINT32_MAX);
+  u32 = htonl(paths_tx);
+  WRITE_VAL(u32);
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+
+static int write_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
                           bgpview_filter_peer_cb_t *cb)
 {
   uint16_t peerid;
-  uint32_t orig_asn;
+  bgpstream_as_path_store_path_t *spath;
+  uint32_t idx;
 
   int filter;
 
@@ -283,22 +353,16 @@ static int send_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
         }
 
       peerid = bgpview_iter_peer_get_peer_id(it);
-      orig_asn = bgpview_iter_pfx_peer_get_orig_asn(it);
-
-      if(orig_asn >= BGPVIEW_ASN_NOEXPORT_START)
-        {
-          continue;
-        }
 
       /* peer id */
       assert(peerid > 0);
       peerid = htons(peerid);
       WRITE_VAL(peerid);
 
-      /* orig_asn */
-      assert(orig_asn > 0);
-      orig_asn = htonl(orig_asn);
-      WRITE_VAL(orig_asn);
+      /* AS Path Index */
+      spath = bgpview_iter_pfx_peer_get_as_path_store_path(it);
+      idx = bgpstream_as_path_store_path_get_idx(spath);
+      WRITE_VAL(idx);
 
       (*peers_cnt)++;
     }
@@ -307,7 +371,7 @@ static int send_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
 }
 
 
-static int send_pfxs(iow_t *outfile, bgpview_iter_t *it,
+static int write_pfxs(iow_t *outfile, bgpview_iter_t *it,
                      bgpview_filter_peer_cb_t *cb)
 {
   uint16_t u16;
@@ -339,7 +403,7 @@ static int send_pfxs(iow_t *outfile, bgpview_iter_t *it,
 
       /* send the peers */
       peers_cnt = 0;
-      if(send_pfx_peers(outfile, it, &peers_cnt, cb) != 0)
+      if(write_pfx_peers(outfile, it, &peers_cnt, cb) != 0)
 	{
 	  goto err;
 	}
@@ -374,7 +438,7 @@ static int send_pfxs(iow_t *outfile, bgpview_iter_t *it,
   return -1;
 }
 
-static int recv_peers(io_t *infile, bgpview_iter_t *iter,
+static int read_peers(io_t *infile, bgpview_iter_t *iter,
                       bgpstream_peer_id_t **peerid_mapping)
 {
   uint16_t pc;
@@ -391,7 +455,7 @@ static int recv_peers(io_t *infile, bgpview_iter_t *iter,
 
   int peers_rx = 0;
 
-  /* foreach peer, recv peerid, collector string, peer ip (version, address),
+  /* foreach peer, read peerid, collector string, peer ip (version, address),
      peer asn */
   for(i=0; i<UINT16_MAX; i++)
     {
@@ -475,9 +539,113 @@ static int recv_peers(io_t *infile, bgpview_iter_t *iter,
   return -1;
 }
 
-static int recv_pfxs(io_t *infile, bgpview_iter_t *iter,
+static int read_paths(io_t *infile, bgpview_iter_t *iter,
+                      bgpstream_as_path_store_path_id_t **pathid_mapping)
+{
+  uint32_t pc;
+
+  uint32_t pathidx;
+  uint16_t pathlen;
+  uint8_t is_core;
+  uint8_t pathdata[BUFFER_LEN];
+
+  bgpstream_as_path_store_path_id_t *idmap = NULL;
+  int idmap_cnt = 0;
+
+  int paths_rx = 0;
+
+  bgpview_t *view = NULL;
+  bgpstream_as_path_store_t *store = NULL;
+  bgpstream_as_path_t *path = NULL;
+
+  /* only if we have a valid iterator */
+  if(iter != NULL)
+    {
+      view = bgpview_iter_get_view(iter);
+      store = bgpview_get_as_path_store(view);
+
+      /* create a path */
+      if((path = bgpstream_as_path_create()) == NULL)
+        {
+          return -1;
+        }
+    }
+
+  /* loop until we find the path end magic number */
+  while(paths_rx < UINT32_MAX)
+    {
+      /* pathid (or end-of-paths)*/
+      if(check_magic(infile, VIEW_PATH_END_MAGIC) != 0)
+        {
+          /* end of peers */
+          break;
+        }
+
+      /* by here we have a valid path to receive */
+      paths_rx++;
+
+      /* path idx */
+      READ_VAL(pathidx);
+
+      /* is core */
+      READ_VAL(is_core);
+
+      /* path len */
+      READ_VAL(pathlen);
+
+      /* path data */
+      assert(pathlen <= BUFFER_LEN);
+      if(wandio_read(infile, pathdata, pathlen) != pathlen)
+        {
+          fprintf(stderr, "ERROR: Could not read path data\n");
+	  goto err;
+	}
+
+      if(iter != NULL)
+        {
+          /* ensure we have enough space in the id map */
+          if((pathidx+1) > idmap_cnt)
+            {
+              idmap_cnt = pathidx == 0 ? 1 : pathidx*2;
+
+              if((idmap =
+                  realloc(idmap,
+                          sizeof(bgpstream_as_path_store_path_id_t) * idmap_cnt))
+                 == NULL)
+                {
+                  goto err;
+                }
+
+              /* WARN: ids are garbage */
+            }
+
+          /* now add this path to the store */
+          if(bgpstream_as_path_store_insert_path(store, pathdata, pathlen,
+                                                 is_core, &idmap[pathidx]) != 0)
+            {
+              goto err;
+            }
+        }
+    }
+
+  /* receive the number of paths */
+  READ_VAL(pc);
+  pc = ntohl(pc);
+  assert(pc == paths_rx);
+
+  *pathid_mapping = idmap;
+  return idmap_cnt;
+
+ err:
+  return -1;
+}
+
+
+static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
                      bgpstream_peer_id_t *peerid_map,
-                     int peerid_map_cnt)
+                     int peerid_map_cnt,
+                     bgpstream_as_path_store_path_id_t *pathid_map,
+                     int pathid_map_cnt)
 {
   uint32_t pfx_cnt;
   uint16_t peer_cnt;
@@ -486,14 +654,14 @@ static int recv_pfxs(io_t *infile, bgpview_iter_t *iter,
   bgpstream_pfx_storage_t pfx;
   bgpstream_peer_id_t peerid;
 
-  uint32_t orig_asn;
+  uint32_t pathidx;
 
   int pfx_peers_added = 0;
 
   int pfx_rx = 0;
   int pfx_peer_rx = 0;
 
-  /* foreach pfx, recv pfx.ip, pfx.len, [peers_cnt, peer_info] */
+  /* foreach pfx, read pfx.ip, pfx.len, [peers_cnt, peer_info] */
   for(i=0; i<UINT32_MAX; i++)
     {
       if(check_magic(infile, VIEW_PFX_END_MAGIC) != 0)
@@ -530,9 +698,8 @@ static int recv_pfxs(io_t *infile, bgpview_iter_t *iter,
 
           pfx_peer_rx++;
 
-	  /* orig asn */
-	  READ_VAL(orig_asn);
-	  orig_asn = ntohl(orig_asn);
+          /* AS Path Index */
+	  READ_VAL(pathidx);
 
           if(iter == NULL)
             {
@@ -545,9 +712,10 @@ static int recv_pfxs(io_t *infile, bgpview_iter_t *iter,
           if(pfx_peers_added == 0)
             {
               /* we have to use add_pfx_peer */
-              if(bgpview_iter_add_pfx_peer(iter, (bgpstream_pfx_t *)&pfx,
-                                           peerid_map[peerid],
-                                           orig_asn) != 0)
+              if(bgpview_iter_add_pfx_peer_by_id(iter,
+                                                 (bgpstream_pfx_t *)&pfx,
+                                                 peerid_map[peerid],
+                                                 pathid_map[pathidx]) != 0)
                 {
                   fprintf(stderr, "Could not add prefix\n");
                   goto err;
@@ -556,8 +724,9 @@ static int recv_pfxs(io_t *infile, bgpview_iter_t *iter,
           else
             {
               /* we can use pfx_add_peer for efficiency */
-              if(bgpview_iter_pfx_add_peer(iter, peerid_map[peerid],
-                                           orig_asn) != 0)
+              if(bgpview_iter_pfx_add_peer_by_id(iter,
+                                                 peerid_map[peerid],
+                                                 pathid_map[pathidx]) != 0)
                 {
                   fprintf(stderr, "Could not add prefix\n");
                   goto err;
@@ -622,12 +791,17 @@ int bgpview_io_write(iow_t *outfile, bgpview_t *view,
   u32 = htonl(bgpview_get_time(view));
   WRITE_VAL(u32);
 
-  if(send_peers(outfile, it, cb) != 0)
+  if(write_peers(outfile, it, cb) != 0)
     {
       goto err;
     }
 
-  if(send_pfxs(outfile, it, cb) != 0)
+  if(write_paths(outfile, it) != 0)
+    {
+      goto err;
+    }
+
+  if(write_pfxs(outfile, it, cb) != 0)
     {
       goto err;
     }
@@ -649,6 +823,9 @@ int bgpview_io_read(io_t *infile, bgpview_t *view)
 
   bgpstream_peer_id_t *peerid_map = NULL;
   int peerid_map_cnt = 0;
+
+  bgpstream_as_path_store_path_id_t *pathid_map = NULL;
+  int pathid_map_cnt;
 
   bgpview_iter_t *it = NULL;
   if(view != NULL && (it = bgpview_iter_create(view)) == NULL)
@@ -675,14 +852,21 @@ int bgpview_io_read(io_t *infile, bgpview_t *view)
       bgpview_set_time(view, ntohl(u32));
     }
 
-  if((peerid_map_cnt = recv_peers(infile, it, &peerid_map)) < 0)
+  if((peerid_map_cnt = read_peers(infile, it, &peerid_map)) < 0)
     {
       fprintf(stderr, "ERROR: Could not read peer table\n");
       goto err;
     }
 
+  if((pathid_map_cnt = read_paths(infile, it, &pathid_map)) < 0)
+    {
+      fprintf(stderr, "ERROR: Could not read path table\n");
+      goto err;
+    }
+
   /* pfxs */
-  if(recv_pfxs(infile, it, peerid_map, peerid_map_cnt) != 0)
+  if(read_pfxs(infile, it, peerid_map, peerid_map_cnt,
+               pathid_map, pathid_map_cnt) != 0)
     {
       fprintf(stderr, "ERROR: Could not read prefixes\n");
       goto err;

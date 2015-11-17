@@ -49,7 +49,7 @@ libbgpview_io_la_SOURCES = 		\
 	bgpview_io_server.c		\
 	bgpview_io_store.h		\
 	bgpview_io_store.c		\
-	bgpview_io.h		\
+	bgpview_io.h			\
 	bgpview_io.c
 
 libbgpview_io_la_LIBADD =

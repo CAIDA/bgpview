@@ -51,8 +51,8 @@ bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpstream.la \
 # deserializes BGPViews and sends them to the server
 bgpview_producer_SOURCES = \
 	bgpview-producer.c
-bgpview_producer_LDADD = -lbgpview -lbgpstream
-bgpview_producer_LDFLAGS = $(TOOL_LIBS)
+bgpview_producer_LDADD = $(top_builddir)/lib/libbgpstream.la \
+		         $(top_builddir)/bgpview/lib/libbgpview.la
 
 # acts as a dummy producer for the bgpview server
 bgpview_test_producer_SOURCES = \
