@@ -117,7 +117,6 @@ bvc_t *bvc_myviewprocess_alloc()
 int bvc_myviewprocess_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_myviewprocess_state_t *state = NULL;
-  int i;
 
   if((state = malloc_zero(sizeof(bvc_myviewprocess_state_t))) == NULL)
     {
@@ -155,7 +154,6 @@ int bvc_myviewprocess_init(bvc_t *consumer, int argc, char **argv)
 void bvc_myviewprocess_destroy(bvc_t *consumer)
 {
   bvc_myviewprocess_state_t *state = STATE;
-  int i;
   
   if(state == NULL)
     {
@@ -175,7 +173,6 @@ int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
 {
   bvc_myviewprocess_state_t *state = STATE;
   bgpview_iter_t *it;
-  int i;
   
   /* create a new iterator */
   if((it = bgpview_iter_create(view)) == NULL)
