@@ -26,6 +26,7 @@
 #include <wandio.h>
 
 #include "utils.h"
+#include "wandio_utils.h"
 
 #include "bgpview_io.h"
 
@@ -893,5 +894,101 @@ int bgpview_io_read(io_t *infile, bgpview_t *view)
       bgpview_iter_destroy(it);
     }
   free(peerid_map);
+  return -1;
+}
+
+int bgpview_io_print(iow_t *outfile, bgpview_t *view)
+{
+  bgpview_iter_t *it = NULL;
+
+  uint32_t time;
+
+  bgpstream_pfx_t *pfx;
+  char pfx_str[INET6_ADDRSTRLEN+3] = "";
+
+  bgpstream_peer_sig_t *ps;
+
+  char peer_str[INET6_ADDRSTRLEN] = "";
+
+  char path_str[4096] = "";
+  bgpstream_as_path_t *path = NULL;
+
+  bgpstream_as_path_seg_t *orig_seg = NULL;
+  char orig_str[4096] = "";
+
+  if(view == NULL)
+    {
+      /* no-op */
+      return 0;
+    }
+
+  time = bgpview_get_time(view);
+
+  if((it = bgpview_iter_create(view)) == NULL)
+    {
+      goto err;
+    }
+
+  wandio_printf(outfile,
+                "# View %"PRIu32"\n"
+                "# IPv4 Prefixes: %d\n"
+                "# IPv6 Prefixes: %d\n",
+                time,
+                bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),
+                bgpview_v6pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
+
+  for(bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ACTIVE);
+      bgpview_iter_has_more_pfx(it);
+      bgpview_iter_next_pfx(it))
+    {
+      pfx = bgpview_iter_pfx_get_pfx(it);
+      bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
+
+      /*
+      fprintf(stdout, "  %s (%d peers)\n",
+              pfx_str,
+              bgpview_iter_pfx_get_peer_cnt(it,
+                                                    BGPVIEW_FIELD_ACTIVE));
+      */
+
+      for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+          bgpview_iter_pfx_has_more_peer(it);
+          bgpview_iter_pfx_next_peer(it))
+        {
+          ps = bgpview_iter_peer_get_sig(it);
+          bgpstream_addr_ntop(peer_str, INET6_ADDRSTRLEN, &ps->peer_ip_addr);
+
+          path = bgpview_iter_pfx_peer_get_as_path(it);
+          orig_seg = bgpstream_as_path_get_origin_seg(path);
+
+          bgpstream_as_path_seg_snprintf(orig_str, 4096, orig_seg);
+
+          bgpstream_as_path_snprintf(path_str, 4096, path);
+          bgpstream_as_path_destroy(path);
+
+          wandio_printf(outfile,
+                        "%"PRIu32"|" /* time */
+                        "%s|"        /* prefix */
+                        "%s|"        /* collector */
+                        "%"PRIu32"|" /* peer ASN */
+                        "%s|"        /* peer IP */
+                        "%s|"        /* path */
+                        "%s"         /* origin segment */
+                        "\n",
+                        time,
+                        pfx_str,
+                        ps->collector_str,
+                        ps->peer_asnumber,
+                        peer_str,
+                        path_str,
+                        orig_str);
+        }
+    }
+
+  bgpview_iter_destroy(it);
+
+  return 0;
+
+ err:
   return -1;
 }

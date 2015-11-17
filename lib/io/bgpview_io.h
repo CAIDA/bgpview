@@ -53,7 +53,7 @@ int bgpview_io_send(void *dest, bgpview_t *view,
  */
 int bgpview_io_recv(void *src, bgpview_t *view);
 
-/** Write the given view to the given file
+/** Write the given view to the given file (in binary format)
  *
  * @param outfile       wandio file handle to write to
  * @param view          pointer to the view to send
@@ -71,5 +71,13 @@ int bgpview_io_write(iow_t *outfile, bgpview_t *view,
  * error occurred
  */
 int bgpview_io_read(io_t *infile, bgpview_t *view);
+
+/** Print the given view to the given file (in ASCII format)
+ *
+ * @param outfile       wandio file handle to print to
+ * @param view          pointer to the view to output
+ * @return 0 if the view was output successfully, -1 otherwise
+ */
+int bgpview_io_print(iow_t *outfile, bgpview_t *view);
 
 #endif /* __BGPVIEW_IO_H */

@@ -37,8 +37,6 @@
 #define BUFFER_LEN 1024
 #define META_METRIC_PREFIX_FORMAT  "%s.meta.bgpview.consumer."NAME
 
-
-
 #define DUMP_METRIC(value, time, fmt, ...)                              \
   do {                                                                  \
     char buf[1024];                                                     \
@@ -47,7 +45,6 @@
     timeseries_set_single(BVC_GET_TIMESERIES(consumer),                 \
                           buf, value, time);                            \
   } while(0)
-
 
 #define STATE					\
   (BVC_GET_STATE(consumer, archiver))
@@ -61,6 +58,8 @@ static bvc_t bvc_archiver = {
   BVC_GENERATE_PTRS(archiver)
 };
 
+enum format {BINARY, ASCII};
+
 typedef struct bvc_archiver_state {
 
   /** Output filename pattern */
@@ -72,6 +71,9 @@ typedef struct bvc_archiver_state {
   /** Current output file */
   iow_t *outfile;
 
+  /** Output format (binary or ascii) */
+  enum format output_format;
+
 } bvc_archiver_state_t;
 
 /** Print usage information to stderr */
@@ -80,7 +82,8 @@ static void usage(bvc_t *consumer)
   fprintf(stderr,
 	  "consumer usage: %s\n"
           "       -f <filename> output file pattern for writing views\n"
-          "       -c <level>    output compression level to use (default: 6)\n",
+          "       -c <level>    output compression level to use (default: 6)\n"
+          "       -m <mode>     output mode: 'ascii' or 'binary' (default: binary)\n",
 	  consumer->name);
 }
 
@@ -120,7 +123,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while((opt = getopt(argc, argv, ":f:c:?")) >= 0)
+  while((opt = getopt(argc, argv, ":c:f:m:?")) >= 0)
     {
       switch(opt)
 	{
@@ -131,6 +134,24 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
         case 'f':
           if((state->outfile_pattern = strdup(optarg)) == NULL)
             {
+              return -1;
+            }
+          break;
+
+        case 'm':
+          if(strcmp(optarg, "ascii") == 0)
+            {
+              state->output_format = ASCII;
+            }
+          else if(strcmp(optarg, "binary") == 0)
+            {
+              state->output_format = BINARY;
+            }
+          else
+            {
+              fprintf(stderr,
+                      "ERROR: Output mode must be either 'ascii' or 'binary'\n");
+              usage(consumer);
               return -1;
             }
           break;
@@ -166,6 +187,8 @@ int bvc_archiver_init(bvc_t *consumer, int argc, char **argv)
 
   state->outfile_compress_level = 6;
 
+  state->output_format = BINARY;
+
   /* parse the command line args */
   if(parse_args(consumer, argc, argv) != 0)
     {
@@ -176,9 +199,19 @@ int bvc_archiver_init(bvc_t *consumer, int argc, char **argv)
 
   if(state->outfile_pattern == NULL)
     {
-      fprintf(stderr, "ERROR: Output file pattern must be set using -f\n");
-      usage(consumer);
-      return -1;
+      if(state->output_format == ASCII)
+        {
+          /* default to stdout for ascii */
+          state->outfile_pattern = strdup("-");
+        }
+      else
+        {
+          /* refuse to write binary to stdout by default */
+          fprintf(stderr,
+                  "ERROR: Output file pattern must be set using -f when using the binary output format\n");
+          usage(consumer);
+          return -1;
+        }
     }
 
   compress_type = wandio_detect_compression_type(state->outfile_pattern);
@@ -223,11 +256,24 @@ int bvc_archiver_process_view(bvc_t *consumer, uint8_t interests,
   bvc_archiver_state_t *state = STATE;
   uint32_t time_begin = zclock_time()/1000;
 
-  /* simply as the IO library to dump the view to a file */
-  if(bgpview_io_write(state->outfile, view, NULL) != 0)
+  switch(state->output_format)
     {
-      fprintf(stderr, "ERROR: Failed to write view to file\n");
-      return -1;
+    case ASCII:
+      if(bgpview_io_print(state->outfile, view) != 0)
+        {
+          fprintf(stderr, "ERROR: Failed to write view to file\n");
+          return -1;
+        }
+      break;
+
+    case BINARY:
+      /* simply as the IO library to dump the view to a file */
+      if(bgpview_io_write(state->outfile, view, NULL) != 0)
+        {
+          fprintf(stderr, "ERROR: Failed to write view to file\n");
+          return -1;
+        }
+      break;
     }
 
   uint32_t time_end = zclock_time()/1000;
