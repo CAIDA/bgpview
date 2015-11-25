@@ -142,13 +142,17 @@ typedef enum bvc_id
 
     /** Writes views to files */
     BVC_ID_ARCHIVER           = 8,
+    
+    /** Writes information about prefixes who's more specific prefixes are announced by different ASNs*/
+    BVC_ID_SUBMOAS           = 9,
+
 
     /** @todo add more consumers here */
 
     /** Lowest numbered bgpview consumer ID */
     BVC_ID_FIRST      = BVC_ID_TEST,
     /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_ARCHIVER,
+    BVC_ID_LAST       = BVC_ID_SUBMOAS,
 
   } bvc_id_t;
 

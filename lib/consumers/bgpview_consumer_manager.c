@@ -57,6 +57,11 @@
 /* Archiver consumer */
 #include "bvc_archiver.h"
 
+/* Submoas consumer */
+#include "bvc_submoas.h"
+
+
+ 
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -105,6 +110,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   /** Pointer to archiver alloc function */
   bvc_archiver_alloc,
 
+  /** Pointer to submoas alloc function */
+  bvc_submoas_alloc,
+  
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
   /*

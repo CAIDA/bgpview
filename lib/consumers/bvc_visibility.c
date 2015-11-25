@@ -452,7 +452,6 @@ int bvc_visibility_process_view(bvc_t *consumer, uint8_t interests,
   STATE->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
 
   STATE->processing_time = STATE->processed_delay - STATE->arrival_delay;
-  
   /* dump metrics and tables */
   dump_gen_metrics(consumer);
 

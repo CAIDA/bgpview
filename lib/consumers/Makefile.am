@@ -80,6 +80,12 @@ CONSUMER_SRCS += \
 	bvc_archiver.c \
 	bvc_archiver.h
 
+# Submoas consumer
+CONSUMER_SRCS += \
+	bvc_submoas.c \
+	bvc_submoas.h
+
+
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>
