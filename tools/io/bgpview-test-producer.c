@@ -62,12 +62,13 @@ static uint32_t                  test_prefix_first_addr;
 static bgpstream_as_path_t      *test_as_path;
 static bgpstream_as_path_seg_asn_t test_as_path_segs[100];
 
-static int filter_ff_peers(bgpview_iter_t *iter)
+static int filter_ff_peers(bgpview_iter_t *iter,
+                           bgpview_io_filter_type_t type)
 {
-  return bgpview_iter_peer_get_pfx_cnt(iter,
-                                               BGPSTREAM_ADDR_VERSION_IPV4,
-                                               BGPVIEW_FIELD_ACTIVE)
-    >= full_feed_size;
+  return (type == BGPVIEW_IO_FILTER_PFX) ||
+    bgpview_iter_peer_get_pfx_cnt(iter,
+                                  BGPSTREAM_ADDR_VERSION_IPV4,
+                                  BGPVIEW_FIELD_ACTIVE) >= full_feed_size;
 }
 
 static void create_test_data()

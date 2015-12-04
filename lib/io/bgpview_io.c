@@ -288,7 +288,7 @@ static void pfxs_dump(bgpview_t *view,
 static int send_pfx_peers(uint8_t *buf, size_t len,
                           bgpview_iter_t *it,
                           int *peers_cnt,
-                          bgpview_io_filter_peer_cb_t *cb)
+                          bgpview_io_filter_cb_t *cb)
 {
   uint16_t peerid;
 
@@ -310,8 +310,8 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
     {
       if(cb != NULL)
         {
-          /* ask the caller if they want this peer */
-          if((filter = cb(it)) < 0)
+          /* ask the caller if they want this pfx-peer */
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER)) < 0)
             {
               return -1;
             }
@@ -349,8 +349,10 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
 }
 
 static int send_pfxs(void *dest, bgpview_iter_t *it,
-                     bgpview_io_filter_peer_cb_t *cb)
+                     bgpview_io_filter_cb_t *cb)
 {
+  int filter;
+
   uint16_t u16;
   uint32_t u32;
 
@@ -367,11 +369,24 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
   int peers_cnt = 0;
 
   for(bgpview_iter_first_pfx(it,
-                                     0, /* all pfx versions */
-                                     BGPVIEW_FIELD_ACTIVE);
+                             0, /* all pfx versions */
+                             BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(it);
       bgpview_iter_next_pfx(it))
     {
+      if(cb != NULL)
+        {
+          /* ask the caller if they want this peer */
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX)) < 0)
+            {
+              goto err;
+            }
+          if(filter == 0)
+            {
+              continue;
+            }
+        }
+
       /* reset the buffer */
       len = BUFFER_LEN;
       ptr = buf;
@@ -602,7 +617,7 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
 }
 
 static int send_peers(void *dest, bgpview_iter_t *it,
-                      bgpview_io_filter_peer_cb_t *cb)
+                      bgpview_io_filter_cb_t *cb)
 {
   uint16_t u16;
   uint32_t u32;
@@ -626,7 +641,7 @@ static int send_peers(void *dest, bgpview_iter_t *it,
       if(cb != NULL)
         {
           /* ask the caller if they want this peer */
-          if((filter = cb(it)) < 0)
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PEER)) < 0)
             {
               goto err;
             }
@@ -1094,7 +1109,7 @@ void bgpview_io_dump(bgpview_t *view)
 }
 
 int bgpview_io_send(void *dest, bgpview_t *view,
-                    bgpview_io_filter_peer_cb_t *cb)
+                    bgpview_io_filter_cb_t *cb)
 {
   uint32_t u32;
 
