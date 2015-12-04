@@ -265,7 +265,7 @@ int main(int argc, char **argv)
 
   for(tbl = 0; tbl < table_num; tbl++)
     {
-      if((ret = bgpview_io_read(infile, view)) == 0)
+      if((ret = bgpview_io_read(infile, view, NULL, NULL, NULL)) == 0)
         {
           /* eof */
           break;

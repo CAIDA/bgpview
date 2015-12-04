@@ -385,7 +385,7 @@ static int handle_recv_view(bgpview_io_server_t *server,
     }
 
   /* receive the view */
-  if(bgpview_io_recv(server->client_socket, view) != 0)
+  if(bgpview_io_recv(server->client_socket, view, NULL, NULL, NULL) != 0)
     {
       goto err;
     }

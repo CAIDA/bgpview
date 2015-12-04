@@ -470,6 +470,8 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
   } while(0)
 
 static int recv_pfxs(void *src, bgpview_iter_t *iter,
+                     bgpview_io_filter_pfx_cb_t *pfx_cb,
+                     bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
                      bgpstream_peer_id_t *peerid_map,
                      int peerid_map_cnt,
                      bgpstream_as_path_store_path_id_t *pathid_map,
@@ -494,6 +496,18 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
   int pfx_rx = 0;
   int pfx_peer_rx = 0;
 
+  int skip_pfx = 0;
+  int filter;
+
+  bgpview_t *view = NULL;
+  bgpstream_as_path_store_t *store = NULL;
+  bgpstream_as_path_store_path_t *store_path = NULL;
+  if(iter != NULL)
+    {
+      view = bgpview_iter_get_view(iter);
+      store = bgpview_get_as_path_store(view);
+    }
+
   ASSERT_MORE;
 
   /* foreach pfx, recv pfx.ip, pfx.len, [peers_cnt, peer_info] */
@@ -509,6 +523,7 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
       len = zmq_msg_size(&msg);
       read = 0;
       s = 0;
+      skip_pfx = 0;
 
       if(len == 0)
         {
@@ -530,6 +545,19 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
       DESERIALIZE_VAL(pfx.mask_len);
       ASSERT_MORE;
 
+      if(pfx_cb != NULL)
+        {
+          /* ask the caller if they want this pfx */
+          if((filter = pfx_cb((bgpstream_pfx_t*)&pfx)) < 0)
+            {
+              goto err;
+            }
+          if(filter == 0)
+            {
+              skip_pfx = 1;
+            }
+        }
+
       pfx_peers_added = 0;
       pfx_peer_rx = 0;
 
@@ -550,13 +578,30 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
           /* AS Path Index */
 	  DESERIALIZE_VAL(pathidx);
 
-          if(iter == NULL)
+          if(iter == NULL || skip_pfx != 0)
             {
               continue;
             }
           /* all code below here has a valid iter */
 
           assert(peerid < peerid_map_cnt);
+
+          if(pfx_peer_cb != NULL)
+            {
+              /* get the store path using the id */
+              store_path =
+                bgpstream_as_path_store_get_store_path(store,
+                                                       pathid_map[pathidx]);
+              /* ask the caller if they want this pfx-peer */
+              if((filter = pfx_peer_cb(store_path)) < 0)
+                {
+                  goto err;
+                }
+              if(filter == 0)
+                {
+                  continue;
+                }
+            }
 
           if(pfx_peers_added == 0)
             {
@@ -707,6 +752,7 @@ static int send_peers(void *dest, bgpview_iter_t *it,
 }
 
 static int recv_peers(void *src, bgpview_iter_t *iter,
+                      bgpview_io_filter_peer_cb_t *peer_cb,
                       bgpstream_peer_id_t **peerid_mapping)
 {
   uint16_t pc;
@@ -723,6 +769,8 @@ static int recv_peers(void *src, bgpview_iter_t *iter,
 
   int rx_bytes = 0;
   int peers_rx = 0;
+
+  int filter = 0;
 
   ASSERT_MORE;
 
@@ -785,6 +833,19 @@ static int recv_peers(void *src, bgpview_iter_t *iter,
           continue;
         }
       /* all code below here has a valid view */
+
+      if(peer_cb != NULL)
+        {
+          /* ask the caller if they want this peer */
+          if((filter = peer_cb(&ps)) < 0)
+            {
+              goto err;
+            }
+          if(filter == 0)
+            {
+              continue;
+            }
+        }
 
       /* ensure we have enough space in the id map */
       if((peerid_orig+1) > idmap_cnt)
@@ -1159,7 +1220,10 @@ int bgpview_io_send(void *dest, bgpview_t *view,
   return -1;
 }
 
-int bgpview_io_recv(void *src, bgpview_t *view)
+int bgpview_io_recv(void *src, bgpview_t *view,
+                    bgpview_io_filter_peer_cb_t *peer_cb,
+                    bgpview_io_filter_pfx_cb_t *pfx_cb,
+                    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 {
   uint32_t u32;
 
@@ -1188,7 +1252,7 @@ int bgpview_io_recv(void *src, bgpview_t *view)
     }
   ASSERT_MORE;
 
-  if((peerid_map_cnt = recv_peers(src, it, &peerid_map)) < 0)
+  if((peerid_map_cnt = recv_peers(src, it, peer_cb, &peerid_map)) < 0)
     {
       fprintf(stderr, "Could not receive peers\n");
       goto err;
@@ -1203,7 +1267,7 @@ int bgpview_io_recv(void *src, bgpview_t *view)
   ASSERT_MORE;
 
   /* pfxs */
-  if(recv_pfxs(src, it,
+  if(recv_pfxs(src, it, pfx_cb, pfx_peer_cb,
                peerid_map, peerid_map_cnt,
                pathid_map, pathid_map_cnt) != 0)
     {

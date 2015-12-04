@@ -455,6 +455,7 @@ static int write_pfxs(iow_t *outfile, bgpview_iter_t *it,
 }
 
 static int read_peers(io_t *infile, bgpview_iter_t *iter,
+                      bgpview_io_filter_peer_cb_t *peer_cb,
                       bgpstream_peer_id_t **peerid_mapping)
 {
   uint16_t pc;
@@ -470,6 +471,8 @@ static int read_peers(io_t *infile, bgpview_iter_t *iter,
   int idmap_cnt = 0;
 
   int peers_rx = 0;
+
+  int filter = 0;
 
   /* foreach peer, read peerid, collector string, peer ip (version, address),
      peer asn */
@@ -513,6 +516,19 @@ static int read_peers(io_t *infile, bgpview_iter_t *iter,
           continue;
         }
       /* all code below here has a valid view */
+
+      if(peer_cb != NULL)
+        {
+          /* ask the caller if they want this peer */
+          if((filter = peer_cb(&ps)) < 0)
+            {
+              goto err;
+            }
+          if(filter == 0)
+            {
+              continue;
+            }
+        }
 
       /* ensure we have enough space in the id map */
       if((peerid_orig+1) > idmap_cnt)
@@ -658,6 +674,8 @@ static int read_paths(io_t *infile, bgpview_iter_t *iter,
 
 
 static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
+                     bgpview_io_filter_pfx_cb_t *pfx_cb,
+                     bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
                      bgpstream_peer_id_t *peerid_map,
                      int peerid_map_cnt,
                      bgpstream_as_path_store_path_id_t *pathid_map,
@@ -677,6 +695,18 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
   int pfx_rx = 0;
   int pfx_peer_rx = 0;
 
+  int skip_pfx = 0;
+  int filter;
+
+  bgpview_t *view = NULL;
+  bgpstream_as_path_store_t *store = NULL;
+  bgpstream_as_path_store_path_t *store_path = NULL;
+  if(iter != NULL)
+    {
+      view = bgpview_iter_get_view(iter);
+      store = bgpview_get_as_path_store(view);
+    }
+
   /* foreach pfx, read pfx.ip, pfx.len, [peers_cnt, peer_info] */
   for(i=0; i<UINT32_MAX; i++)
     {
@@ -686,6 +716,7 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
           break;
         }
       pfx_rx++;
+      skip_pfx = 0;
 
       /* pfx_ip */
       if(read_ip(infile, &pfx.address) != 0)
@@ -696,6 +727,19 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 
       /* pfx len */
       READ_VAL(pfx.mask_len);
+
+      if(pfx_cb != NULL)
+        {
+          /* ask the caller if they want this pfx */
+          if((filter = pfx_cb((bgpstream_pfx_t*)&pfx)) < 0)
+            {
+              goto err;
+            }
+          if(filter == 0)
+            {
+              skip_pfx = 1;
+            }
+        }
 
       pfx_peers_added = 0;
       pfx_peer_rx = 0;
@@ -717,13 +761,30 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
           /* AS Path Index */
 	  READ_VAL(pathidx);
 
-          if(iter == NULL)
+          if(iter == NULL || skip_pfx != 0)
             {
               continue;
             }
           /* all code below here has a valid iter */
 
           assert(peerid < peerid_map_cnt);
+
+          if(pfx_peer_cb != NULL)
+            {
+              /* get the store path using the id */
+              store_path =
+                bgpstream_as_path_store_get_store_path(store,
+                                                       pathid_map[pathidx]);
+              /* ask the caller if they want this pfx-peer */
+              if((filter = pfx_peer_cb(store_path)) < 0)
+                {
+                  goto err;
+                }
+              if(filter == 0)
+                {
+                  continue;
+                }
+            }
 
           if(pfx_peers_added == 0)
             {
@@ -833,7 +894,10 @@ int bgpview_io_write(iow_t *outfile, bgpview_t *view,
   return -1;
 }
 
-int bgpview_io_read(io_t *infile, bgpview_t *view)
+int bgpview_io_read(io_t *infile, bgpview_t *view,
+                    bgpview_io_filter_peer_cb_t *peer_cb,
+                    bgpview_io_filter_pfx_cb_t *pfx_cb,
+                    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 {
   uint32_t u32;
 
@@ -868,7 +932,7 @@ int bgpview_io_read(io_t *infile, bgpview_t *view)
       bgpview_set_time(view, ntohl(u32));
     }
 
-  if((peerid_map_cnt = read_peers(infile, it, &peerid_map)) < 0)
+  if((peerid_map_cnt = read_peers(infile, it, peer_cb, &peerid_map)) < 0)
     {
       fprintf(stderr, "ERROR: Could not read peer table\n");
       goto err;
@@ -881,7 +945,7 @@ int bgpview_io_read(io_t *infile, bgpview_t *view)
     }
 
   /* pfxs */
-  if(read_pfxs(infile, it, peerid_map, peerid_map_cnt,
+  if(read_pfxs(infile, it, pfx_cb, pfx_peer_cb, peerid_map, peerid_map_cnt,
                pathid_map, pathid_map_cnt) != 0)
     {
       fprintf(stderr, "ERROR: Could not read prefixes\n");

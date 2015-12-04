@@ -124,7 +124,7 @@ void bgpview_io_client_perr(bgpview_io_client_t *client);
  *
  * @param client        pointer to a bgpview client instance
  * @param view          pointer to the view to transmit
- * @param cb            callback function to use to filter peers (may be NULL)
+ * @param cb            callback function to use to filter entries (may be NULL)
  * @return 0 if the view was transmitted successfully, -1 otherwise
  *
  * This function only sends 'active' fields. Any fields that are 'inactive' in
@@ -143,6 +143,7 @@ int bgpview_io_client_send_view(bgpview_io_client_t *client,
  * @param mode          receive mode (blocking/non-blocking)
  * @param[out] interests  set to all the interests the view satisfies
  * @param view          pointer to the view to fill
+ * @param cb            callback function to use to filter entries (may be NULL)
  * @return all the interests the view satisfies, -1 if an error occurred.
  *
  * @note this function will only receive messages for which an interest was set
@@ -157,7 +158,10 @@ int bgpview_io_client_send_view(bgpview_io_client_t *client,
  */
 int bgpview_io_client_recv_view(bgpview_io_client_t *client,
 				bgpview_io_client_recv_mode_t blocking,
-				bgpview_t *view);
+				bgpview_t *view,
+                                bgpview_io_filter_peer_cb_t *peer_cb,
+                                bgpview_io_filter_pfx_cb_t *pfx_cb,
+                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 /** Stop the given bgpview client instance
  *

@@ -42,6 +42,266 @@
 static bgpview_consumer_manager_t *manager = NULL;
 static timeseries_t *timeseries = NULL;
 
+static bgpstream_patricia_tree_t *pfx_tree = NULL;
+static bgpstream_pfx_storage_set_t *pfx_set = NULL;
+static bgpstream_id_set_t *asn_set = NULL;
+
+typedef int (filter_parser_func)(char *value);
+
+enum filter_type {
+  FILTER_PFX = 0,
+  FILTER_PFX_EXACT = 1,
+  FILTER_ORIGIN = 2,
+};
+#define FILTER_CNT 3
+
+static char *filter_type_str[] = {
+  "pfx",
+  "pfx-exact",
+  "origin",
+};
+
+static char *filter_desc[] = {
+  "match on prefix and sub-prefixes",
+  "match on prefix",
+  "match on origin ASN",
+};
+
+static int filter_cnts[] = {
+  0,
+  0,
+  0,
+};
+
+static int peer_filters_cnt = 0;
+static int pfx_filters_cnt = 0;
+static int pfx_peer_filters_cnt = 0;
+
+static int parse_pfx(char *value)
+{
+  bgpstream_pfx_storage_t pfx;
+
+  if(value == NULL)
+    {
+      fprintf(stderr, "ERROR: Missing value for prefix filter\n");
+      return -1;
+    }
+
+  if(bgpstream_str2pfx(value, &pfx) == NULL)
+    {
+      fprintf(stderr, "ERROR: Malformed prefix filter value '%s'\n", value);
+      return -1;
+    }
+
+  if(bgpstream_patricia_tree_insert(pfx_tree, (bgpstream_pfx_t*)&pfx) == NULL)
+    {
+      fprintf(stderr, "ERROR: Failed to insert pfx filter into tree\n");
+    }
+
+  pfx_filters_cnt++;
+  return 0;
+}
+
+static int parse_pfx_exact(char *value)
+{
+  bgpstream_pfx_storage_t pfx;
+
+  if(value == NULL)
+    {
+      fprintf(stderr, "ERROR: Missing value for prefix filter\n");
+      return -1;
+    }
+
+  if(bgpstream_str2pfx(value, &pfx) == NULL)
+    {
+      fprintf(stderr, "ERROR: Malformed prefix filter value '%s'\n", value);
+      return -1;
+    }
+
+  if(bgpstream_pfx_storage_set_insert(pfx_set, &pfx) < 0)
+    {
+      fprintf(stderr, "ERROR: Failed to insert pfx filter into set\n");
+    }
+
+  pfx_filters_cnt++;
+  return 0;
+}
+
+static int parse_origin(char *value)
+{
+  char *endptr = NULL;
+  int asn = strtoul(value, &endptr, 10);
+  if(*endptr != '\0')
+    {
+      fprintf(stderr, "ERROR: Invalid origin ASN value '%s'\n", value);
+      return -1;
+    }
+  if(bgpstream_id_set_insert(asn_set, asn) < 0)
+    {
+      fprintf(stderr, "ERROR: Could not insert origin filter into set\n");
+      return -1;
+    }
+  pfx_peer_filters_cnt++;
+  return 0;
+}
+
+static filter_parser_func *filter_parsers[] = {
+  parse_pfx,
+  parse_pfx_exact,
+  parse_origin,
+};
+
+static int match_pfx(bgpstream_pfx_t *pfx)
+{
+  return ((bgpstream_patricia_tree_get_pfx_overlap_info(pfx_tree, pfx) &
+           (BGPSTREAM_PATRICIA_EXACT_MATCH | BGPSTREAM_PATRICIA_LESS_SPECIFICS)) != 0);
+}
+
+static int match_pfx_exact(bgpstream_pfx_t *pfx)
+{
+  return bgpstream_pfx_storage_set_exists(pfx_set,
+                                           (bgpstream_pfx_storage_t*)pfx);
+}
+
+static bgpview_io_filter_pfx_cb_t *filter_pfx_matchers[] = {
+  match_pfx,
+  match_pfx_exact,
+  NULL,
+};
+
+static int match_pfx_peer_origin(bgpstream_as_path_store_path_t *store_path)
+{
+  bgpstream_as_path_seg_t *seg;
+  seg = bgpstream_as_path_store_path_get_origin_seg(store_path);
+  return (seg->type == BGPSTREAM_AS_PATH_SEG_ASN &&
+          bgpstream_id_set_exists(asn_set,
+                                  ((bgpstream_as_path_seg_asn_t*)seg)->asn) != 0);
+}
+
+static bgpview_io_filter_pfx_peer_cb_t *filter_pfx_peer_matchers[] = {
+  NULL,
+  NULL,
+  match_pfx_peer_origin,
+};
+
+static int filters_init()
+{
+  if((pfx_tree = bgpstream_patricia_tree_create(NULL)) == NULL)
+    {
+      return -1;
+    }
+
+  if((pfx_set = bgpstream_pfx_storage_set_create()) == NULL)
+    {
+      return -1;
+    }
+
+  if((asn_set = bgpstream_id_set_create()) == NULL)
+    {
+      return -1;
+    }
+
+  return 0;
+}
+
+static void filters_destroy()
+{
+  bgpstream_patricia_tree_destroy(pfx_tree);
+  pfx_tree = NULL;
+  bgpstream_pfx_storage_set_destroy(pfx_set);
+  pfx_set = NULL;
+  bgpstream_id_set_destroy(asn_set);
+  asn_set = NULL;
+}
+
+static int parse_filter(char *filter_str)
+{
+  char *val = NULL;
+  int i;
+  int found = 0;
+
+  /* first, find the value (if any) */
+  val = strchr(filter_str, ':');
+
+  if(val != NULL)
+    {
+      *val = '\0';
+      val++;
+    }
+
+  /* now find the type */
+  for(i=0; i<FILTER_CNT; i++)
+    {
+      if(strcmp(filter_type_str[i], filter_str) == 0)
+        {
+          if(filter_parsers[i](val) != 0)
+            {
+              return -1;
+            }
+          filter_cnts[i]++;
+          found = 1;
+          break;
+        }
+    }
+
+  if(found == 0)
+    {
+      fprintf(stderr, "ERROR: Invalid filter type '%s'\n", filter_str);
+      return -1;
+    }
+
+  return 0;
+}
+
+static int filter_pfx(bgpstream_pfx_t *pfx)
+{
+  int i, ret;
+
+  /* if this func is called, at least one type of filter is enabled */
+  for(i=0; i<FILTER_CNT; i++)
+    {
+      if(filter_pfx_matchers[i] != NULL &&
+         filter_cnts[i] > 0 && (ret = filter_pfx_matchers[i](pfx)) != 0)
+        {
+          return ret;
+        }
+    }
+
+  return 0;
+}
+
+static int filter_peer(bgpstream_peer_sig_t *peersig)
+{
+  return 1;
+}
+
+static int filter_pfx_peer(bgpstream_as_path_store_path_t *store_path)
+{
+  int i, ret;
+
+  /* if this func is called, at least one type of filter is enabled */
+  for(i=0; i<FILTER_CNT; i++)
+    {
+      if(filter_pfx_peer_matchers[i] != NULL &&
+         filter_cnts[i] > 0 && (ret = filter_pfx_peer_matchers[i](store_path)) != 0)
+        {
+          return ret;
+        }
+    }
+
+  return 0;
+}
+
+static void filter_usage()
+{
+  int i;
+  for(i = 0; i < FILTER_CNT; i++)
+    {
+      fprintf(stderr, "                               - %s (%s)\n",
+              filter_type_str[i], filter_desc[i]);
+    }
+}
+
 static void timeseries_usage()
 {
   assert(timeseries != NULL);
@@ -110,6 +370,9 @@ static void usage(const char *name)
 	  "       -c <consumer>         Consumer to active (can be used multiple times)\n");
   consumer_usage();
   fprintf(stderr,
+          "       -f <type:value>       Add a filter. Supported types are:\n");
+  filter_usage();
+  fprintf(stderr,
 	  "       -i <interval-ms>      Time in ms between heartbeats to server\n"
 	  "                               (default: %d)\n"
           "       -I <interest>         Advertise the given interest. May be used multiple times\n"
@@ -146,7 +409,7 @@ int main(int argc, char **argv)
   int i;
 
   char *metric_prefix = NULL;
-  
+
   char *backends[TIMESERIES_BACKEND_ID_LAST];
   int backends_cnt = 0;
   char *backend_arg_ptr = NULL;
@@ -170,12 +433,18 @@ int main(int argc, char **argv)
   int processed_view_limit = -1;
   int processed_view = 0;
 
+  if(filters_init() != 0)
+    {
+      fprintf(stderr, "ERROR: Could not initialize filters\n");
+      return -1;
+    }
+
   if((timeseries = timeseries_init()) == NULL)
     {
       fprintf(stderr, "ERROR: Could not initialize libtimeseries\n");
       return -1;
     }
-  
+
   /* better just grab a pointer to the manager */
   if((manager = bgpview_consumer_manager_create(timeseries)) == NULL)
     {
@@ -184,7 +453,7 @@ int main(int argc, char **argv)
     }
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":m:N:b:c:i:I:l:n:r:R:s:S:v?")) >= 0)
+	(opt = getopt(argc, argv, ":f:m:N:b:c:i:I:l:n:r:R:s:S:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -198,6 +467,13 @@ int main(int argc, char **argv)
 	  return -1;
 	  break;
 
+        case 'f':
+          if (parse_filter(optarg) != 0)
+            {
+              usage(argv[0]);
+              return -1;
+            }
+
 	case 'm':
 	  metric_prefix = strdup(optarg);
 	  break;
@@ -205,7 +481,7 @@ int main(int argc, char **argv)
         case 'N':
           processed_view_limit = atoi(optarg);
           break;
-          
+
 	case 'b':
 	  backends[backends_cnt++] = strdup(optarg);
 	  break;
@@ -306,7 +582,6 @@ int main(int argc, char **argv)
       return -1;
     }
 
-  
   if(backends_cnt == 0)
     {
       fprintf(stderr,
@@ -425,11 +700,14 @@ int main(int argc, char **argv)
   /* disable per-pfx-per-peer user pointer */
   bgpview_disable_user_data(view);
 
-  
   while((rx_interests =
          bgpview_io_client_recv_view(client,
                                      BGPVIEW_IO_CLIENT_RECV_MODE_BLOCK,
-                                     view)) > 0)
+                                     view,
+                                     (peer_filters_cnt != 0) ? filter_peer : NULL,
+                                     (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+                                     (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
+                                     )) > 0)
     {
       if(bgpview_consumer_manager_process_view(manager, rx_interests, view) != 0)
 	{
@@ -454,6 +732,7 @@ int main(int argc, char **argv)
   bgpview_io_client_perr(client);
 
   /* cleanup */
+  filters_destroy();
   bgpview_io_client_free(client);
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
@@ -461,13 +740,14 @@ int main(int argc, char **argv)
   if(metric_prefix !=NULL)
     {
       free(metric_prefix);
-    } 
+    }
   fprintf(stderr, "INFO: Shutdown complete\n");
 
   /* complete successfully */
   return 0;
 
  err:
+  filters_destroy();
   if(client != NULL) {
     bgpview_io_client_perr(client);
     bgpview_io_client_free(client);

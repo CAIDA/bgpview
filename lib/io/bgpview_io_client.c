@@ -246,7 +246,10 @@ int bgpview_io_client_send_view(bgpview_io_client_t *client,
 
 int bgpview_io_client_recv_view(bgpview_io_client_t *client,
 				bgpview_io_client_recv_mode_t blocking,
-				bgpview_t *view)
+				bgpview_t *view,
+                                bgpview_io_filter_peer_cb_t *peer_cb,
+                                bgpview_io_filter_pfx_cb_t *pfx_cb,
+                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 
 {
   uint8_t interests = 0;
@@ -264,7 +267,8 @@ int bgpview_io_client_recv_view(bgpview_io_client_t *client,
 	  return -1;
         }
 
-  if(bgpview_io_recv(client->broker_zocket, view) != 0)
+  if(bgpview_io_recv(client->broker_zocket, view,
+                     peer_cb, pfx_cb, pfx_peer_cb) != 0)
     {
       bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
 			     "Failed to receive view");
