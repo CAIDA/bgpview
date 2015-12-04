@@ -113,17 +113,6 @@ typedef enum {
  */
 typedef void (bgpview_destroy_user_t) (void* user);
 
-/** Callback for filtering peers in a view when sending from bgpview_io_client.
- *
- * @param iter          iterator to the peer to check
- * @return 1 to include the peer, 0 to exclude the peer, and -1 if an error
- * occured.
- *
- * @note This callback will be called for every prefix/peer combination, so it
- * should be efficient at determining if a peer is to be included.
- */
-typedef int (bgpview_filter_peer_cb_t)(bgpview_iter_t *iter);
-
 /** @} */
 
 /** Create a new BGP View

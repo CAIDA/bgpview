@@ -178,7 +178,7 @@ static int read_ip(io_t *infile, bgpstream_addr_storage_t *ip)
 }
 
 static int write_peers(iow_t *outfile, bgpview_iter_t *it,
-                      bgpview_filter_peer_cb_t *cb)
+                       bgpview_io_filter_peer_cb_t *cb)
 {
   uint8_t u8;
   uint16_t u16;
@@ -325,7 +325,7 @@ static int write_paths(iow_t *outfile, bgpview_iter_t *it)
 
 
 static int write_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
-                          bgpview_filter_peer_cb_t *cb)
+                           bgpview_io_filter_peer_cb_t *cb)
 {
   uint16_t peerid;
   bgpstream_as_path_store_path_t *spath;
@@ -373,7 +373,7 @@ static int write_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
 
 
 static int write_pfxs(iow_t *outfile, bgpview_iter_t *it,
-                     bgpview_filter_peer_cb_t *cb)
+                      bgpview_io_filter_peer_cb_t *cb)
 {
   uint16_t u16;
   uint32_t u32;
@@ -765,7 +765,7 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 /* ========== PUBLIC FUNCTIONS ========== */
 
 int bgpview_io_write(iow_t *outfile, bgpview_t *view,
-                     bgpview_filter_peer_cb_t *cb)
+                     bgpview_io_filter_peer_cb_t *cb)
 {
   uint32_t u32;
   bgpview_iter_t *it = NULL;

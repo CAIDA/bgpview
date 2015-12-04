@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#include "bgpview.h"
+#include "bgpview_io.h"
 #include "bgpview_io_common.h"
 
 /** @file
@@ -135,7 +135,7 @@ void bgpview_io_client_perr(bgpview_io_client_t *client);
  */
 int bgpview_io_client_send_view(bgpview_io_client_t *client,
                                 bgpview_t *view,
-                                bgpview_filter_peer_cb_t *cb);
+                                bgpview_io_filter_peer_cb_t *cb);
 
 /** Attempt to receive an BGP View from the bgpview server
  *

@@ -288,7 +288,7 @@ static void pfxs_dump(bgpview_t *view,
 static int send_pfx_peers(uint8_t *buf, size_t len,
                           bgpview_iter_t *it,
                           int *peers_cnt,
-                          bgpview_filter_peer_cb_t *cb)
+                          bgpview_io_filter_peer_cb_t *cb)
 {
   uint16_t peerid;
 
@@ -349,7 +349,7 @@ static int send_pfx_peers(uint8_t *buf, size_t len,
 }
 
 static int send_pfxs(void *dest, bgpview_iter_t *it,
-                     bgpview_filter_peer_cb_t *cb)
+                     bgpview_io_filter_peer_cb_t *cb)
 {
   uint16_t u16;
   uint32_t u32;
@@ -602,7 +602,7 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
 }
 
 static int send_peers(void *dest, bgpview_iter_t *it,
-                      bgpview_filter_peer_cb_t *cb)
+                      bgpview_io_filter_peer_cb_t *cb)
 {
   uint16_t u16;
   uint32_t u32;
@@ -1094,7 +1094,7 @@ void bgpview_io_dump(bgpview_t *view)
 }
 
 int bgpview_io_send(void *dest, bgpview_t *view,
-                    bgpview_filter_peer_cb_t *cb)
+                    bgpview_io_filter_peer_cb_t *cb)
 {
   uint32_t u32;
 

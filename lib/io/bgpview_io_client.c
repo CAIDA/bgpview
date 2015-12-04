@@ -225,7 +225,7 @@ void bgpview_io_client_perr(bgpview_io_client_t *client)
 
 int bgpview_io_client_send_view(bgpview_io_client_t *client,
                                 bgpview_t *view,
-                                bgpview_filter_peer_cb_t *cb)
+                                bgpview_io_filter_peer_cb_t *cb)
 {
   if(send_view_hdrs(client, view) != 0)
     {
