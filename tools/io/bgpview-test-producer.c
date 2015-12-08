@@ -37,6 +37,8 @@
 #include "config.h"
 #include "utils.h"
 
+#define VIEW_INTERVAL 300
+
 #define TEST_TABLE_NUM_DEFAULT 1
 #define TEST_TABLE_SIZE_DEFAULT 50
 #define TEST_PEER_NUM_DEFAULT 1
@@ -397,7 +399,7 @@ int main(int argc, char **argv)
               "--------------------[ PREFIX START %03d ]--------------------\n",
               tbl);
 
-      bgpview_set_time(view, test_time+(tbl*60));
+      bgpview_set_time(view, test_time+(tbl*VIEW_INTERVAL));
 
       /* reset peer ip */
       test_peer_ip.ipv4.s_addr = test_peer_first_ip;
