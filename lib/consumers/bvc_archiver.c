@@ -37,6 +37,8 @@
 #define BUFFER_LEN 1024
 #define META_METRIC_PREFIX_FORMAT  "%s.meta.bgpview.consumer."NAME
 
+#define DEFAULT_COMPRESS_LEVEL 6
+
 #define DUMP_METRIC(value, time, fmt, ...)                              \
   do {                                                                  \
     char buf[1024];                                                     \
@@ -105,9 +107,10 @@ static void usage(bvc_t *consumer)
           "       -r <seconds>  output file rotation period (default: no rotation)\n"
           "       -a            disable alignment of output file rotation to multiples of the rotation interval\n"
           "       -l <filename> file to write the filename of the latest complete output file to\n"
-          "       -c <level>    output compression level to use (default: 6)\n"
+          "       -c <level>    output compression level to use (default: %d)\n"
           "       -m <mode>     output mode: 'ascii' or 'binary' (default: binary)\n",
-	  consumer->name);
+	  consumer->name,
+          DEFAULT_COMPRESS_LEVEL);
 }
 
 
@@ -315,7 +318,7 @@ int bvc_archiver_init(bvc_t *consumer, int argc, char **argv)
 
   /* set defaults here */
 
-  state->outfile_compress_level = 6;
+  state->outfile_compress_level = DEFAULT_COMPRESS_LEVEL;
 
   state->output_format = BINARY;
 
