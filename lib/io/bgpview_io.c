@@ -1024,19 +1024,12 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
   bgpview_t *view = NULL;
   bgpstream_as_path_store_t *store = NULL;
-  bgpstream_as_path_t *path = NULL;
 
   /* only if we have a valid iterator */
   if(iter != NULL)
     {
       view = bgpview_iter_get_view(iter);
       store = bgpview_get_as_path_store(view);
-
-      /* create a path */
-      if((path = bgpstream_as_path_create()) == NULL)
-        {
-          return -1;
-        }
     }
 
   ASSERT_MORE;
