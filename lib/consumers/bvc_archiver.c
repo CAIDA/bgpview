@@ -112,7 +112,7 @@ static void usage(bvc_t *consumer)
           DEFAULT_COMPRESS_LEVEL);
 }
 
-
+#if 0
 static char *graphite_safe(char *p)
 {
   if(p == NULL)
@@ -135,6 +135,7 @@ static char *graphite_safe(char *p)
     }
   return r;
 }
+#endif
 
 static int complete_file(bvc_t *consumer)
 {
