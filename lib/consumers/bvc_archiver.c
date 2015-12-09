@@ -43,7 +43,6 @@
   do {                                                                  \
     char buf[1024];                                                     \
     snprintf(buf,1024, META_METRIC_PREFIX_FORMAT"."fmt, __VA_ARGS__);   \
-    graphite_safe(buf);                                                 \
     timeseries_set_single(BVC_GET_TIMESERIES(consumer),                 \
                           buf, value, time);                            \
   } while(0)
