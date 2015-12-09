@@ -143,6 +143,11 @@ static int complete_file(bvc_t *consumer)
   iow_t *latest = NULL;
 
   /* first, close the current output file */
+  if(state->outfile == NULL)
+    {
+      return 0;
+    }
+
   wandio_wdestroy(state->outfile);
   state->outfile = NULL;
 
