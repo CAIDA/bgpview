@@ -41,7 +41,6 @@
 #define CONSUMER_METRIC_PREFIX     "prefix-visibility.geo.netacuity"
 #define GEO_PROVIDER_NAME          "netacq-edge"
 
-#define METRIC_PREFIX_TH_FORMAT    "%s."CONSUMER_METRIC_PREFIX".%s.%s.visibility_threshold.%s.%s"
 #define METRIC_PREFIX_IP_TH_FORMAT "%s."CONSUMER_METRIC_PREFIX".%s.%s.v%d.visibility_threshold.%s.%s"
 #define META_METRIC_PREFIX_FORMAT  "%s.meta.bgpview.consumer."NAME".%s"
 
@@ -371,14 +370,14 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo, char *conti
             {
               return -1;
             }
-        }
-      /* visible_asns_cnt */
-      snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_TH_FORMAT,
-               CHAIN_STATE->metric_prefix, continent, iso2_cc, threshold_string(i),
-               "visible_asns_cnt");
-      if((per_geo->info[i].asns_cnt_idx = timeseries_kp_add_key(state->kp, buffer)) == -1)
-        {
-          return -1;
+          /* visible_asns_cnt */
+          snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_IP_TH_FORMAT,
+                   CHAIN_STATE->metric_prefix, continent, iso2_cc, bgpstream_idx2number(v), threshold_string(i),
+                   "visible_asns_cnt");
+          if((per_geo->info[i].asns_cnt_idx = timeseries_kp_add_key(state->kp, buffer)) == -1)
+            {
+              return -1;
+            }
         }
     }
   return 0;
