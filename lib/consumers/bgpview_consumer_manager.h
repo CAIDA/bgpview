@@ -144,15 +144,20 @@ typedef enum bvc_id
     BVC_ID_ARCHIVER           = 8,
     
     /** Writes information about prefixes who's more specific prefixes are announced by different ASNs*/
-    BVC_ID_SUBMOAS           = 9,
+    BVC_ID_SUBMOAS            = 9,
 
+    /** Writes information about prefixes that are reachable through new edges  */
+    BVC_ID_EDGES              = 10,
+
+    /** Writes information about prefixes that are reachable through  triplets */
+    BVC_ID_TRIPLETS              = 11,
 
     /** @todo add more consumers here */
 
     /** Lowest numbered bgpview consumer ID */
     BVC_ID_FIRST      = BVC_ID_TEST,
     /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_SUBMOAS,
+    BVC_ID_LAST       = BVC_ID_TRIPLETS,
 
   } bvc_id_t;
 

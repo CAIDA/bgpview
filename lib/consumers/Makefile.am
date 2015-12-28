@@ -85,6 +85,15 @@ CONSUMER_SRCS += \
 	bvc_submoas.c \
 	bvc_submoas.h
 
+# Edges consumer
+CONSUMER_SRCS += \
+	bvc_edges.c \
+	bvc_edges.h
+
+# Triplets consumer
+CONSUMER_SRCS += \
+	bvc_triplets.c \
+	bvc_triplets.h
 
 # -- sample how to add conditional consumer
 #if WITH_<NAME>

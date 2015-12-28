@@ -60,8 +60,13 @@
 /* Submoas consumer */
 #include "bvc_submoas.h"
 
+/* Archiver consumer */
+#include "bvc_edges.h"
 
- 
+/* Triplet consumer */
+#include "bvc_triplets.h"
+
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -112,7 +117,14 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to submoas alloc function */
   bvc_submoas_alloc,
-  
+
+  /** Pointer to edge alloc function */
+  bvc_edges_alloc,
+
+  /** Pointer to edge alloc function */
+  bvc_triplets_alloc,
+
+
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
   /*
