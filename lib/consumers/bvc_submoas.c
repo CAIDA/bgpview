@@ -620,8 +620,16 @@ char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx
   submoas_prefix_t submoas_struct=kh_value(state->subprefix_map,k);
   for(i = 0; i < this_prefix_info->number_of_asns; i++)
     {
-      ret =snprintf(buffer+written, buffer_len - written -1, "%"PRIu32",%"PRIu32" ",
-                    this_prefix_info->origin_asns[i].asn, this_prefix_info->origin_asns[i].visibility);
+      if(i == 0)
+        {
+          ret = snprintf(buffer+written, buffer_len - written -1, "%"PRIu32",%"PRIu32,
+                        this_prefix_info->origin_asns[i].asn, this_prefix_info->origin_asns[i].visibility);
+        }
+      else
+        {
+          ret = snprintf(buffer+written, buffer_len - written -1, " %"PRIu32",%"PRIu32,
+                        this_prefix_info->origin_asns[i].asn, this_prefix_info->origin_asns[i].visibility);
+        }
       if(ret < 0 || ret >= buffer_len - written -1)
         {
           fprintf(stderr, "ERROR: cannot write the current MOAS signature.\n");
@@ -634,8 +642,17 @@ char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx
 
   for(i = 0; i < submoas_struct.number_of_subasns; i++)
     {
-      ret =snprintf(buffer+written, buffer_len - written -1, "%"PRIu32",%"PRIu32"  ",
-                    submoas_struct.submoases[i].subasn, get_visibility(consumer,submoas_struct.subprefix,submoas_struct.submoases[i].subasn,caller ));
+      if(i == 0)
+        {
+          ret = snprintf(buffer+written, buffer_len - written -1, "%"PRIu32",%"PRIu32,
+                        submoas_struct.submoases[i].subasn, get_visibility(consumer,submoas_struct.subprefix,submoas_struct.submoases[i].subasn,caller ));
+        }
+      else
+        {
+          ret = snprintf(buffer+written, buffer_len - written -1, " %"PRIu32",%"PRIu32,
+                        submoas_struct.submoases[i].subasn, get_visibility(consumer,submoas_struct.subprefix,submoas_struct.submoases[i].subasn,caller ));
+        }
+
       if(ret < 0 || ret >= buffer_len - written -1)
         {
           fprintf(stderr, "ERROR: cannot write the current MOAS signature.\n");
@@ -644,7 +661,7 @@ char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx
       written += ret;
     }
 
-  buffer[written-1] = '\0';
+  buffer[written] = '\0';
 
   return buffer;
 
@@ -1280,7 +1297,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
       int new_asn_seen=0;
       new_prefix=0;
       atleast_one=0;
-      
+
       ipv_idx = bgpstream_ipv2idx(pfx->address.version);
       peers_cnt = 0;
       last_origin_asn = -1;
