@@ -468,7 +468,8 @@ void bvc_submoas_destroy(bvc_t *consumer)
 /*DIAGNOSTIC USE ONLY */
 void print_origin_asn(pref_info_t pref_info){
   printf("numberASN %d \n", pref_info.number_of_asns);
-  for (int i=0;i<pref_info.number_of_asns;i++){
+  int i;
+  for (i=0;i<pref_info.number_of_asns;i++){
     printf(" %d ",pref_info.origin_asns[i].asn);
   }
 printf("\n");
@@ -485,6 +486,7 @@ void print_subprefixes(bvc_t *consumer){
   submoas_prefix_t submoas_struct;
   bgpstream_patricia_node_t *pfx_node2;
   pref_info_t *temp_pref;
+  int i;
   for (k = kh_begin(state->subprefix_map); k != kh_end(state->subprefix_map); ++k) {
     if (kh_exist(state->subprefix_map,k)){
 
@@ -492,7 +494,7 @@ void print_subprefixes(bvc_t *consumer){
       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&submoas_struct.subprefix);
       printf("***Subprefix was %s \n",pfx_str);
       printf("number of subasns %d \n ",submoas_struct.number_of_subasns);
-      for (int i=0;i<submoas_struct.number_of_subasns;i++){
+      for ( i=0;i<submoas_struct.number_of_subasns;i++){
         bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&submoas_struct.submoases[i].superprefix);
         printf("For superprefix %s \n",pfx2_str);
         m=kh_get(superprefix_map, state->superprefix_map,submoas_struct.submoases[i].superprefix);
@@ -590,7 +592,8 @@ uint32_t get_visibility(bvc_t* consumer, bgpstream_pfx_storage_t pfx, uint32_t a
   }
   // int found=0;
   pref_info_t *this_prefix_info =bgpstream_patricia_tree_get_user(pfx_node);
-  for(int i = 0; i < this_prefix_info->number_of_asns; i++)
+  int i;
+  for(i = 0; i < this_prefix_info->number_of_asns; i++)
     {
       if (this_prefix_info->origin_asns[i].asn==asn){
         // found=1;
@@ -739,11 +742,11 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
   parent_pref=bgpstream_patricia_tree_get_user(parent_node);
 
 //Comparing origin ASNs for both given prefix and parent prefix and generating list of ASNs of given prefix, not in parent prefix
-
-  for (int i=0; i<pref_info->number_of_asns;i++){
+  int i,y;
+  for ( i=0; i<pref_info->number_of_asns;i++){
       same_origin=0;
-     for (int j=0; j<parent_pref->number_of_asns;j++){
-      if(pref_info->origin_asns[i].asn==parent_pref->origin_asns[j].asn){
+     for ( y=0; y<parent_pref->number_of_asns;y++){
+      if(pref_info->origin_asns[i].asn==parent_pref->origin_asns[y].asn){
         same_origin=1;
         break;
       }
@@ -765,7 +768,8 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         submoas_prefix_t submoas_struct;
         submoas_struct.number_of_subasns=0;
       //Seen this subprefix first time
-        for(int p=0;p<differ_ind;p++){
+        int p;
+        for( p=0;p<differ_ind;p++){
           submoas_struct=add_new_asn(submoas_struct,differ_asn[p],*(bgpstream_pfx_storage_t*)pfx,*(bgpstream_pfx_storage_t*)parent_pfx,timenow);
         }
         add_superprefix(consumer,*(bgpstream_pfx_storage_t*)parent_pfx,*(bgpstream_pfx_storage_t*) pfx);
@@ -824,9 +828,10 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         }
 
         int found=0;
-        for(int p=0;p<differ_ind;p++){
+        int p,m;
+        for( p=0;p<differ_ind;p++){
           found=0;
-          for (int m=0; m<submoas_struct.number_of_subasns;m++){
+          for (m=0; m<submoas_struct.number_of_subasns;m++){
           //this asn already exists
             if(submoas_struct.submoases[m].subasn==differ_asn[p]){
               found=1;
@@ -884,8 +889,9 @@ int check_submoas_over(bvc_t *consumer,submoas_prefix_t submoas_struct, bgpstrea
   bgpstream_patricia_node_t *pfx_node = bgpstream_patricia_tree_search_exact(state->pt, (bgpstream_pfx_t*)&superprefix);
   pref_info_t *pref_info=bgpstream_patricia_tree_get_user(pfx_node);
   int same_origin=0;
-  for (int i=0; i<submoas_struct.number_of_subasns;i++){
-     for (int j=0; j<pref_info->number_of_asns;j++){
+  int i,j;
+  for (i=0; i<submoas_struct.number_of_subasns;i++){
+     for (j=0; j<pref_info->number_of_asns;j++){
       if(pref_info->origin_asns[j].asn==submoas_struct.submoases[i].subasn){
         same_origin=1;
 
@@ -920,7 +926,8 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
     return;
   }
   bgpstream_pfx_storage_t subprefix=submoas_struct.subprefix;
-   for (int i=0;i<submoas_struct.number_of_subasns;i++){
+  int i;
+   for (i=0;i<submoas_struct.number_of_subasns;i++){
 
 
     if(submoas_struct.submoases[i].subasn!=asn){
