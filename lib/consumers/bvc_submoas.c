@@ -1,4 +1,4 @@
-/* 
+/*
  * This file is part of bgpstream
  *
  * CAIDA, UC San Diego
@@ -260,7 +260,7 @@ static int create_ts_metrics(bvc_t *consumer)
     {
       return -1;
     }
-  
+
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size, "newrec_submoas_pfxs_count");
   if((state->newrec_submoas_pfxs_count_idx =
@@ -380,12 +380,12 @@ bvc_t *bvc_submoas_alloc()
 
 int bvc_submoas_init(bvc_t *consumer, int argc, char **argv)
 {
-  
+
   bvc_submoas_state_t *state = NULL;
  if((state = malloc_zero(sizeof(bvc_submoas_state_t))) == NULL)
     {
       return -1;
-    } 
+    }
   BVC_SET_STATE(consumer, state);
   if((state->subprefix_map = kh_init(subprefix_map)) == NULL)
     {
@@ -445,7 +445,7 @@ void bvc_submoas_destroy(bvc_t *consumer)
   if(state != NULL)
     {
 
-    
+
     khint_t k;
     kh_destroy(subprefix_map, state->subprefix_map);
     for (k = kh_begin(state->superprefix_map); k != kh_end(state->superprefix_map); ++k) {
@@ -488,7 +488,7 @@ void print_subprefixes(bvc_t *consumer){
   for (k = kh_begin(state->subprefix_map); k != kh_end(state->subprefix_map); ++k) {
     if (kh_exist(state->subprefix_map,k)){
 
-      submoas_struct=kh_value(state->subprefix_map,k);        
+      submoas_struct=kh_value(state->subprefix_map,k);
       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&submoas_struct.subprefix);
       printf("***Subprefix was %s \n",pfx_str);
       printf("number of subasns %d \n ",submoas_struct.number_of_subasns);
@@ -516,7 +516,7 @@ void print_subprefixes(bvc_t *consumer){
         temp_pref=bgpstream_patricia_tree_get_user( pfx_node2);
         print_origin_asn(*temp_pref);
         printf("Submoased by asns %d\n",submoas_struct.submoases[i].subasn);
-       
+
       }
     }
   }
@@ -559,15 +559,15 @@ void add_superprefix(bvc_t *consumer,bgpstream_pfx_storage_t superprefix, bgpstr
     //subprefixes_in_sup=kh_init(subprefixes_in_superprefix);
     j=kh_put(superprefix_map, state->superprefix_map,superprefix, &ret);
     //initializing khash for subprefixes
-    
+
     if((subprefixes_in_sup = kh_init(subprefixes_in_superprefix)) == NULL)
     {
       fprintf(stderr, "Error: Could not create sub_in_super\n");
-    }   
+    }
     kh_put(subprefixes_in_superprefix, subprefixes_in_sup, subprefix, &ret);
     kh_value(state->superprefix_map,j)=subprefixes_in_sup;
   }
- 
+
   else{
     subprefixes_in_sup = kh_value(state->superprefix_map,k);
     kh_put(subprefixes_in_superprefix, subprefixes_in_sup, subprefix, &ret);
@@ -588,12 +588,12 @@ uint32_t get_visibility(bvc_t* consumer, bgpstream_pfx_storage_t pfx, uint32_t a
   if (pfx_node==NULL){
     return 0;
   }
-  int found=0;
+  // int found=0;
   pref_info_t *this_prefix_info =bgpstream_patricia_tree_get_user(pfx_node);
   for(int i = 0; i < this_prefix_info->number_of_asns; i++)
     {
       if (this_prefix_info->origin_asns[i].asn==asn){
-        found=1;
+        // found=1;
         visibility=this_prefix_info->origin_asns[i].visibility;
       }
     }
@@ -604,7 +604,7 @@ uint32_t get_visibility(bvc_t* consumer, bgpstream_pfx_storage_t pfx, uint32_t a
 
 //Returns char string having origin asns and their visibility for printing to file */
 char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx, bgpstream_pfx_t* pfx, char *buffer, const int buffer_len ){
-  
+
   assert(buffer);
   assert(buffer_len > 0);
   int written;
@@ -631,7 +631,7 @@ char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx
     }
   ret =snprintf(buffer+written, buffer_len - written -1, "|");
   written += ret;
-  
+
   for(i = 0; i < submoas_struct.number_of_subasns; i++)
     {
       ret =snprintf(buffer+written, buffer_len - written -1, "%"PRIu32",%"PRIu32"  ",
@@ -684,7 +684,7 @@ void print_ongoing(bvc_t *consumer){
 
     }
 
-  
+
 
 }
 
@@ -710,11 +710,11 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
     bgpstream_patricia_tree_result_set_destroy(&res_set);
     return ;
   }
-  
+
   uint32_t differ_asn[MAX_UNIQUE_ORIGINS];
   int differ_ind=0;
     bgpstream_pfx_t *parent_pfx=bgpstream_patricia_tree_get_pfx(parent_node);
-  
+
 
   bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, parent_pfx);
   //pref_info_t *parent_pref=malloc(sizeof *parent_pref);
@@ -748,14 +748,14 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         submoas_prefix_t submoas_struct;
         submoas_struct.number_of_subasns=0;
       //Seen this subprefix first time
-        for(int p=0;p<differ_ind;p++){  
+        for(int p=0;p<differ_ind;p++){
           submoas_struct=add_new_asn(submoas_struct,differ_asn[p],*(bgpstream_pfx_storage_t*)pfx,*(bgpstream_pfx_storage_t*)parent_pfx,timenow);
         }
         add_superprefix(consumer,*(bgpstream_pfx_storage_t*)parent_pfx,*(bgpstream_pfx_storage_t*) pfx);
         submoas_struct.superprefix=*(bgpstream_pfx_storage_t*)parent_pfx;
-        submoas_struct.first_seen=timenow;  
+        submoas_struct.first_seen=timenow;
         submoas_struct.start=timenow;
-        submoas_struct.end=0;  
+        submoas_struct.end=0;
         j=kh_put(subprefix_map,state->subprefix_map,*(bgpstream_pfx_storage_t*)pfx,&ret);
         kh_value(state->subprefix_map,j)=submoas_struct;
         //Printing info
@@ -778,7 +778,7 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
       else{
         bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
         bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, parent_pfx);
-        int first_seen_prior=0;
+        // int first_seen_prior=0;
         submoas_prefix_t submoas_struct=kh_value(state->subprefix_map,k);
         submoas_struct.start=timenow;
         //reupdating, just in case superprefix has changed
@@ -786,7 +786,7 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         //pChecking if it's still a submoas. if so then we have to finish it first before updating for any new ASN
           add_superprefix(consumer,*(bgpstream_pfx_storage_t*)parent_pfx,*(bgpstream_pfx_storage_t*) pfx);
         if (submoas_struct.number_of_subasns==0){
-          first_seen_prior=1;
+          // first_seen_prior=1;
         }
         else{
           //The submoas was ongoing. a new asn is added. We will finish ongoing submoas first
@@ -803,7 +803,7 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
                              return ;
                            }
 
-        
+
         }
 
         int found=0;
@@ -819,7 +819,7 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
           //Adding new ASN
           if(!found){
             submoas_struct=add_new_asn(submoas_struct,differ_asn[p],*(bgpstream_pfx_storage_t*)pfx,*(bgpstream_pfx_storage_t*)parent_pfx,timenow);
-            
+
           }
         }
 
@@ -856,10 +856,10 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
 
 
     }
-    
+
   bgpstream_patricia_tree_result_set_destroy(&res_set);
 
-}  
+}
 
 //In case of an origin asn being eemoved of a subprefix, check whether that prefix is still a submoas or not.
 int check_submoas_over(bvc_t *consumer,submoas_prefix_t submoas_struct, bgpstream_pfx_storage_t superprefix){
@@ -875,7 +875,7 @@ int check_submoas_over(bvc_t *consumer,submoas_prefix_t submoas_struct, bgpstrea
       }
 
     }
-  }  
+  }
   return same_origin;
 
 }
@@ -919,7 +919,7 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
       j=kh_get(subprefixes_in_superprefix, subprefixes_in_superprefix,subprefix);
       bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&superprefix);
 
-    
+
       submoas_struct.submoases[i]=submoas_struct.submoases[submoas_struct.number_of_subasns-1];
       i--;
       submoas_struct.number_of_subasns--;
@@ -944,16 +944,16 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
                                    fprintf(stderr, "ERROR: Could not write %s file\n",state->filename);
                                    return ;
                                  }
-      
+
       }
   }
-  
+
   kh_value(state->subprefix_map,p)=submoas_struct;
   /* Check if after removing ASNs if there is still any origin ASN left for the subprefix. If it's then start as new submoas */
   if(submoas_struct.number_of_subasns>0){
     char category[MAX_BUFFER_LEN];
     /* Checking last starting time, if it's between current window that it's a NEWREC event */
-    if(submoas_struct.start +state->window_size > timenow && submoas_struct.start != timenow){      
+    if(submoas_struct.start +state->window_size > timenow && submoas_struct.start != timenow){
       strcpy(category,"NEWREC");
       state->newrec_submoas_pfxs_count++;
     }
@@ -1001,8 +1001,8 @@ void diag_check(bvc_t* consumer){
           if(!strcmp(pfx2_str,"78.108.172.0/23")){
           if(submoas_struct.number_of_subasns>0){
             printf("chutyappp \n");
-            exit(0); 
-            }   
+            exit(0);
+            }
             break;
         }
         }
@@ -1020,7 +1020,7 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
   uint32_t timenow=state->time_now;
   bgpstream_patricia_tree_result_set_t *res=bgpstream_patricia_tree_result_set_create();
   snprintf(state->filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT,
-           state->output_folder, timenow, state->current_window_size); 
+           state->output_folder, timenow, state->current_window_size);
   char pfx_str[INET6_ADDRSTRLEN+3];
   char asn_buffer[MAX_BUFFER_LEN];
   char pfx2_str[INET6_ADDRSTRLEN+3];
@@ -1031,10 +1031,10 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
     /* prefix is not superprefix */
     bgpstream_patricia_tree_result_set_destroy(&res);
     return;
-  
+
   }
   bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, pfx);
-  /*It's a superprefix. 
+  /*It's a superprefix.
     Find all the subprefixes */
   subprefixes_in_superprefix_t* super1_khash=kh_value(state->superprefix_map,k);
 
@@ -1045,9 +1045,9 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
     is_subprefix=1;
   }
   if (is_subprefix){
-   
+
     bgpstream_pfx_storage_t super_super_pfx=kh_value(state->subprefix_map,j).superprefix;
-   
+
     p=kh_get(superprefix_map, state->superprefix_map,super_super_pfx);
     bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&super_super_pfx);
 
@@ -1072,7 +1072,7 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
                                      fprintf(stderr, "ERROR: Could not write %s file\n",state->filename);
                                      return ;
                                    }
- 
+
         char category[MAX_BUFFER_LEN];
         if(submoas_struct.start +state->window_size > timenow && submoas_struct.start !=timenow){
           strcpy(category,"NEWREC");
@@ -1099,7 +1099,7 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
                                      fprintf(stderr, "ERROR: Could not write %s file\n",state->filename);
                                      return ;
                                    }
- 
+
 
       }
     }
@@ -1113,7 +1113,7 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
 
   }
 
-  /* This prefix is not subprefix of anyone. 
+  /* This prefix is not subprefix of anyone.
      Free subprefixes and remove the superprefix from superfix hash table */
   else{
     /* Looping through all the subprefixes and finishing them */
@@ -1140,19 +1140,19 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
         submoas_struct.end=timenow;
         kh_value(state->subprefix_map,m)=submoas_struct;
       }
-    } 
+    }
     //removing value of superprefix */
     kh_destroy(subprefixes_in_superprefix,super1_khash);
-    //removing superprefix entry from superprefix map */    
+    //removing superprefix entry from superprefix map */
     kh_del(superprefix_map,state->superprefix_map,k);
 
 
   }
 
-  bgpstream_patricia_tree_result_set_destroy(&res); 
+  bgpstream_patricia_tree_result_set_destroy(&res);
 }
 
-/* This function is called for each node in patricia. 
+/* This function is called for each node in patricia.
    Removed stale prefixes and origin asns */
 void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node, void *data){
   bvc_t *consumer=data;
@@ -1166,7 +1166,7 @@ void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node
   int num_orig_asns=this_prefix_info->number_of_asns;
    for (j=0;j<num_orig_asns;j++){
       if(this_prefix_info->origin_asns[j].last_seen < time_now){
-        
+
        /* Origin ASN is removed, check whether its prefix belongs to some prefix involved in a submoas */
         check_remove_submoas_asn(consumer,pfx,this_prefix_info->origin_asns[j].asn);
         if(num_orig_asns==1){
@@ -1183,16 +1183,16 @@ void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node
   if (num_orig_asns==0){
     /* That prefix might be a superprefix
       Remove/update its subprefixes */
-    check_remove_superprefix(consumer,  pfx );  
+    check_remove_superprefix(consumer,  pfx );
     bgpstream_patricia_tree_remove_node(pt,node);
 
-  } 
-  else{  
+  }
+  else{
     /* Some origin ASNs are still visible. Update patricia tree */
-    this_prefix_info->number_of_asns=num_orig_asns;  
+    this_prefix_info->number_of_asns=num_orig_asns;
     bgpstream_patricia_tree_set_user(pt, node, this_prefix_info);
     }
-  
+
 
 }
 
@@ -1203,8 +1203,8 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   bvc_submoas_state_t *state = STATE;
   state->time_now=bgpview_get_time(view) ;
   state->arrival_delay = zclock_time()/1000 - bgpview_get_time(view);
-  uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size; 
-  
+  uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
+
   if(state->first_ts == 0)
     {
       state->first_ts = bgpview_get_time(view);
@@ -1227,7 +1227,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
     fprintf(stderr, "ERROR: Could not open %s for writing\n",state->filename);
     return -1;
   }
-  
+
 
   int time_now=state->time_now;
   int new_prefix;
@@ -1239,7 +1239,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   bgpstream_as_path_seg_t *origin_seg;
   uint32_t origin_asn;
   //int i;
-  uint32_t visibility;
+  //  uint32_t visibility;
   uint32_t last_origin_asn;
   uint32_t last_origin_ind;
   uint32_t peers_cnt;
@@ -1258,7 +1258,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
       return -1;
     }
 
-   
+
   if((it = bgpview_iter_create(view)) == NULL)
     {
       return -1;
@@ -1267,16 +1267,25 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
       bgpview_iter_has_more_pfx(it);
       bgpview_iter_next_pfx(it))
     {
+
+      pfx = bgpview_iter_pfx_get_pfx(it);
+
+      /* avoid processing the default route: 0.0.0.0/0 */
+      if(((bgpstream_pfx_storage_t *)pfx)->mask_len == 0)
+        {
+          continue;
+        }
+
       pref_info_t *this_prefix_info;
       int new_asn_seen=0;
       new_prefix=0;
       atleast_one=0;
-      pfx = bgpview_iter_pfx_get_pfx(it);
+      
       ipv_idx = bgpstream_ipv2idx(pfx->address.version);
       peers_cnt = 0;
       last_origin_asn = -1;
       last_origin_ind= -1;
-      visibility=0;
+      // visibility=0;
       char pfx_str[INET6_ADDRSTRLEN+3];
       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx);
       pfx_node = bgpstream_patricia_tree_search_exact(state->pt, pfx);
@@ -1289,8 +1298,8 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
         /* New prefix found. Allocate memory */
         new_prefix=1;
         this_prefix_info=malloc(sizeof *this_prefix_info);
-        this_prefix_info->number_of_asns=0;  
-        this_prefix_info->start=time_now;  
+        this_prefix_info->number_of_asns=0;
+        this_prefix_info->start=time_now;
 
       }
 
@@ -1311,7 +1320,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
               /* TODO (extend the code to deal with segments */
               if(origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
                 {
-                  
+
                   continue;
                 }
               atleast_one=1;
@@ -1328,8 +1337,8 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
                   for (j=0;j<this_prefix_info->number_of_asns;j++){
                     if (this_prefix_info->origin_asns[j].asn==origin_asn){
                       found=1;
-                      this_prefix_info->origin_asns[j].visibility=1;                      
-                      this_prefix_info->origin_asns[j].last_seen=time_now;                      
+                      this_prefix_info->origin_asns[j].visibility=1;
+                      this_prefix_info->origin_asns[j].last_seen=time_now;
                       last_origin_ind=j;
                       break;
                     }
@@ -1342,11 +1351,11 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
                     this_prefix_info->origin_asns[this_prefix_info->number_of_asns].visibility=1;
                     last_origin_ind=this_prefix_info->number_of_asns;
                     this_prefix_info->number_of_asns++;
-                      
+
                     }
                  peers_cnt=1;
                }
-              else 
+              else
               {
                 if (origin_asn!=last_origin_asn){
                   int j;
@@ -1359,7 +1368,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
                       this_prefix_info->origin_asns[j].visibility++;
                       this_prefix_info->origin_asns[j].last_seen=time_now;
 
- 
+
                       break;
                     }
                   }
@@ -1410,7 +1419,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
       }
     }
   } //prefix if
-  
+
   print_ongoing(consumer);
   /* Check for each node in patricia and remove stale asns, prefixes */
   bgpstream_patricia_tree_process_node_t *fun=&rem_patricia;
@@ -1431,14 +1440,14 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   wandio_wdestroy(f);
     /* compute processed delay */
   state->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
-  state->processing_time = state->processed_delay - state->arrival_delay;  
-  
-  /* Output timeseries meterics */ 
+  state->processing_time = state->processed_delay - state->arrival_delay;
+
+  /* Output timeseries meterics */
   if(output_timeseries(consumer, bgpview_get_time(view)) != 0)
   {
     return -1;
   }
-  
+
   bgpview_iter_destroy(it);
   return 0;
 }
