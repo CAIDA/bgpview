@@ -169,7 +169,7 @@ typedef struct bvc_submoas_state {
   /** Contains all superprefix */
   superprefix_map_t* superprefix_map;
 
-  int time_now;
+  uint32_t time_now;
 
   /** New/recurring/ongoing/finished MOAS prefixes count */
   uint32_t new_submoas_pfxs_count;
@@ -528,7 +528,7 @@ void print_subprefixes(bvc_t *consumer){
 
 
 //Given a subprefix struct, adds asn to it */
-submoas_prefix_t add_new_asn(submoas_prefix_t submoas_struct, int asn, bgpstream_pfx_storage_t pfx, bgpstream_pfx_storage_t parent_pfx,int time_now){
+submoas_prefix_t add_new_asn(submoas_prefix_t submoas_struct, int asn, bgpstream_pfx_storage_t pfx, bgpstream_pfx_storage_t parent_pfx,uint32_t time_now){
   int existing_subasns=submoas_struct.number_of_subasns;
   subprefix_info_t subprefix_info;
   bgpstream_pfx_storage_t p_pfx=parent_pfx;
@@ -684,6 +684,11 @@ void print_ongoing(bvc_t *consumer){
       if (submoas_struct.number_of_subasns==0){
         continue;
       }
+      /* avoid printing/counting sub-moases that just started */
+      if (submoas_struct.start == state->time_now)
+        {
+          continue;
+        }
       state->ongoing_submoas_pfxs_count++;
        submoas_prefix_t submoas_struct=kh_value(state->subprefix_map,k);
       if(wandio_printf(state->file,"%"PRIu32"|%s|%s|ONGOING|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s    \n",
@@ -1181,7 +1186,7 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
 void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node, void *data){
   bvc_t *consumer=data;
   bvc_submoas_state_t *state = STATE;
-  int time_now=state->time_now;
+  uint32_t time_now=state->time_now;
   char pfx2_str[INET6_ADDRSTRLEN+3];
   int j;
   pref_info_t *this_prefix_info=bgpstream_patricia_tree_get_user(node);
@@ -1253,7 +1258,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   }
 
 
-  int time_now=state->time_now;
+  uint32_t time_now=state->time_now;
   int new_prefix;
   int atleast_one=0;
   bgpview_iter_t *it;
@@ -1444,10 +1449,12 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
     }
   } //prefix if
 
-  print_ongoing(consumer);
   /* Check for each node in patricia and remove stale asns, prefixes */
   bgpstream_patricia_tree_process_node_t *fun=&rem_patricia;
   bgpstream_patricia_tree_walk(state->pt,fun,consumer);
+
+  print_ongoing(consumer);
+  
   /* Write all ongoing moas to file */
 
   /* Close outuput file */
