@@ -40,16 +40,17 @@
 
 
 #define NAME                         "edges"
+
 #define CONSUMER_METRIC_PREFIX       "edges"
 
 #define OUTPUT_FILE_FORMAT            "%s/"NAME".%"PRIu32".%"PRIu32"s-window.events.gz"
 
-#define OUTPUT_FILE_FORMAT_NEWEDGES            "%s/edges.%"PRIu32".%"PRIu32"s-window.events.gz"
-
-#define OUTPUT_FILE_FORMAT_TRIPLETS    "%s/triplets.%"PRIu32".%"PRIu32"s-window.events.gz" 
+#define OUTPUT_FILE_FORMAT_NEWEDGES   "%s/edges.%"PRIu32".%"PRIu32"s-window.events.gz"
 
 #define METRIC_PREFIX_FORMAT          "%s."CONSUMER_METRIC_PREFIX".%"PRIu32"s-window.%s"
+
 #define META_METRIC_PREFIX_FORMAT     "%s.meta.bgpview.consumer."NAME".%"PRIu32"s-window.%s"
+
 
 /** Maximum size of the str output buffer */
 #define MAX_BUFFER_LEN 1024
@@ -108,13 +109,12 @@ KHASH_INIT(edge_list, uint32_t, edge_info_t, 1, kh_int_hash_func, kh_int_hash_eq
 typedef khash_t(edge_list) edge_list_t;
 
 //contains all the edges
-KHASH_INIT(edges_map, uint32_t, edge_list_t*, 1, kh_int_hash_func, kh_int_hash_equal);  
+KHASH_INIT(edges_map, uint32_t, edge_list_t*, 1, kh_int_hash_func, kh_int_hash_equal);
 typedef khash_t(edges_map) edges_map_t;
 
 
 
 /* our 'instance' */
-//main struct
 typedef struct bvc_edges_state {
   //window size given by user
   uint32_t window_size;
@@ -124,11 +124,9 @@ typedef struct bvc_edges_state {
   char output_folder[MAX_BUFFER_LEN];
   //Khash holding edges
   edges_map_t *edges_map;
-  //Khash holding triplets
   //Output files for edges and triplets
   char filename_newedges[MAX_BUFFER_LEN];
   iow_t *file_newedges;
-
 
   /** diff ts when the view arrived */
   uint32_t arrival_delay;
@@ -156,9 +154,8 @@ typedef struct bvc_edges_state {
   int newrec_edges_count_idx;
   uint32_t newrec_edges_count;
 
-
-
 } bvc_edges_state_t;
+
 
 static int output_timeseries(bvc_t *consumer, uint32_t ts)
 {
@@ -392,7 +389,7 @@ void bvc_edges_destroy(bvc_t *consumer)
   }
 }
 
-//Diagnostic function. Prints all edges
+/* Diagnostic function. Prints all edges */
 void print_edges(bvc_t *consumer){
   bvc_edges_state_t *state = STATE;
   khint_t j,k;
@@ -414,13 +411,12 @@ void print_edges(bvc_t *consumer){
 
 
 
-//Writes in output file for newedges
+/* Writes in output file for newedges */
 void print_to_file_newedges(bvc_t *consumer, int status, edge_info_t edge_info, bgpstream_pfx_t *pfx){
   bvc_edges_state_t *state = STATE;
   char pfx_str[MAX_BUFFER_LEN];
 
   if (status==NEW){
-    //printf("printing \n");
     if(wandio_printf(state->file_newedges,"%"PRIu32"|%"PRIu32"-%"PRIu32"|NEW|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s\n",
                   state->time_now,
                   edge_info.asn1,edge_info.asn2,edge_info.first_seen,edge_info.start,edge_info.end,
@@ -430,7 +426,7 @@ void print_to_file_newedges(bvc_t *consumer, int status, edge_info_t edge_info, 
      return ;
     }
   }
-  
+
   if (status==NEWREC){
     if(wandio_printf(state->file_newedges,"%"PRIu32"|%"PRIu32"-%"PRIu32"|NEWREC|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s\n",
                   state->time_now,
@@ -441,7 +437,7 @@ void print_to_file_newedges(bvc_t *consumer, int status, edge_info_t edge_info, 
      return ;
     }
   }
-  
+
   if (status==FINISHED){
     if(wandio_printf(state->file_newedges,"%"PRIu32"|%"PRIu32"-%"PRIu32"|FINISHED|%"PRIu32"|%"PRIu32"|%"PRIu32"\n",
                   state->time_now,
@@ -488,11 +484,11 @@ void print_ongoing_newedges(bvc_t* consumer){
       kh_value(state->edges_map,k)=edge_list;
     }
 
-  } 
+  }
 }
 
 
-//Scans all ongoing edges and remove stale ones
+/* Scans all ongoing edges and remove stale ones */
 void remove_stale_link(bvc_t *consumer){
   bvc_edges_state_t *state = STATE;
   khint_t k,j;
@@ -502,9 +498,8 @@ void remove_stale_link(bvc_t *consumer){
       for(j = kh_begin(edge_list); j!= kh_end(edge_list); j++){
         if(kh_exist(edge_list,j)){
           edge_info_t edge_info=kh_value(edge_list,j);
-          //if last_seen is different from current time then declare it dead
+          /* if last_seen is different from current time then declare it dead */
           if(edge_info.last_seen< state->time_now && edge_info.ongoing){
-            //kh_del(edge_list,edge_list,j);
             edge_info.end=state->time_now;
             edge_info.ongoing=0;
             kh_value(edge_list,j)=edge_info;
@@ -523,7 +518,7 @@ void remove_stale_link(bvc_t *consumer){
 }
 
 
-//Updates khash and stores new and newrec edges
+/* Updates khash and stores new and newrec edges */
 void insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2, bgpstream_pfx_t *pfx){
   int ret;
   bvc_edges_state_t *state = STATE;
@@ -531,7 +526,7 @@ void insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2, bgpstrea
   edge_list_t *edge_list;
   edge_info_t edge_info;
   k=kh_get(edges_map,state->edges_map,asn1);
-  //ASN1 never seen before. New edge seen
+  /* ASN1 never seen before. New edge seen */
   if(k==kh_end(state->edges_map)){
     edge_list=kh_init(edge_list);
     j=kh_put(edge_list,edge_list,asn2,&ret);
@@ -588,7 +583,7 @@ void insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2, bgpstrea
       state->new_edges_count++;
 
     }
-    kh_value(state->edges_map,k)=edge_list;  
+    kh_value(state->edges_map,k)=edge_list;
   }
 }
 
@@ -608,26 +603,19 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   state->ongoing_edges_count=0;
   state->finished_edges_count=0;
   state->newrec_edges_count=0;
-  
-  //Opening file for newedges
+
+  /* Opening file for newedges */
   snprintf(state->filename_newedges, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_NEWEDGES,
            state->output_folder, time_now, state->window_size);
-    /* open file for writing */
+
+  /* open file for writing */
   if((state->file_newedges = wandio_wcreate(state->filename_newedges, wandio_detect_compression_type(state->filename_newedges), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
     {
       fprintf(stderr, "ERROR: Could not open %s for writing\n",state->filename_newedges);
       return -1;
     }
-  
-  
-  bgpstream_as_path_seg_t *origin_seg;
-  // uint32_t origin_asn;
-  // uint32_t last_origin_asn;
-  // uint32_t peers_cnt;
-  char buf[MAX_BUFFER_LEN];
+
   int ipv_idx,i;
-  /* aspath iterator structure */
-  bgpstream_as_path_iter_t path_it;
 
   /* borrowed pointer to a path segment */
   bgpstream_as_path_seg_t *seg;
@@ -636,9 +624,9 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   uint32_t asn;
   uint32_t normal_asn;
   uint32_t prev_asn;
-  uint32_t prev_prev_asn;
-  //prints  ongoing edges
-  print_ongoing_newedges(consumer); 
+
+  /* prints  ongoing edges */
+  print_ongoing_newedges(consumer);
 
    /* check visibility has been computed */
   if(BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0)
@@ -648,8 +636,6 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
               "to be run first\n");
       return -1;
     }
-
-
 
   /* create view iterator */
   if((it = bgpview_iter_create(view)) == NULL)
@@ -664,10 +650,6 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
     {
       pfx = bgpview_iter_pfx_get_pfx(it);
       ipv_idx = bgpstream_ipv2idx(pfx->address.version);
-      // peers_cnt = 0;
-      // last_origin_asn = 0;
-
-
 
       for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
           bgpview_iter_pfx_has_more_peer(it);
@@ -677,95 +659,76 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
           peerid = bgpview_iter_peer_get_peer_id(it);
           if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx], peerid))
             {
-              /* get origin asn */
-              if((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL)
-                {
-                  return -1;
-                }
-              /* we do not consider sets and confederations for the moment */
-              /* TODO (extend the code to deal with segments */
-              if(origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
-                {
-                  continue;
-                }
 
-              // origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
-              bgpstream_as_path_iter_reset(&path_it);
-              bgpstream_as_path_t *aspath = bgpview_iter_pfx_peer_get_as_path(it);
-              bgpstream_as_path_snprintf(buf, MAX_BUFFER_LEN,aspath);
-              //initializing asns for each view
+              /* initializing asns for each cell */
               i=0;
               asn1=0;
               asn2=0;
               normal_asn=0;
               prev_asn=0;
-              prev_prev_asn=0;
-              while((seg =bgpstream_as_path_get_next_seg(aspath, &path_it)) != NULL)
-                {         
+
+              bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
+
+              while((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL)
+                {
                   i++;
-                  /* printing segment (any type) */
-                  bgpstream_as_path_seg_snprintf(buf, MAX_BUFFER_LEN, seg);
+
                   /* checking if a segment is a regular asn */
                   if(seg->type == BGPSTREAM_AS_PATH_SEG_ASN){
                       asn=((bgpstream_as_path_seg_asn_t *) seg)->asn;
 
                       normal_asn=1;
                   }
-                  //Check whether asn is a regular asn
+                  /* Check whether asn is a regular asn */
                   else{
                     normal_asn=0;
                     prev_asn=0;
-                    continue;  
+                    continue;
                   }
 
                   if(normal_asn){
-                    //Previous asn was a regular one
+
+                    /* Previous asn was a regular one */
                     if(prev_asn!=0){
+
                       asn1=asn;
                       asn2=prev_asn;
-                      //Continue if ASN perpending is observed
+
+                      /* Continue if ASN prepending is observed */
                       if(asn==prev_asn){
                         continue;
                       }
-                      //Getting the greater than two ASNs. Assuming edges are not directional
+
+                      /* Getting the greater than two ASNs. Assuming edges are not directional */
                       if(asn<prev_asn){
                         asn1=prev_asn;
                         asn2=asn;
                       }
 
-                      //Check whether we have seen this edge before or not. Update respective khashes
-                      //int st=zclock_time();
+                      // Check whether we have seen this edge before or not. Update respective khashes
                       insert_update_edges(consumer,asn1,asn2,pfx);
-                      //int time_taken=zclock_time() - st;
-                      //printf("edges scheme took %d \n",time_taken);
-                      
                     }
-                    //Reading atleast three different ASNs to create first triplet 
-                    //updating ASN variables for next ASNs in the aspath
-                    prev_prev_asn=prev_asn;
                     prev_asn=asn;
-
                   }
-                  
+
                 }
                 prev_asn=0;
-                prev_prev_asn=0;
-                bgpstream_as_path_destroy(aspath);
               }
           }
 
 
     }
-  //Loops through all ongoing edges and checks for stale edges/triplets
+  /* Loops through all ongoing edges and checks for stale edges */
   remove_stale_link(consumer);
-  //Print the surviving edges/triplets
+  /* Print the surviving edges */
   bgpview_iter_destroy(it);
-  //Close file I/O
+  /* Close file I/O */
   wandio_wdestroy(state->file_newedges);
+
   char filename[MAX_BUFFER_LEN];
   iow_t *done_newedge = NULL;
 
-  /* generate separate .done files for both edges and triplets*/  
+  /* generate separate .done files for both edges and triplets*/
   snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_NEWEDGES".done",
            state->output_folder, time_now, state->window_size);
   if((done_newedge = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
@@ -774,19 +737,17 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
       return -1;
     }
   wandio_wdestroy(done_newedge);
-  
+
 
   /* compute processed delay */
   state->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
   state->processing_time = state->processed_delay - state->arrival_delay;
-  
-  //Output timeseries
+
+  /* Output timeseries */
   if(output_timeseries(consumer, bgpview_get_time(view)) != 0)
   {
     return -1;
   }
-
-
 
   return 0;
 }

@@ -570,19 +570,12 @@ int bvc_triplets_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *vie
       return -1;
     }
   
-  bgpstream_as_path_seg_t *origin_seg;
-  // uint32_t origin_asn;
-  // uint32_t last_origin_asn;
-  // uint32_t peers_cnt;
-  char buf[MAX_BUFFER_LEN];
   int ipv_idx,ret,i;
-  /* aspath iterator structure */
-  bgpstream_as_path_iter_t path_it;
 
   /* borrowed pointer to a path segment */
   bgpstream_as_path_seg_t *seg;
-  uint32_t asn1;
-  uint32_t asn2;
+  //  uint32_t asn1;
+  //  uint32_t asn2;
   uint32_t asn;
   uint32_t normal_asn;
   uint32_t prev_asn;
@@ -618,7 +611,6 @@ int bvc_triplets_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *vie
       // last_origin_asn = 0;
 
 
-
       for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
           bgpview_iter_pfx_has_more_peer(it);
           bgpview_iter_pfx_next_peer(it))
@@ -627,34 +619,20 @@ int bvc_triplets_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *vie
           peerid = bgpview_iter_peer_get_peer_id(it);
           if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx], peerid))
             {
-              /* get origin asn */
-              if((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL)
-                {
-                  return -1;
-                }
-              /* we do not consider sets and confederations for the moment */
-              /* TODO (extend the code to deal with segments */
-              if(origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
-                {
-                  continue;
-                }
 
-              // origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
-              bgpstream_as_path_iter_reset(&path_it);
-              bgpstream_as_path_t *aspath = bgpview_iter_pfx_peer_get_as_path(it);
-              bgpstream_as_path_snprintf(buf, MAX_BUFFER_LEN,aspath);
               //initializing asns for each view
               i=0;
-              asn1=0;
-              asn2=0;
+              // asn1=0;
+              // asn2=0;
               normal_asn=0;
               prev_asn=0;
               prev_prev_asn=0;
-              while((seg =bgpstream_as_path_get_next_seg(aspath, &path_it)) != NULL)
+
+              bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
+
+              while((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL)              
                 {         
                   i++;
-                  /* printing segment (any type) */
-                  bgpstream_as_path_seg_snprintf(buf, MAX_BUFFER_LEN, seg);
                   /* checking if a segment is a regular asn */
                   if(seg->type == BGPSTREAM_AS_PATH_SEG_ASN){
                       asn=((bgpstream_as_path_seg_asn_t *) seg)->asn;
@@ -671,16 +649,16 @@ int bvc_triplets_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *vie
                   if(normal_asn){
                     //Previous asn was a regular one
                     if(prev_asn!=0){
-                      asn1=asn;
-                      asn2=prev_asn;
+                      // asn1=asn;
+                      // asn2=prev_asn;
                       //Continue if ASN perpending is observed
                       if(asn==prev_asn){
                         continue;
                       }
                       //Getting the greater than two ASNs. Assuming edges are not directional
                       if(asn<prev_asn){
-                        asn1=prev_asn;
-                        asn2=asn;
+                        // asn1=prev_asn;
+                        // asn2=asn;
                       }
 
                       //Check whether we have seen this edge before or not. Update respective khashes
@@ -716,7 +694,6 @@ int bvc_triplets_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *vie
                 }
                 prev_asn=0;
                 prev_prev_asn=0;
-                bgpstream_as_path_destroy(aspath);
               }
           }
 
