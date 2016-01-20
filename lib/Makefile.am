@@ -40,7 +40,7 @@ libbgpviewcaida_la_SOURCES = 		\
 	bgpview.c
 
 libbgpviewcaida_la_LIBADD = \
-			$(top_builddir)/lib/libbgpstream.la \
+			$(top_builddir)/lib/libbgpstreamcaida.la \
 		       	$(top_builddir)/common/libcccommon.la \
 		       	$(top_builddir)/bgpview/lib/io/libbgpview_io.la \
 		       	$(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la

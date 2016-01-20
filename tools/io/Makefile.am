@@ -39,26 +39,26 @@ bin_PROGRAMS =	bgpview-server		\
 # runs the bgpview server
 bgpview_server_SOURCES = \
 	bgpview-server.c
-bgpview_server_LDADD = $(top_builddir)/lib/libbgpstream.la \
-		       $(top_builddir)/bgpview/lib/libbgpview.la
+bgpview_server_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
+		       $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
 # connects to the bgpview server and drives consumer plugins
 bgpview_consumer_SOURCES = \
 	bgpview-consumer.c
-bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpstream.la \
-		         $(top_builddir)/bgpview/lib/libbgpview.la
+bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
+		         $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
 # deserializes BGPViews and sends them to the server
 bgpview_producer_SOURCES = \
 	bgpview-producer.c
-bgpview_producer_LDADD = $(top_builddir)/lib/libbgpstream.la \
-		         $(top_builddir)/bgpview/lib/libbgpview.la
+bgpview_producer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
+		         $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
 # acts as a dummy producer for the bgpview server
 bgpview_test_producer_SOURCES = \
 	bgpview-test-producer.c
-bgpview_test_producer_LDADD = $(top_builddir)/lib/libbgpstream.la \
-			      $(top_builddir)/bgpview/lib/libbgpview.la
+bgpview_test_producer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
+			      $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
 ACLOCAL_AMFLAGS = -I m4
 
