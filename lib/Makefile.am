@@ -45,7 +45,7 @@ libbgpviewcaida_la_LIBADD = \
 		       	$(top_builddir)/bgpview/lib/io/libbgpview_io.la \
 		       	$(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la
 
-libbgpviewcaida_la_LDFLAGS = -version-info @BGPSTREAM_MAJOR_VERSION@:@BGPSTREAM_MID_VERSION@:@BGPSTREAM_MINOR_VERSION@
+libbgpviewcaida_la_LDFLAGS = -version-info @LIBBGPSTREAM_MAJOR_VERSION@:@LIBBGPSTREAM_MID_VERSION@:@LIBBGPSTREAM_MINOR_VERSION@
 
 ACLOCAL_AMFLAGS = -I m4
 
