@@ -66,6 +66,9 @@
 /* Triplet consumer */
 #include "bvc_triplets.h"
 
+/* My View Process consumer */
+#include "bvc_myviewprocess.h"
+
 
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
@@ -121,9 +124,11 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   /** Pointer to edge alloc function */
   bvc_edges_alloc,
 
-  /** Pointer to edge alloc function */
+  /** Pointer to triplet alloc function */
   bvc_triplets_alloc,
 
+  /** Pointer to myviewprocess alloc function */
+  bvc_myviewprocess_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
