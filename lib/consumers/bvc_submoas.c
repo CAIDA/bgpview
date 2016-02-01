@@ -717,6 +717,11 @@ void print_ongoing(bvc_t *consumer){
 void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, uint32_t timenow){
   khint_t k,j;
   int ret;
+<<<<<<< HEAD
+  char prev_category[MAX_BUFFER_LEN];
+=======
+  char prev_category=[MAX_BUFFER_LEN];
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
   /* submoas_struct.number_of_subasns=0; */
   char asn_buffer[MAX_BUFFER_LEN];
   char pfx_str[INET6_ADDRSTRLEN+3];
@@ -748,11 +753,14 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
 
 //Comparing origin ASNs for both given prefix and parent prefix and generating list of ASNs of given prefix, not in parent prefix
   int i,y;
+  int to_be_removed;
+  to_be_removed=0;
   for ( i=0; i<pref_info->number_of_asns;i++){
       same_origin=0;
      for ( y=0; y<parent_pref->number_of_asns;y++){
       if(pref_info->origin_asns[i].asn==parent_pref->origin_asns[y].asn){
         same_origin=1;
+        to_be_removed=1;
         break;
       }
      }
@@ -761,8 +769,12 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
       differ_ind++;
      }
   }
-  //all asns were same
-  if(differ_ind==0){
+<<<<<<< HEAD
+ //atleast one of the asns was same
+=======
+  //atleast one of the asns was same
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
+  if(to_be_removed){
     return;
   }
 
@@ -806,7 +818,10 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, parent_pfx);
         // int first_seen_prior=0;
         submoas_prefix_t submoas_struct=kh_value(state->subprefix_map,k);
-        submoas_struct.start=timenow;
+<<<<<<< HEAD
+
+=======
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
         //reupdating, just in case superprefix has changed
         submoas_struct.superprefix=*(bgpstream_pfx_storage_t*)parent_pfx;
         //pChecking if it's still a submoas. if so then we have to finish it first before updating for any new ASN
@@ -850,16 +865,22 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
           }
         }
 
-        state->new_submoas_pfxs_count++;
         char category[MAX_BUFFER_LEN];
         //Checking last starting time if it's between current window that it's a NEWREC event
-        if(submoas_struct.start +state->window_size > timenow && submoas_struct.start !=timenow){
-          strcpy(category,"NEWREC");
-          state->newrec_submoas_pfxs_count++;
+        if(submoas_struct.start !=timenow){
+          if(submoas_struct.start +state->window_size > timenow ){
+            strcpy(category,"NEWREC");
+            strcpy(prev_category,"NEWREC");
+            state->newrec_submoas_pfxs_count++;
+          }
+          else{
+            strcpy(category,"NEW");
+            strcpy(prev_category,"NEW");
+            state->new_submoas_pfxs_count++;
+          }
         }
         else{
-          strcpy(category,"NEW");
-          state->new_submoas_pfxs_count++;
+          strcpy(category,prev_category);
         }
          submoas_struct.start=timenow;
         kh_value(state->subprefix_map,k)=submoas_struct;
@@ -916,6 +937,8 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
   char pfx_str[INET6_ADDRSTRLEN+3];
   char pfx2_str[INET6_ADDRSTRLEN+3];
   char asn_buffer[MAX_BUFFER_LEN];
+  char prev_category[MAX_BUFFER_LEN];
+  strcpy(prev_category,"default");
   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
   uint32_t timenow=state->time_now;
   /* Check whether preifx under consideration is a subprefix or not */
@@ -929,7 +952,15 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
   else{
     // submoas doesnt exist
     return;
+  
   }
+<<<<<<< HEAD
+  int sub_as;
+   sub_as=0;
+=======
+  int subasn_exist;
+  subas_exist=0;
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
   bgpstream_pfx_storage_t subprefix=submoas_struct.subprefix;
   int i;
    for (i=0;i<submoas_struct.number_of_subasns;i++){
@@ -938,6 +969,11 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
     if(submoas_struct.submoases[i].subasn!=asn){
       continue;
     }
+<<<<<<< HEAD
+    sub_as=1;
+=======
+    subasn_exist=1;
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
     bgpstream_pfx_storage_t superprefix=submoas_struct.superprefix;
     //removing superprefix
     k=kh_get(superprefix_map,state->superprefix_map, superprefix);
@@ -978,20 +1014,40 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
   }
 
   kh_value(state->subprefix_map,p)=submoas_struct;
+<<<<<<< HEAD
+  if (!sub_as){
+=======
+  if(!subasn_exist){
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
+    return;
+  }
   /* Check if after removing ASNs if there is still any origin ASN left for the subprefix. If it's then start as new submoas */
   if(submoas_struct.number_of_subasns>0){
     char category[MAX_BUFFER_LEN];
     /* Checking last starting time, if it's between current window that it's a NEWREC event */
-    if(submoas_struct.start +state->window_size > timenow && submoas_struct.start != timenow){
-      strcpy(category,"NEWREC");
-      state->newrec_submoas_pfxs_count++;
+    if(submoas_struct.start !=timenow){
+      if(submoas_struct.start +state->window_size > timenow ){
+        strcpy(category,"NEWREC");
+        strcpy(prev_category,"NEWREC");
+        state->newrec_submoas_pfxs_count++;
+      }
+      else{
+        strcpy(category,"NEW");
+        strcpy(prev_category,"NEW");
+        state->new_submoas_pfxs_count++;
+      }
     }
     else{
-      strcpy(category,"NEW");
-      state->new_submoas_pfxs_count++;
+      strcpy(category,prev_category);
+      if(!strcmp(prev_category,"default")){
+        strcpy(category,"NEWREC");
+        state->newrec_submoas_pfxs_count++;
+      }
     }
+<<<<<<< HEAD
 
-    state->new_submoas_pfxs_count++;
+=======
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
     submoas_struct.start=timenow;
   kh_value(state->subprefix_map,p)=submoas_struct;
     if(wandio_printf(state->file,"%"PRIu32"|%s|%s|%s|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s    \n",
@@ -1046,12 +1102,14 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
   khint_t k,j,n,m;
   khint_t p;
   int ret;
+  char prev_category=MAX_BUFFER_LEN];
   uint32_t timenow=state->time_now;
   bgpstream_patricia_tree_result_set_t *res=bgpstream_patricia_tree_result_set_create();
   snprintf(state->filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT,
            state->output_folder, timenow, state->current_window_size);
   char pfx_str[INET6_ADDRSTRLEN+3];
   char asn_buffer[MAX_BUFFER_LEN];
+  char prev_category[MAX_BUFFER_LEN];
   char pfx2_str[INET6_ADDRSTRLEN+3];
   k=kh_get(superprefix_map, state->superprefix_map, *(bgpstream_pfx_storage_t*)pfx);
 
@@ -1103,14 +1161,25 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
                                    }
 
         char category[MAX_BUFFER_LEN];
-        if(submoas_struct.start +state->window_size > timenow && submoas_struct.start !=timenow){
-          strcpy(category,"NEWREC");
-          state->newrec_submoas_pfxs_count++;
+        if(submoas_struct.start !=timenow){
+          if(submoas_struct.start +state->window_size > timenow ){
+            strcpy(category,"NEWREC");
+            strcpy(prev_category,"NEWREC");
+            state->newrec_submoas_pfxs_count++;
+          }
+          else{
+            strcpy(category,"NEW");
+            strcpy(prev_category,"NEW");
+            state->new_submoas_pfxs_count++;
+          }
         }
         else{
-          strcpy(category,"NEW");
-          state->new_submoas_pfxs_count++;
+          strcpy(category,prev_category);
+          }
+<<<<<<< HEAD
+=======
         }
+>>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
         submoas_struct.end=timenow;
         submoas_struct.start=timenow;
         kh_value(state->subprefix_map,m)=submoas_struct;
@@ -1454,6 +1523,9 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   bgpstream_patricia_tree_walk(state->pt,fun,consumer);
 
   print_ongoing(consumer);
+ // printf("view done %d \n" ,time_now);
+  /* Write all ongoing moas to file */
+ // wandio_printf(state->file,"new: %d rec: %d time: %d\n",state->new_submoas_pfxs_count, state->newrec_submoas_pfxs_count,time_now);
   
   /* Write all ongoing moas to file */
 
