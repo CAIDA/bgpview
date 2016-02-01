@@ -717,12 +717,7 @@ void print_ongoing(bvc_t *consumer){
 void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, uint32_t timenow){
   khint_t k,j;
   int ret;
-<<<<<<< HEAD
   char prev_category[MAX_BUFFER_LEN];
-=======
-  char prev_category=[MAX_BUFFER_LEN];
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
-  /* submoas_struct.number_of_subasns=0; */
   char asn_buffer[MAX_BUFFER_LEN];
   char pfx_str[INET6_ADDRSTRLEN+3];
   char pfx2_str[INET6_ADDRSTRLEN+3];
@@ -769,11 +764,8 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
       differ_ind++;
      }
   }
-<<<<<<< HEAD
  //atleast one of the asns was same
-=======
   //atleast one of the asns was same
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
   if(to_be_removed){
     return;
   }
@@ -818,10 +810,7 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, parent_pfx);
         // int first_seen_prior=0;
         submoas_prefix_t submoas_struct=kh_value(state->subprefix_map,k);
-<<<<<<< HEAD
 
-=======
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
         //reupdating, just in case superprefix has changed
         submoas_struct.superprefix=*(bgpstream_pfx_storage_t*)parent_pfx;
         //pChecking if it's still a submoas. if so then we have to finish it first before updating for any new ASN
@@ -954,13 +943,8 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
     return;
   
   }
-<<<<<<< HEAD
   int sub_as;
    sub_as=0;
-=======
-  int subasn_exist;
-  subas_exist=0;
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
   bgpstream_pfx_storage_t subprefix=submoas_struct.subprefix;
   int i;
    for (i=0;i<submoas_struct.number_of_subasns;i++){
@@ -969,12 +953,8 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
     if(submoas_struct.submoases[i].subasn!=asn){
       continue;
     }
-<<<<<<< HEAD
-    sub_as=1;
-=======
-    subasn_exist=1;
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
     bgpstream_pfx_storage_t superprefix=submoas_struct.superprefix;
+    sub_as=1;
     //removing superprefix
     k=kh_get(superprefix_map,state->superprefix_map, superprefix);
     if(k!=kh_end(state->superprefix_map)){
@@ -1014,11 +994,7 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
   }
 
   kh_value(state->subprefix_map,p)=submoas_struct;
-<<<<<<< HEAD
   if (!sub_as){
-=======
-  if(!subasn_exist){
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
     return;
   }
   /* Check if after removing ASNs if there is still any origin ASN left for the subprefix. If it's then start as new submoas */
@@ -1044,10 +1020,6 @@ void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn
         state->newrec_submoas_pfxs_count++;
       }
     }
-<<<<<<< HEAD
-
-=======
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
     submoas_struct.start=timenow;
   kh_value(state->subprefix_map,p)=submoas_struct;
     if(wandio_printf(state->file,"%"PRIu32"|%s|%s|%s|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s    \n",
@@ -1102,14 +1074,13 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
   khint_t k,j,n,m;
   khint_t p;
   int ret;
-  char prev_category=MAX_BUFFER_LEN];
+  char prev_category[MAX_BUFFER_LEN];
   uint32_t timenow=state->time_now;
   bgpstream_patricia_tree_result_set_t *res=bgpstream_patricia_tree_result_set_create();
   snprintf(state->filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT,
            state->output_folder, timenow, state->current_window_size);
   char pfx_str[INET6_ADDRSTRLEN+3];
   char asn_buffer[MAX_BUFFER_LEN];
-  char prev_category[MAX_BUFFER_LEN];
   char pfx2_str[INET6_ADDRSTRLEN+3];
   k=kh_get(superprefix_map, state->superprefix_map, *(bgpstream_pfx_storage_t*)pfx);
 
@@ -1176,10 +1147,6 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
         else{
           strcpy(category,prev_category);
           }
-<<<<<<< HEAD
-=======
-        }
->>>>>>> 4ee889f96427afc93c4d4265e32c3a24439ac4c6
         submoas_struct.end=timenow;
         submoas_struct.start=timenow;
         kh_value(state->subprefix_map,m)=submoas_struct;
