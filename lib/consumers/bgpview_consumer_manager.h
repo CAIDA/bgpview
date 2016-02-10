@@ -152,9 +152,12 @@ typedef enum bvc_id
     /** Writes information about prefixes that are reachable through  triplets */
     BVC_ID_TRIPLETS           = 11,
 
+    /** Outputs the current origin ASns observed for each routed prefix */
+    BVC_ID_PFXORIGINS         = 12,
+
     /** It can be used as a template, it writes generic information about the 
      *  number of view processed and the number of elements in the current view  */
-    BVC_ID_MYVIEWPROCESS      = 12,
+    BVC_ID_MYVIEWPROCESS      = 13,
 
     /** @todo add more consumers here */
 

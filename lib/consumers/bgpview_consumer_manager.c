@@ -66,6 +66,9 @@
 /* Triplet consumer */
 #include "bvc_triplets.h"
 
+/* Prefix origins consumer */
+#include "bvc_pfxorigins.h"
+
 /* My View Process consumer */
 #include "bvc_myviewprocess.h"
 
@@ -126,6 +129,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to triplet alloc function */
   bvc_triplets_alloc,
+
+  /** Pointer to pfxorigins alloc function */
+  bvc_pfxorigins_alloc,
 
   /** Pointer to myviewprocess alloc function */
   bvc_myviewprocess_alloc,

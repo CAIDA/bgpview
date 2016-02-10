@@ -95,6 +95,11 @@ CONSUMER_SRCS += \
 	bvc_triplets.c \
 	bvc_triplets.h
 
+# Pfxorigins consumer
+CONSUMER_SRCS += \
+	bvc_pfxorigins.c \
+	bvc_pfxorigins.h
+
 # My View Process Consumer (no dependencies)
 CONSUMER_SRCS += \
 	bvc_myviewprocess.c \
