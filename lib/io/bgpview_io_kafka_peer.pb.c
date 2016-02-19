@@ -6,7 +6,7 @@
 #define PROTOBUF_C__NO_DEPRECATED
 #endif
 
-#include "peer.pb-c.h"
+#include "bgpview_io_kafka_peer.pb.h"
 void   peer__init
                      (Peer         *message)
 {

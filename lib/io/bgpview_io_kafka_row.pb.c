@@ -6,7 +6,7 @@
 #define PROTOBUF_C__NO_DEPRECATED
 #endif
 
-#include "bgprow.pb-c.h"
+#include "bgpview_io_kafka_row.pb.h"
 void   bgpcell__init
                      (BGPCell         *message)
 {

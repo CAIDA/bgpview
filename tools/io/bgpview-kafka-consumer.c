@@ -21,19 +21,41 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
 
-#ifndef __BVC_MYVIEWPROCESS_H
-#define __BVC_MYVIEWPROCESS_H
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>       /* time */
 
-/** @file
- *
- * @brief Header file that exposes the public interface of the bgpview 
- *  My View Process consumer
- *
- * @author Chiara Orsini
- *
- */
+/* this must be all we include from bgpview */
+#include "bgpview.h"
+#include "bgpview_io_kafka.h"
 
-BVC_GENERATE_PROTOS(myviewprocess)
+#include "config.h"
+#include "utils.h"
 
-#endif /* __BVC_MYVIEWPROCESS_H */
+
+int main(int argc, char **argv)
+{
+
+	// DEFAULT TMP VALUES
+	kafka_data_t src;
+	src.brokers = "192.172.226.44:9092,192.172.226.46:9092";
+	src.pfxs_paths_topic="views";
+	src.peers_topic="peers";
+	src.metadata_topic="metadata";
+	src.pfxs_paths_partition=0;
+	src.peers_partition=0;
+	src.metadata_partition=0;
+	src.pfxs_paths_offset=0;
+	src.peers_offset=0;
+	src.metadata_offset=0;
+
+	bgpview_t *view = bgpview_create(NULL, NULL, NULL, NULL);
+	bgpview_io_kafka_recv(src,view,-1);
+
+  return 0;
+}
