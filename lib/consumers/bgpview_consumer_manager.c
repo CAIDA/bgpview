@@ -57,7 +57,6 @@
 /* Archiver consumer */
 #include "bvc_archiver.h"
 
-<<<<<<< HEAD
 /* Submoas consumer */
 #include "bvc_submoas.h"
 
@@ -74,7 +73,7 @@
 #include "bvc_routedspace.h"
 
 /* My View Process consumer */
-#include "bvc_myviewprocess.h"
+#include "bvc_kafkasender.h"
 
 
 
@@ -144,6 +143,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to myviewprocess alloc function */
   bvc_myviewprocess_alloc,
+
+  /** Pointer to kafkasender alloc function */
+  bvc_kafkasender_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */

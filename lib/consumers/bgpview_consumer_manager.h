@@ -92,12 +92,12 @@ typedef struct bvc_chain_state {
 
   /** Total number of full feed peer ASns in the view */
   uint32_t full_feed_peer_asns_cnt[BGPSTREAM_MAX_IP_VERSION_IDX];
-  
+
   /** Is the table usable? I.e. has enough full-feed peers */
   int usable_table_flag[BGPSTREAM_MAX_IP_VERSION_IDX];
 
   /** @todo the next variables will be replaced with percentages */
-  
+
   /** What is the minimum number of peers before a pfx is considered visible */
   int pfx_vis_peers_threshold;
 
@@ -139,11 +139,12 @@ typedef enum bvc_id
     /** Writes information about prefixes that have been announced by multiple
      *  origin ASns, i.e. MOAS */
     BVC_ID_MOAS               = 7,
-    
+
     /** Writes views to files */
     BVC_ID_ARCHIVER           = 8,
-    
-    /** Writes information about prefixes who's more specific prefixes are announced by different ASNs*/
+
+    /** Writes information about prefixes whose more specific prefixes are
+        announced by different ASNs */
     BVC_ID_SUBMOAS            = 9,
 
     /** Writes information about prefixes that are reachable through new edges  */
@@ -156,15 +157,17 @@ typedef enum bvc_id
     BVC_ID_PFXORIGINS         = 12,
 
     /** Generates information about routed prefixes in a given time window  */
-    BVC_ID_ROUTEDSPACE = 13,
+    BVC_ID_ROUTEDSPACE        = 13,
 
-    /** It can be used as a template, it writes generic information about the 
-     *  number of view processed and the number of elements in the current view  */
+    /** It can be used as a template, it writes generic information about the
+     *  number of view processed and the number of elements in the current
+     *  view */
     BVC_ID_MYVIEWPROCESS      = 14,
 
-    /** It can be used as a template, it writes generic information about the 
-     *  number of view processed and the number of elements in the current view  */
-    BVC_ID_MYVIEWPROCESS      = 9,
+    /** It can be used as a template, it writes generic information about the
+     *  number of view processed and the number of elements in the current
+     *  view */
+    BVC_ID_KAFKASENDER        = 15,
 
     /** @todo add more consumers here */
 
@@ -172,7 +175,7 @@ typedef enum bvc_id
     BVC_ID_FIRST      = BVC_ID_TEST,
 
     /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_MYVIEWPROCESS,
+    BVC_ID_LAST       = BVC_ID_KAFKASENDER,
 
 
   } bvc_id_t;

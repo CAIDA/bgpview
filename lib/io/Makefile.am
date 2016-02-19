@@ -50,10 +50,19 @@ libbgpview_io_la_SOURCES = 		\
 	bgpview_io_store.h		\
 	bgpview_io_store.c		\
 	bgpview_io.h			\
-	bgpview_io.c
+	bgpview_io.c			\
+	bgpview_io_kafka.c		\
+	bgpview_io_kafka.h		\
+	bgpview_io_kafka_peer.pb.c	\
+	bgpview_io_kafka_peer.pb.h	\
+	bgpview_io_kafka_row.pb.c	\
+	bgpview_io_kafka_row.pb.h
+
 
 libbgpview_io_la_LIBADD =
+
 
 ACLOCAL_AMFLAGS = -I m4
 
 CLEANFILES = *~
+

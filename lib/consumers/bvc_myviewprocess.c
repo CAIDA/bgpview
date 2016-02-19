@@ -26,11 +26,35 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
-
+#include <string.h>
+#include <librdkafka/rdkafka.h>
 #include "utils.h"
 #include "bgpview_consumer_interface.h"
-
 #include "bvc_myviewprocess.h"
+#include "bgprow.pb-c.h"
+#include "peer.pb-c.h"
+#include <errno.h>
+#include <time.h>
+
+/*
+ *TO REMOVE AFTER INCLUDE CORRECT FILES
+ */
+typedef enum {
+
+  /** The iterator refers to a peer */
+  BGPVIEW_IO_FILTER_PEER = 0,
+
+  /** The iterator refers to a prefix */
+  BGPVIEW_IO_FILTER_PFX = 1,
+
+  /** The iterator refers to a prefix-peer */
+  BGPVIEW_IO_FILTER_PFX_PEER = 2,
+
+} bgpview_io_filter_type_t;
+
+typedef int (bgpview_io_filter_cb_t)(bgpview_iter_t *iter,
+                                     bgpview_io_filter_type_t type);
+// END REMOVE
 
 
 #define NAME "my-view-process"
@@ -69,6 +93,36 @@ typedef struct bvc_myviewprocess_state {
 
 } bvc_myviewprocess_state_t;
 
+typedef struct kafka_data{
+
+	  /*
+	   *
+	   */
+	  char *brokers;
+
+	  /*
+	   *
+	   */
+	  char *pfxs_paths_topic;
+	  char *peers_topic;
+	  char *metadata_topic;
+
+	  /*
+	   *
+	   */
+	  int pfxs_paths_partition;
+	  int peers_partition;
+	  int metadata_partition;
+
+	  /*
+	   *
+	   */
+	  int pfxs_paths_offset;
+	  int peers_offset;
+	  int metadata_offset;
+
+} kafka_data_t;
+
 
 /** Print usage information to stderr */
 static void usage(bvc_t *consumer)
@@ -104,6 +158,56 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   return 0;
 }
 
+/* ==================== KAFKA FUNCTIONS ==================== */
+
+rd_kafka_topic_t * initialize_producer_connection(rd_kafka_t **rk,rd_kafka_conf_t **conf,
+		rd_kafka_topic_conf_t **topic_conf, char *brokers, char *topic, int partition){
+
+  rd_kafka_topic_t *rkt;
+  char errstr[512];
+
+
+  /* Kafka configuration */
+   *conf = rd_kafka_conf_new();
+
+   /* Topic configuration */
+   *topic_conf = rd_kafka_topic_conf_new();
+
+   //printf("writing in partion %d\n",partition);
+
+   if (rd_kafka_conf_set(*conf, "queue.buffering.max.messages","7000000", errstr, sizeof(errstr)) !=RD_KAFKA_CONF_OK) {
+		fprintf(stderr, "%% %s\n", errstr);
+		exit(1);
+   }
+   //Enable compression: gzip | snappy
+   //Results for a 1 view all collectors:
+   //1 View gzip:     979 MB  ~ 450 sec
+   //1 View snappy:   1.7 GB  ~ 150 sec
+   //1 View row:      4.8 GB  ~ 135 sec
+
+
+   if (rd_kafka_conf_set(*conf, "compression.codec", "snappy", errstr, sizeof(errstr)) !=RD_KAFKA_CONF_OK) {
+		fprintf(stderr, "%% %s\n", errstr);
+		exit(1);
+   }
+
+   /* Create Kafka handle */
+   if (!(*rk = rd_kafka_new(RD_KAFKA_PRODUCER, *conf,errstr, sizeof(errstr)))) {
+ 	  fprintf(stderr, "%% Failed to create new producer: %s\n", errstr);
+ 	  exit(1);
+   }
+
+   /* Add brokers */
+   if (rd_kafka_brokers_add(*rk, brokers) == 0) {
+ 	fprintf(stderr, "%% No valid brokers specified\n");
+ 	exit(1);
+   }
+
+   /* Create topic */
+   rkt = rd_kafka_topic_new(*rk, topic, *topic_conf);
+
+  return rkt;
+}
 
 
 /* ==================== CONSUMER INTERFACE FUNCTIONS ==================== */
@@ -166,169 +270,429 @@ void bvc_myviewprocess_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
+void prefix_allocation(BGPRow *row, bgpview_iter_t *it){
 
-int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
-                                    bgpview_t *view)
-{
-  bvc_myviewprocess_state_t *state = STATE;
-  bgpview_iter_t *it;
+	bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
+	assert(pfx != NULL);
 
-  /* create a new iterator */
-  if((it = bgpview_iter_create(view)) == NULL)
-    {
-      return -1;
-    }
+	bgpstream_ip_addr_t addr = pfx->address;
 
-  /* increment the number of views processed */
-  state->view_counter++;
+    int memory=0;
+    if(addr.version == BGPSTREAM_ADDR_VERSION_IPV4) memory=sizeof(bgpstream_ipv4_pfx_t);
+    else if(addr.version == BGPSTREAM_ADDR_VERSION_IPV6) memory=sizeof(bgpstream_ipv6_pfx_t);
+    else memory=sizeof(bgpstream_pfx_storage_t);
 
-  /* reset the elements counter */
-  state->current_view_elements = 0;
+    row->pfx.len=memory;
+    row->pfx.data=(uint8_t *)pfx;
+}
+
+int get_offset_view(kafka_data_t dest){
+
+	rd_kafka_t *rk;
+	rd_kafka_topic_t *rkt;
+	rd_kafka_conf_t *conf;
+	rd_kafka_topic_conf_t *topic_conf;
+	char errstr[512];
+	int offset;
+	rd_kafka_message_t *rkmessage;
+
+	char *brokers=dest.brokers;
+	char *topic=dest.pfxs_paths_topic;
+	int partition=dest.pfxs_paths_partition;
 
 
-  FILE *fw, *fwall;
-  char fname[35];
-  char fnameall[40];
+	/* Kafka configuration */
+	conf = rd_kafka_conf_new();
 
-  sprintf(fname, "/home/dgiordan/output/view_%d.txt", state->view_counter);
-  sprintf(fname, "/home/dgiordan/output/all_view_%d.txt", state->view_counter);
+	/* Topic configuration */
+	topic_conf = rd_kafka_topic_conf_new();
 
-  fw = fopen(fname, "w");
-  fwall = fopen(fnameall, "w");
-  /* iterate through all peer of the current view
-   *  - active peers only
-   */
-  for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_peer(it);
-      bgpview_iter_next_peer(it))
-    {
-      /* Information that can be retrieved for the current peer:
-       *
-       * PEER NUMERIC ID:
-       * bgpstream_peer_id_t id = bgpview_iter_peer_get_peer_id(it);
-       *
-       * PEER SIGNATURE (i.e. collector, peer ASn, peer IP):
-       * bgpstream_peer_sig_t *s = bgpview_iter_peer_get_sig(it);
-       *
-       * NUMBER OF CURRENTLY ANNOUNCED THE PFX
-       * int announced_pfxs = bgpview_iter_peer_get_pfx_cnt(it, 0, BGPVIEW_FIELD_ACTIVE);
-       * *0 -> ipv4 + ipv6
-       *
-       */
-    }
+	/* Create Kafka handle */
+	if (!(rk = rd_kafka_new(RD_KAFKA_CONSUMER, conf,errstr, sizeof(errstr)))) {
+		fprintf(stderr,"%% Failed to create new consumer: %s\n",errstr);
+		exit(1);
+	}
 
-  /* iterate through all prefixes of the current view
-   *  - both ipv4 and ipv6 prefixes are considered
-   *  - active prefixes only (i.e. do not consider prefixes that have
-   *    been withdrawn)
-   */
-  for(bgpview_iter_first_pfx(it, 0 /* all ip versions*/, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_pfx(it);
-      bgpview_iter_next_pfx(it))
-    {
+	/* Add brokers */
+	if (rd_kafka_brokers_add(rk, brokers) == 0) {
+		fprintf(stderr, "%% No valid brokers specified\n");
+		exit(1);
+	}
 
-      /* Information that can be retrieved for the current prefix:
-       *
-       * PREFIX:
-       * bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it)
-       *
-       * NUMBER OF PEERS CURRENTLY ANNOUNCING THE PFX
-       * int peers_cnt = bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
-       */
-	  int i;
-	  int position = 0;
-	  int all_position = 0;
-	  int prefix_asn[100] = { 0 };
-	  int all_prefix_asn[100] = { 0 };
+	/* Create topic */
+	rkt = rd_kafka_topic_new(rk, topic, topic_conf);
 
-	  /* iterate over all the peers that currently observe the current pfx */
-      for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-          bgpview_iter_pfx_has_more_peer(it);
-          bgpview_iter_pfx_next_peer(it))
-        {
-          /* Information that can be retrieved for the current element:
-           *
-           * ORIGIN ASN:
-           * int origin_asn = bgpview_iter_pfx_peer_get_orig_asn(it);
-           */
+	/* Start consuming */
+	if (rd_kafka_consume_start(rkt, partition, RD_KAFKA_OFFSET_BEGINNING) == -1){
+		fprintf(stderr, "%% Failed to start consuming: %s\n",rd_kafka_err2str(rd_kafka_errno2err(errno)));
+		if (errno == EINVAL)
+			fprintf(stderr,"%% Broker based offset storage requires a group.id, add: -X group.id=yourGroup\n");
+		exit(1);
+	}
 
-		  bgpstream_as_path_seg_t * segment=bgpview_iter_pfx_peer_get_origin_seg(it);
+	rkmessage = rd_kafka_consume(rkt, partition, 1000);
+	offset=rkmessage->offset;
 
-		  if(segment->type == BGPSTREAM_AS_PATH_SEG_ASN){
-			  bgpstream_as_path_seg_asn_t * my_segment = (bgpstream_as_path_seg_asn_t*)segment;
-			  int asn_present=0;
-			  for(i=0; i< position && i<100 && asn_present == 0;i++)
-				  if(prefix_asn[i]==my_segment->asn)
-					  asn_present=1;
-			  if( asn_present == 0 && position <100){
-				  prefix_asn[position]=my_segment->asn;
-				  position +=1;
+  // Destroy topic
+  rd_kafka_topic_destroy(rkt);
+
+  // Destroy the handle
+  rd_kafka_destroy(rk);
+
+  return offset;
+}
+
+void publish_offset(kafka_data_t dest, bgpview_t *view, int offset, int publish_partition){
+
+	rd_kafka_t *rk;
+	rd_kafka_topic_t *rkt;
+	rd_kafka_conf_t *conf;
+	rd_kafka_topic_conf_t *topic_conf;
+
+	rkt=initialize_producer_connection(&rk,&conf,&topic_conf,dest.brokers,dest.metadata_topic,dest.metadata_partition);
+
+  char offset_message[256];
+  int nc = sprintf(offset_message, "VIEW: %"PRIu32" PUBLISHED IN PARTITION: %d AT OFFSET: %d WITH INTERNAL VIEW ID: TBD", bgpview_get_time(view), publish_partition,offset);
+  if(nc>0) offset_message[nc]='\0';
+
+	if(rd_kafka_produce(rkt, dest.metadata_partition,RD_KAFKA_MSG_F_COPY,offset_message,strlen(offset_message),NULL, 0,NULL) == -1) {
+		fprintf(stderr,"%% Failed to produce to topic %s partition %i: %s\n",
+			rd_kafka_topic_name(rkt), dest.metadata_partition,rd_kafka_err2str(rd_kafka_errno2err(errno)));
+		//Poll to handle delivery reports
+		rd_kafka_poll(rk, 0);
+	}
+
+	/* Wait for messages to be delivered */
+	while (rd_kafka_outq_len(rk) > 0)
+		rd_kafka_poll(rk, 100);
+
+	/* Destroy topic */
+	rd_kafka_topic_destroy(rkt);
+
+	/* Destroy the handle */
+	rd_kafka_destroy(rk);
+
+
+}
+int send_pfxs_paths(kafka_data_t dest, bgpview_iter_t *it,
+					bgpview_io_filter_cb_t *cb){
+
+	  time_t rawtime;
+	  struct tm * timeinfo;
+	  time ( &rawtime );
+	  timeinfo = localtime ( &rawtime );
+	  printf ( "Start writing pfxs paths in partition %d. Current local time and date: %s",dest.pfxs_paths_partition, asctime (timeinfo));
+
+	  //kafka configurations
+	  rd_kafka_t *rk;
+	  rd_kafka_topic_t *rkt;
+	  rd_kafka_conf_t *conf;
+	  rd_kafka_topic_conf_t *topic_conf;
+
+	  int i,j,filter,size,peers_cnt,paths_tx=0,npfx=0;
+	  void *buf;                     // Buffer to store serialized data
+	  unsigned len=0;                  // Length of serialized data
+
+	  char begin_message[256];
+
+	  bgpview_t *view = bgpview_iter_get_view(it);
+	  assert(view != NULL);
+
+	   int offset=get_offset_view(dest);
+	   publish_offset(dest,view,offset,dest.pfxs_paths_partition);
+
+	  rkt=initialize_producer_connection(&rk,&conf,&topic_conf,dest.brokers,dest.pfxs_paths_topic,dest.pfxs_paths_partition);
+
+
+	  int nc = sprintf(begin_message, "BEGIN - VIEW: %"PRIu32" WITH %d PREFIXES", bgpview_get_time(view),bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
+	  if(nc>0) begin_message[nc]='\0';
+	  while(rd_kafka_produce(rkt, dest.pfxs_paths_partition,RD_KAFKA_MSG_F_COPY,begin_message, strlen(begin_message),NULL, 0,NULL) == -1) {
+		fprintf(stderr,"%% Failed to produce to topic %s partition %i: %s\n",
+			rd_kafka_topic_name(rkt), dest.pfxs_paths_partition,rd_kafka_err2str(rd_kafka_errno2err(errno)));
+			rd_kafka_poll(rk, 0); //Poll to handle delivery reports
+	  }
+
+
+	  for(bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ACTIVE);
+	      bgpview_iter_has_more_pfx(it);
+	      bgpview_iter_next_pfx(it))
+	    {
+		  if(cb != NULL)
+		         {
+		           /* ask the caller if they want this peer */
+		           if((filter = cb(it, BGPVIEW_IO_FILTER_PFX)) < 0)
+		             {
+		               goto err;
+		             }
+		           if(filter == 0)
+		             {
+		               continue;
+		             }
+		         }
+
+
+		  peers_cnt = bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
+
+		  /* for a pfx to be sent it must have active peers */
+	      if(peers_cnt == 0)
+	        {
+	          continue;
+	        }
+
+		  BGPRow row = BGPROW__INIT;
+		  BGPCell **cells;
+		  prefix_allocation(&row,it);
+
+		  row.n_cells=peers_cnt;
+	      cells =(BGPCell**)malloc(sizeof(BGPCell*)*peers_cnt);
+
+	      i=0;
+	      bgpstream_as_path_t* paths[1024];
+	      for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+	          bgpview_iter_pfx_has_more_peer(it);
+	          bgpview_iter_pfx_next_peer(it))
+	        {
+	    	  bgpstream_peer_id_t peerid=bgpview_iter_peer_get_peer_id(it);
+
+	    	  size = sizeof(bgpstream_peer_id_t);
+	    	  cells[i] = malloc (sizeof (BGPCell));
+	    	  bgpcell__init(cells[i]);
+	      	  cells[i]->peerid=peerid;
+
+	    	  uint8_t *path_data;
+	    	  // Optimization to avoid bgpview_iter_pfx_peer_get_as_path i.e., copy of data twice
+	    	  bgpstream_as_path_t *path = bgpview_iter_pfx_peer_get_as_path(it);
+	    	  assert(path != NULL);
+
+	    	  uint16_t ndata = bgpstream_as_path_get_data(path,&path_data);
+
+	    	  paths[i]=path;
+	    	  cells[i]->aspath.len=ndata;
+	    	  cells[i]->aspath.data=path_data;
+
+	    	  i++;
+	    	  paths_tx++;
 			  }
 
-			  all_prefix_asn[all_position]=my_segment->asn;
-			  all_position+=1;
-		  }
-		  if(segment->type == BGPSTREAM_AS_PATH_SEG_SET ||
-				  segment->type == BGPSTREAM_AS_PATH_SEG_CONFED_SET ||
-				  segment->type == BGPSTREAM_AS_PATH_SEG_CONFED_SEQ){
-			  /*
-			   * Do not consider them since they carry the ordered set of ASes a route in
-			   * the UPDATE message has traversed.
-			   *
-			   */
+	      	  row.cells=cells;
 
-		  }
-          state->current_view_elements++;
-        }
+	    	  len = bgprow__get_packed_size(&row);
 
-	  bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
+	    	  buf = malloc(len);
+	    	  bgprow__pack(&row,buf);
 
-	  bgpstream_ip_addr_t addr = pfx->address;
 
-	  if(addr.version == BGPSTREAM_ADDR_VERSION_IPV4){
+	    	  if(rd_kafka_produce(rkt, dest.pfxs_paths_partition,RD_KAFKA_MSG_F_COPY,buf, len,NULL, 0,NULL) == -1) {
+	    		fprintf(stderr,"%% Failed to produce to topic %s partition %i: %s\n",
+	    			rd_kafka_topic_name(rkt), dest.pfxs_paths_partition,rd_kafka_err2str(rd_kafka_errno2err(errno)));
+	    		//Poll to handle delivery reports
+	    		rd_kafka_poll(rk, 0);
+	    	  }
+	  		rd_kafka_poll(rk, 0);
 
-		  char str[INET_ADDRSTRLEN];
+	    	  for(j=0;j<peers_cnt;j++){
+	        	  bgpstream_as_path_destroy(paths[j]); //free all created paths
+	    	  	  free(cells[j]); //Free all cells
+	    	  }
+			  free(cells); //free cells vector
+			  free(buf); // free the allocated serialized buffer
+			  npfx++;
+	        }
 
-		  uint8_t netmask = pfx->mask_len;
+	  printf("number of active pfx: %d sent %d\n",bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),npfx);
+	  assert(paths_tx <= UINT32_MAX);
 
-          bgpstream_addr_ntop(str, INET_ADDRSTRLEN, &(pfx->address));
+	  nc = sprintf(begin_message, "END - VIEW: %"PRIu32" WITH %d PREFIXES AND %d PATHS", bgpview_get_time(view),bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),paths_tx);
+	  if(nc>0) begin_message[nc]='\0';
 
-          for(i=0; i<position; i++)
-        	  fprintf(fw,"%s/%u %u\n",str,netmask,prefix_asn[i]);
-          for(i=0; i<all_position; i++)
-        	  fprintf(fwall,"%s/%u %u\n",str,netmask,all_prefix_asn[i]);
-
+	  if(rd_kafka_produce(rkt, dest.pfxs_paths_partition,RD_KAFKA_MSG_F_COPY,begin_message, strlen(begin_message),NULL, 0,NULL) == -1) {
+		fprintf(stderr,"%% Failed to produce to topic %s partition %i: %s\n",
+			rd_kafka_topic_name(rkt), dest.pfxs_paths_partition,rd_kafka_err2str(rd_kafka_errno2err(errno)));
+		//Poll to handle delivery reports
+		rd_kafka_poll(rk, 0);
 	  }
-	  if(addr.version == BGPSTREAM_ADDR_VERSION_IPV6){
 
-		  char str[INET6_ADDRSTRLEN];
-
-		  uint8_t netmask = pfx->mask_len;
-
-          bgpstream_addr_ntop(str, INET6_ADDRSTRLEN, &(pfx->address));
-
-          for(i=0; i<position; i++)
-        	  fprintf(fw,"%s/%u %u\n",str,netmask,prefix_asn[i]);
-          for(i=0; i<all_position; i++)
-        	  fprintf(fwall,"%s/%u %u\n",str,netmask,all_prefix_asn[i]);
-	  }
-    }
-  fclose(fw);
-  fclose(fwall);
+	  while (rd_kafka_outq_len(rk) > 0)
+		rd_kafka_poll(rk, 100);
 
 
+	  // Destroy topic
+	  rd_kafka_topic_destroy(rkt);
 
-  /* print the number of views processed so far
-   * FORMAT: <ts> num-views: <num-views> */
-  printf("%"PRIu32" num-views: %d\n", bgpview_get_time(view), state->view_counter);
+	  // Destroy the handle
+	  rd_kafka_destroy(rk);
 
-  /* print the number of elements in the current view
-   * FORMAT: <ts> num-elements: <num-elements> */
-  printf("%"PRIu32" num-elements: %d\n", bgpview_get_time(view), state->current_view_elements);
+	  /* destroy the view iterator */
+	  bgpview_iter_destroy(it);
+
+	time ( &rawtime );
+	timeinfo = localtime ( &rawtime );
+	printf ( "End pfxs paths: current local time and date: %s", asctime (timeinfo) );
+
+	   return 0;
+
+	   err:
+	   return -1;
+}
+
+int send_peers(kafka_data_t dest, bgpview_iter_t *it,
+			   bgpview_io_filter_cb_t *cb)
+{
+
+  time_t rawtime;
+  struct tm * timeinfo;
+  time ( &rawtime );
+  timeinfo = localtime ( &rawtime );
+
+  printf ( "Start writing peers in partition 0. Current local time and date: %s", asctime (timeinfo));
+
+  //kafka configurations
+  rd_kafka_t *rk;
+  rd_kafka_topic_t *rkt;
+  rd_kafka_conf_t *conf;
+  rd_kafka_topic_conf_t *topic_conf;
+  char begin_message[256];
+
+  //protobuf
+  void *buf;                     // Buffer to store serialized data
+  unsigned len=0;                  // Length of serialized data
+  int peers_tx=0;
+  int filter;
+
+  bgpview_t *view = bgpview_iter_get_view(it);
+
+  rkt=initialize_producer_connection(&rk,&conf,&topic_conf,dest.brokers,dest.peers_topic,dest.peers_partition);
+
+  //SEND BEGIN MESSAGE
+  int np= bgpview_peer_cnt(view, BGPVIEW_FIELD_ACTIVE);
+  int nc = sprintf(begin_message, "BEGIN - PEER: %d",np);
+  if(nc>0) begin_message[nc]='\0';
+  if(rd_kafka_produce(rkt, dest.peers_partition,RD_KAFKA_MSG_F_COPY,begin_message, strlen(begin_message),NULL, 0,NULL) == -1) {
+	fprintf(stderr,"%% Failed to produce to topic %s partition %i: %s\n",
+		rd_kafka_topic_name(rkt), dest.peers_partition,rd_kafka_err2str(rd_kafka_errno2err(errno)));
+		rd_kafka_poll(rk, 0); //Poll to handle delivery reports
+  }
+
+  for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+		  bgpview_iter_has_more_peer(it);
+		  bgpview_iter_next_peer(it))
+	{
+	  if(cb != NULL)
+			  {
+				/* ask the caller if they want this peer */
+				if((filter = cb(it, BGPVIEW_IO_FILTER_PEER)) < 0)
+				  {
+					goto err;
+				  }
+				if(filter == 0)
+				  {
+					continue;
+				  }
+			  }
+        /* past here means this peer is being sent */
+		peers_tx++;
+
+		bgpstream_peer_sig_t * ps = bgpview_iter_peer_get_sig(it);
+		assert(ps);
+
+		Peer peer_msg = PEER__INIT;
+		peer_msg.peerid_orig=bgpview_iter_peer_get_peer_id(it);
+		peer_msg.collector_str=ps->collector_str;
+		peer_msg.peer_ip_addr.len=sizeof(bgpstream_addr_storage_t);
+		peer_msg.peer_ip_addr.data=(void*)&(ps->peer_ip_addr);
+		peer_msg.peer_asnumber=ps->peer_asnumber;
+
+		len = peer__get_packed_size(&peer_msg);
+		buf = malloc(len);
+		peer__pack(&peer_msg,buf);
+
+		if(rd_kafka_produce(rkt, dest.peers_partition,RD_KAFKA_MSG_F_COPY,buf, len,NULL, 0,NULL) == -1) {
+			fprintf(stderr,"%% Failed to produce to topic %s partition %i: %s\n",
+				rd_kafka_topic_name(rkt), dest.peers_partition,rd_kafka_err2str(rd_kafka_errno2err(errno)));
+			rd_kafka_poll(rk, 0); //Poll to handle delivery reports
+			goto err;
+		}
+		free(buf); // free the allocated serialized buffer
+
+	}
+
+  assert(peers_tx <= UINT16_MAX);
+  nc = sprintf(begin_message, "END PEER: %d",peers_tx);
+  if(nc>0) begin_message[nc]='\0';
+  if(rd_kafka_produce(rkt, dest.peers_partition,RD_KAFKA_MSG_F_COPY,begin_message, strlen(begin_message),NULL, 0,NULL) == -1) {
+	fprintf(stderr,"%% Failed to produce to topic %s partition %i: %s\n",
+		rd_kafka_topic_name(rkt),dest.peers_partition,rd_kafka_err2str(rd_kafka_errno2err(errno)));
+	rd_kafka_poll(rk, 0);
+  }
+
+  while (rd_kafka_outq_len(rk) > 0)
+	rd_kafka_poll(rk, 100);
+
+  // Destroy topic
+  rd_kafka_topic_destroy(rkt);
+
+  // Destroy the handle
+  rd_kafka_destroy(rk);
 
 
-  /* destroy the view iterator */
-  bgpview_iter_destroy(it);
+  printf ( "End writing peers in partition 0. Current local time and date: %s", asctime (timeinfo));
 
+  return 0;
+ err:
+  return -1;
+
+}
+
+int bgpview_io_kafka_send(kafka_data_t dest, bgpview_t *view,
+						  bgpview_io_filter_cb_t *cb){
+
+
+	bgpview_iter_t *it = NULL;
+
+	#ifdef DEBUG
+	  fprintf(stderr, "DEBUG: Sending view...\n");
+	#endif
+
+	if((it = bgpview_iter_create(view)) == NULL)
+	{
+		goto err;
+	}
+
+	if(send_peers(dest,it,cb)!=0){
+		goto err;
+	}
+
+	if(send_pfxs_paths(dest,it,cb)!=0){
+		goto err;
+	}
+
+	bgpview_iter_destroy(it);
+
+	return 0;
+
+  err:
+ 	return -1;
+}
+
+int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
+{
+
+	kafka_data_t dest;
+	// DEFAULT TMP VALUES
+
+	dest.brokers = "192.172.226.44:9092,192.172.226.46:9092";
+	dest.pfxs_paths_topic="views";
+	dest.peers_topic="peers";
+	dest.metadata_topic="metadata";
+	dest.pfxs_paths_partition=0;
+	dest.peers_partition=0;
+	dest.metadata_partition=0;
+	dest.pfxs_paths_offset=0;
+	dest.peers_offset=0;
+	dest.metadata_offset=0;
+
+
+	bgpview_io_kafka_send(dest,view,NULL);
+	exit(0);
   return 0;
 }

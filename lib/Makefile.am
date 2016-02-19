@@ -21,7 +21,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS = consumers io
+SUBDIRS = consumers io 
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \

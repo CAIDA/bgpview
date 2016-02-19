@@ -36,27 +36,6 @@
 #include "bgpview_consumer_interface.h"
 #include "bvc_kafkasender.h"
 
-/*
- *TO REMOVE AFTER INCLUDE CORRECT FILES
- */
-typedef enum {
-
-  /** The iterator refers to a peer */
-  BGPVIEW_IO_FILTER_PEER = 0,
-
-  /** The iterator refers to a prefix */
-  BGPVIEW_IO_FILTER_PFX = 1,
-
-  /** The iterator refers to a prefix-peer */
-  BGPVIEW_IO_FILTER_PFX_PEER = 2,
-
-} bgpview_io_filter_type_t;
-
-typedef int (bgpview_io_filter_cb_t)(bgpview_iter_t *iter,
-                                     bgpview_io_filter_type_t type);
-// END REMOVE
-
-
 #define NAME "kafka-sender"
 
 
