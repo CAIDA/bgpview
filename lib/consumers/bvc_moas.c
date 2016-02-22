@@ -1,4 +1,4 @@
-/*
+/*TEST
  * This file is part of bgpstream
  *
  * CAIDA, UC San Diego
@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include <czmq.h>
 
@@ -218,6 +219,18 @@ KHASH_INIT(pfx_moasinfo_map,
 typedef khash_t(pfx_moasinfo_map) pfx_moasinfo_map_t;
 
 
+
+KHASH_INIT(as_paths, char*, char, 1, kh_str_hash_func, kh_str_hash_equal);  
+typedef khash_t(as_paths) as_paths_t;
+
+KHASH_INIT(as_paths_map,
+           bgpstream_pfx_storage_t,
+           as_paths_t*, 1,
+           bgpstream_pfx_storage_hash_val,
+           bgpstream_pfx_storage_equal_val);
+typedef khash_t(as_paths_map) as_paths_map_t;
+
+
 /* our 'instance' */
 typedef struct bvc_moas_state {
 
@@ -301,7 +314,7 @@ static int output_timeseries(bvc_t *consumer, uint32_t ts)
 
 
 /** Update and log current moases */
-static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
+static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts, as_paths_map_t *as_paths_map)
 {
   bvc_moas_state_t *state = STATE;
 
@@ -309,7 +322,7 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
   char asn_buffer[MAX_BUFFER_LEN];
   char filename[MAX_BUFFER_LEN];
   khiter_t p;
-  khiter_t m;
+  khiter_t m,n,k;
   bgpstream_pfx_storage_t *pfx;
   moasinfo_map_t *per_pfx_moases;
   moas_signature_t *ms;
@@ -319,6 +332,7 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
   state->new_recurring_moas_pfxs_count = 0;
   state->ongoing_moas_pfxs_count = 0;
   state->finished_moas_pfxs_count = 0;
+  as_paths_t *as_paths;
 
   iow_t *f = NULL;
   /* OUTPUT_FILE_FORMAT            "%s/"NAME".%"PRIu32".%"PRIu32"s-window.events.gz" */
@@ -368,26 +382,42 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
                              /* observed for the first time in the window  */
                              if(mpro->first_seen == ts)
                                {
-                                 if(wandio_printf(f,"%"PRIu32"|%s|NEW|%s\n",
-                                                   ts,
-                                                   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx),
-                                                   print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN)) == -1)
-                                   {
-                                     fprintf(stderr, "ERROR: Could not write %s file\n",filename);
-                                     return -1;
-                                   }
+                                n=kh_get(as_paths_map,as_paths_map,*pfx);
+                                as_paths=kh_value(as_paths_map,n);
+                                for(k = kh_begin(as_paths); k!= kh_end(as_paths); k++){
+                                  if(kh_exist(as_paths,k)){
+
+
+                                     if(wandio_printf(f,"%"PRIu32"|%s|NEW|%s|%s\n",
+                                                       ts,
+                                                       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx),
+                                                       print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN),kh_key(as_paths,k)) == -1)
+                                       {
+                                         fprintf(stderr, "ERROR: Could not write %s file\n",filename);
+                                         return -1;
+                                       }
+                                      }
+                                    }
                                  state->new_moas_pfxs_count++;
                                }
                              else /* new occurence of a MOAS already observed in the window */
                                {
-                                 if(wandio_printf(f,"%"PRIu32"|%s|NEWREC|%s\n",
+                                n=kh_get(as_paths_map,as_paths_map,*pfx);
+                                as_paths=kh_value(as_paths_map,n);
+                                for(k = kh_begin(as_paths); k!= kh_end(as_paths); k++){
+                                  if(kh_exist(as_paths,k)){
+ 
+                                 if(wandio_printf(f,"%"PRIu32"|%s|NEWREC|%s|%s\n",
                                                    ts,
                                                    bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx),
-                                                   print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN)) == -1)
+                                                   print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN),kh_key(as_paths,k)) == -1)
                                    {
                                      fprintf(stderr, "ERROR: Could not write %s file\n",filename);
                                      return -1;
                                    }
+
+                                  }
+                                }
                                  state->new_recurring_moas_pfxs_count++;
                                }
                            }
@@ -463,10 +493,12 @@ static int add_moas(bvc_t *consumer, bgpstream_pfx_storage_t *pfx, moas_signatur
   int khret;
   int i;
   moasinfo_map_t *per_pfx_moases;
+  int category;
 
   /* check if prefix is in MOAS already*/
   if((k = kh_get(pfx_moasinfo_map, state->current_moases, *pfx)) == kh_end(state->current_moases))
     {
+      category=1;
       /* if not insert the prefix */
       k = kh_put(pfx_moasinfo_map, state->current_moases, *pfx, &khret);
       if((kh_value(state->current_moases, k) = kh_init(moasinfo_map)) == NULL)
@@ -479,6 +511,7 @@ static int add_moas(bvc_t *consumer, bgpstream_pfx_storage_t *pfx, moas_signatur
   /* check if it is a new moas */
   if((k = kh_get(moasinfo_map, per_pfx_moases, *ms)) == kh_end(per_pfx_moases))
     {
+      category=1;
       k = kh_put(moasinfo_map, per_pfx_moases, *ms, &khret);
       kh_value(per_pfx_moases,k).start = ts;
       kh_value(per_pfx_moases,k).end = ts;
@@ -495,11 +528,13 @@ static int add_moas(bvc_t *consumer, bgpstream_pfx_storage_t *pfx, moas_signatur
        * so this is a new occurence */
       if(kh_value(per_pfx_moases,k).start == 0)
         {
+          category=1;
           kh_value(per_pfx_moases,k).start = ts;
           kh_value(per_pfx_moases,k).end = ts;
         }
       else
         { /* otherwise is a moas which is continuing */
+          category=0;
           kh_value(per_pfx_moases,k).end = ts;
         }
 
@@ -511,7 +546,7 @@ static int add_moas(bvc_t *consumer, bgpstream_pfx_storage_t *pfx, moas_signatur
         }
     }
 
-  return 0;
+  return category;
 }
 
 
@@ -766,6 +801,29 @@ void bvc_moas_destroy(bvc_t *consumer)
     }
 }
 
+void clear_aspaths(as_paths_t *as_paths){
+  khint_t p;
+  for(p = kh_begin(as_paths); p!= kh_end(as_paths); p++){
+    if(kh_exist(as_paths,p)){
+      free(kh_key(as_paths,p));
+    }
+  }
+  kh_clear(as_paths,as_paths);
+  kh_destroy(as_paths,as_paths);
+
+
+}
+
+void clear_aspaths_map(as_paths_map_t *as_paths_map){
+  khint_t p;
+  for(p = kh_begin(as_paths_map); p!= kh_end(as_paths_map); p++){
+    if(kh_exist(as_paths_map,p)){
+      clear_aspaths(kh_value(as_paths_map,p));
+      }
+  }
+  kh_destroy(as_paths_map,as_paths_map);
+
+}
 
 int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
 {
@@ -774,7 +832,7 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
   bgpstream_peer_id_t peerid;
-  int ipv_idx;
+  int ipv_idx,ret_add_moas,ret;
   bgpstream_as_path_seg_t *origin_seg;
   uint32_t origin_asn;
   uint32_t last_origin_asn;
@@ -784,11 +842,17 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   uint32_t peers_cnt;
   uint32_t origins_visibility[MAX_UNIQUE_ORIGINS];
   state->pfxs_count = 0;
+  char as_path_str[MAX_BUFFER_LEN];
 
+  bgpstream_as_path_iter_t path_it;
+  as_paths_map_t *as_paths_map = kh_init(as_paths_map);
+
+  khint_t k;
+  bool atleast_one_ff;
 
   /* initialize ms origins to all zeroes*/
   ms.n = 0;
-  for(i = 0; i < MAX_UNIQUE_ORIGINS; i++)
+  for(i = 0; i < MAX_UNIQUE_ORIGINS; i++) 
     {
       ms.origins[i] = 0;
     }
@@ -826,23 +890,29 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
     {
       return -1;
     }
-
+  char pfx_str[MAX_BUFFER_LEN];
   /* iterate through all prefixes */
   for(bgpview_iter_first_pfx(it, 0 /* all versions */, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(it);
       bgpview_iter_next_pfx(it))
     {
+
+      atleast_one_ff=false;
+      as_paths_t *as_paths = kh_init(as_paths);
+
       pfx = bgpview_iter_pfx_get_pfx(it);
       ipv_idx = bgpstream_ipv2idx(pfx->address.version);
       peers_cnt = 0;
       last_origin_asn = 0;
       ms.n = 0;
+      bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
 
       for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
           bgpview_iter_pfx_has_more_peer(it);
           bgpview_iter_pfx_next_peer(it))
         {
           /* only consider peers that are full-feed */
+
           peerid = bgpview_iter_peer_get_peer_id(it);
           if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx], peerid))
             {
@@ -857,8 +927,20 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
                 {
                   continue;
                 }
-
+              atleast_one_ff=true; 
               origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
+              bgpstream_as_path_iter_reset(&path_it);
+              bgpstream_as_path_t *aspath; 
+              aspath = bgpview_iter_pfx_peer_get_as_path(it);
+              bgpstream_as_path_snprintf(as_path_str, MAX_BUFFER_LEN,aspath);
+              char *copy_asp;
+              
+              if((copy_asp=strdup(as_path_str))==NULL){
+                fprintf(stderr,"error copying aspath \n");
+                return -1;
+              }
+              kh_put(as_paths,as_paths,copy_asp,&ret);
+              bgpstream_as_path_destroy(aspath);
 
 
               /* in order to improve performance we group together the entries having the
@@ -904,7 +986,9 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
                 }
             }
         }
-
+      if(!atleast_one_ff){
+        kh_destroy(as_paths,as_paths);
+      }
       /* update the last origin ASn peers count for the current prefix */
       if(peers_cnt > 0)
         {
@@ -932,24 +1016,43 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
         }
 
       /* check if a moas has been detected */
+      //printf("len of aspaths %d \n",kh_size(as_paths));
       if(ms.n > 1)
         {
-          if(add_moas(consumer, (bgpstream_pfx_storage_t *)pfx, &ms, origins_visibility,
-                      bgpview_get_time(view), last_valid_ts) != 0)
-            {
-              return -1;
-            }
+          ret_add_moas=add_moas(consumer, (bgpstream_pfx_storage_t *)pfx, &ms, origins_visibility,
+                      bgpview_get_time(view), last_valid_ts);
+          if (ret_add_moas==-1){
+            return -1;
+
+          }
+          else if(ret_add_moas==1){
+            //add_to_Aspaths
+            k=kh_put(as_paths_map,as_paths_map, *(bgpstream_pfx_storage_t*) pfx,&ret);
+            kh_value(as_paths_map,k)=as_paths;
+          }
+          else{
+            clear_aspaths(as_paths);
+//            kh_destroy(as_paths,as_paths);
+          }
+
+ 
+        }
+        else{
+          if(atleast_one_ff){
+            clear_aspaths(as_paths);
+          }
         }
     }
 
   bgpview_iter_destroy(it);
 
-
-  /* update the prefix map data structure and output information about MOAS prefixes */
-  if(update_and_log_moas(consumer, bgpview_get_time(view), last_valid_ts) != 0)
+    /* update the prefix map data structure and output information about MOAS prefixes */
+  if(update_and_log_moas(consumer, bgpview_get_time(view), last_valid_ts, as_paths_map) != 0)
     {
       return -1;
     }
+
+  clear_aspaths_map(as_paths_map);  
 
   /* compute processed delay */
   state->processed_delay = zclock_time()/1000 - bgpview_get_time(view);

@@ -146,6 +146,9 @@ KHASH_INIT(superprefix_map,
            bgpstream_pfx_storage_equal_val);
 typedef khash_t(superprefix_map) superprefix_map_t;
 
+KHASH_INIT(as_paths, char*, char, 1, kh_str_hash_func, kh_str_hash_equal);  
+typedef khash_t(as_paths) as_paths_t;
+
 
 /* our 'instance' */
 typedef struct bvc_submoas_state {
@@ -714,7 +717,8 @@ void print_ongoing(bvc_t *consumer){
 }
 
 /* Adds prefix or new asn for a existing prefix to patricia tree. Check if updating patricia tree results in submoas or not */
-void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, uint32_t timenow){
+void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, as_paths_t *as_paths, uint32_t timenow){
+//void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, uint32_t timenow){
   khint_t k,j;
   int ret;
   char prev_category[MAX_BUFFER_LEN];
@@ -790,20 +794,28 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         kh_value(state->subprefix_map,j)=submoas_struct;
         //Printing info
         state->new_submoas_pfxs_count++;
-        if(wandio_printf(state->file,"%"PRIu32"|%s|%s|NEW|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s    \n",
-                                                   state->time_now,
-                                                   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, parent_pfx),
-                                                   bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, pfx),
-                                                   submoas_struct.first_seen,
-                                                   submoas_struct.start,
-                                                   submoas_struct.end,
-                                                   print_submoas_info(1,consumer,parent_pfx, pfx, asn_buffer, MAX_BUFFER_LEN)) == -1)
-                                   {
-                                     fprintf(stderr, "ERROR: Could not write %s file\n",state->filename);
-                                     return ;
+        for(p = kh_begin(as_paths); p!= kh_end(as_paths); p++){
+          if(kh_exist(as_paths,p)){
+
+            if(wandio_printf(state->file,"%"PRIu32"|%s|%s|NEW|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s|%s  \n",
+                                                       state->time_now,
+                                                       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, parent_pfx),
+                                                       bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, pfx),
+                                                       submoas_struct.first_seen,
+                                                       submoas_struct.start,
+                                                       submoas_struct.end,
+                                                       print_submoas_info(1,consumer,parent_pfx, pfx, asn_buffer, MAX_BUFFER_LEN),kh_key(as_paths,p)) == -1)
+                                       {
+                                         fprintf(stderr, "ERROR: Could not write %s file\n",state->filename);
+                                         return ;
+                                       }
+                                     }
                                    }
 
-      }
+   
+
+
+        }
         //seen this subprefix before. ASN might be new or old
       else{
         bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
@@ -873,7 +885,11 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
         }
          submoas_struct.start=timenow;
         kh_value(state->subprefix_map,k)=submoas_struct;
-       if(wandio_printf(state->file,"%"PRIu32"|%s|%s|%s|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s    \n",
+
+        for(p = kh_begin(as_paths); p!= kh_end(as_paths); p++){
+          if(kh_exist(as_paths,p)){
+
+            if(wandio_printf(state->file,"%"PRIu32"|%s|%s|%s|%"PRIu32"|%"PRIu32"|%"PRIu32"|%s|%s    \n",
                                                    timenow,
                                                    bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, parent_pfx),
                                                    bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, pfx),
@@ -881,14 +897,17 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
                                                    submoas_struct.first_seen,
                                                    timenow,
                                                    submoas_struct.end,
-                                                   print_submoas_info(3,consumer,parent_pfx, pfx, asn_buffer, MAX_BUFFER_LEN)) == -1)
+                                                   print_submoas_info(3,consumer,parent_pfx, pfx, asn_buffer, MAX_BUFFER_LEN),kh_key(as_paths,p)) == -1)
                                    {
                                      fprintf(stderr, "ERROR: Could not write %s file\n",state->filename);
                                      return ;
                                    }
+                                 }
+                               }
+                                   
+                            
         //Update variables and store submoas struct
-
-
+                              
 
 
 
@@ -1230,7 +1249,7 @@ void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node
   bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, pfx);
   int num_orig_asns=this_prefix_info->number_of_asns;
    for (j=0;j<num_orig_asns;j++){
-      if(this_prefix_info->origin_asns[j].last_seen < time_now){
+      if(this_prefix_info->origin_asns[j].last_seen +state->window_size < time_now){
 
        /* Origin ASN is removed, check whether its prefix belongs to some prefix involved in a submoas */
         check_remove_submoas_asn(consumer,pfx,this_prefix_info->origin_asns[j].asn);
@@ -1260,7 +1279,17 @@ void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node
 
 
 }
+void clear_aspaths(as_paths_t *as_paths){
+  khint_t p;
+  for(p = kh_begin(as_paths); p!= kh_end(as_paths); p++){
+    if(kh_exist(as_paths,p)){
+      free(kh_key(as_paths,p));
+    }
+  }
+  kh_clear(as_paths,as_paths);
 
+
+}
 /* Main drivier function
    Processes views, computes submoas information and generates output files and metrics */
 int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
@@ -1269,7 +1298,10 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   state->time_now=bgpview_get_time(view) ;
   state->arrival_delay = zclock_time()/1000 - bgpview_get_time(view);
   uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
+  as_paths_t *as_paths = kh_init(as_paths);
+  bgpstream_as_path_iter_t path_it;
 
+  
   if(state->first_ts == 0)
     {
       state->first_ts = bgpview_get_time(view);
@@ -1300,7 +1332,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
   bgpstream_peer_id_t peerid;
-  int ipv_idx;
+  int ipv_idx,ret;
   bgpstream_as_path_seg_t *origin_seg;
   uint32_t origin_asn;
   //int i;
@@ -1314,6 +1346,9 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
   state->finished_submoas_pfxs_count=0;
   state->new_submoas_pfxs_count=0;
   state->newrec_submoas_pfxs_count=0;
+  char as_path_str[MAX_BUFFER_LEN];
+  int count;
+  count=0;
 
   if(BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0)
     {
@@ -1332,6 +1367,10 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
       bgpview_iter_has_more_pfx(it);
       bgpview_iter_next_pfx(it))
     {
+      count++;
+      if(count==5){
+        //break;
+      }
 
       pfx = bgpview_iter_pfx_get_pfx(it);
 
@@ -1342,7 +1381,8 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
         }
 
       pref_info_t *this_prefix_info;
-      int new_asn_seen=0;
+      int new_asn_seen;
+      new_asn_seen=0;
       new_prefix=0;
       atleast_one=0;
 
@@ -1354,6 +1394,7 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
       char pfx_str[INET6_ADDRSTRLEN+3];
       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx);
       pfx_node = bgpstream_patricia_tree_search_exact(state->pt, pfx);
+      //printf("pref %s \n",pfx_str);
 
       /*Checking whether prefix exists in patricia tree */
       if (pfx_node!=NULL){
@@ -1388,6 +1429,22 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
 
                   continue;
                 }
+              //printf("%p",(void)*buf2);
+
+              bgpstream_as_path_iter_reset(&path_it);
+              bgpstream_as_path_t *aspath = bgpview_iter_pfx_peer_get_as_path(it);
+              bgpstream_as_path_snprintf(as_path_str, MAX_BUFFER_LEN,aspath);
+              char *copy_asp;
+              
+              if((copy_asp=strdup(as_path_str))==NULL){
+                fprintf(stderr,"error copying aspath \n");
+                return -1;
+              }
+              kh_put(as_paths,as_paths,copy_asp,&ret);
+              bgpstream_as_path_destroy(aspath);
+
+                //printf ("already present \n");
+              
               atleast_one=1;
               origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
              /* first entry in the row */
@@ -1463,7 +1520,9 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
         bgpstream_patricia_tree_set_user(state->pt, pfx_node, this_prefix_info);
         if(new_asn_seen){
           /* Update/create submoas hashtable*/
-          update_patricia(consumer,pfx_node,this_prefix_info,time_now);
+          update_patricia(consumer,pfx_node,this_prefix_info,as_paths, time_now);
+          //update_patricia(consumer,pfx_node,this_prefix_info, time_now);
+
         }
       }
       /* New prefix is observed */
@@ -1474,7 +1533,9 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
           return -1;
         }
         bgpstream_patricia_tree_set_user(state->pt, pfx_node, this_prefix_info);
-        update_patricia(consumer,pfx_node,this_prefix_info,time_now);
+        update_patricia(consumer,pfx_node,this_prefix_info,as_paths, time_now);
+        //update_patricia(consumer,pfx_node,this_prefix_info, time_now);
+
       }
     }
     else{
@@ -1483,21 +1544,21 @@ int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view
         free(this_prefix_info);
       }
     }
+  clear_aspaths(as_paths);
+
   } //prefix if
 
   /* Check for each node in patricia and remove stale asns, prefixes */
   bgpstream_patricia_tree_process_node_t *fun=&rem_patricia;
   bgpstream_patricia_tree_walk(state->pt,fun,consumer);
-
+  
   print_ongoing(consumer);
- // printf("view done %d \n" ,time_now);
-  /* Write all ongoing moas to file */
- // wandio_printf(state->file,"new: %d rec: %d time: %d\n",state->new_submoas_pfxs_count, state->newrec_submoas_pfxs_count,time_now);
   
   /* Write all ongoing moas to file */
 
   /* Close outuput file */
   wandio_wdestroy(state->file);
+  kh_destroy(as_paths,as_paths);
   /* generate the .done file */
   iow_t *f = NULL;
   snprintf(state->filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT".done",
