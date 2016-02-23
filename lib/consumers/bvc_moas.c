@@ -63,6 +63,12 @@
 /** Default compression level of output file */
 #define DEFAULT_COMPRESS_LEVEL 6
 
+/* IPv4 default route */
+#define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
+
+/* IPv6 default route */
+#define IPV6_DEFAULT_ROUTE "0::/0"
+
 
 #define STATE					\
   (BVC_GET_STATE(consumer, moas))
@@ -79,14 +85,20 @@ static bvc_t bvc_moas = {
 };
 
 
-/** First time the moas was observed, start and end time
- *  and current visibility of origins */
+/* MOAS categories */
+typedef enum moas_category {
+  NEW      = 0,
+  NEWREC   = 1,
+  ONGOING  = 2,
+  FINISHED = 3,
+} moas_category_t;
+
+
+/** First time the moas was observed, start and end time */
 typedef struct moas_properties {
   uint32_t first_seen;
   uint32_t start;
   uint32_t end;
-  uint32_t origins[MAX_UNIQUE_ORIGINS];
-  uint32_t origins_visibility[MAX_UNIQUE_ORIGINS];
 } moas_properties_t;
 
 
@@ -96,53 +108,6 @@ typedef struct moas_signature {
   uint8_t n;
 } moas_signature_t;
 
-
-/** print the moas signature <n-asns> <asn1> <asn2> ... in the buffer */
-char *print_moas_info(moas_signature_t *ms, moas_properties_t *mpro, char *buffer, const int buffer_len)
-{
-  assert(buffer);
-  assert(buffer_len > 0);
-  int written;
-  int ret;
-  int i;
-  buffer[0] = '\0';
-  written = 0;
-  /* printing timestamps */
-  ret =snprintf(buffer+written, buffer_len - written -1, "%"PRIu32"|%"PRIu32"|%"PRIu32"|",
-                mpro->first_seen, mpro->start, mpro->end);
-  if(ret < 0 || ret >= buffer_len - written -1)
-    {
-      fprintf(stderr, "ERROR: cannot write the current MOAS signature.\n");
-      return NULL;
-    }
-  written += ret;
-
-  /* printing  unique number of origins*/
-  ret =snprintf(buffer+written, buffer_len - written -1, "%"PRIu8"|", ms->n);
-  if(ret < 0 || ret >= buffer_len - written -1)
-    {
-      fprintf(stderr, "ERROR: cannot write the current MOAS signature.\n");
-      return NULL;
-    }
-  written += ret;
-
-  /* printing <origin,visibility> pairs*/
-  for(i = 0; i < ms->n; i++)
-    {
-      ret =snprintf(buffer+written, buffer_len - written -1, "%"PRIu32",%"PRIu32" ",
-                    mpro->origins[i], mpro->origins_visibility[i]);
-      if(ret < 0 || ret >= buffer_len - written -1)
-        {
-          fprintf(stderr, "ERROR: cannot write the current MOAS signature.\n");
-          return NULL;
-        }
-      written += ret;
-    }
-  /* removing last space from string*/
-  buffer[written-1] = '\0';
-
-  return buffer;
-}
 
 /** MOAS signature hash function */
 #if ULONG_MAX == ULLONG_MAX
@@ -199,7 +164,7 @@ static int moasinfo_map_equal(moas_signature_t ms1,
 }
 
 
-/** Map <moas_sig,ts>: store the timestamp
+/** Map <moas_sig,moas_properties>: store the timestamps
  *  for each MOAS in the current window */
 KHASH_INIT(moasinfo_map,
            moas_signature_t,
@@ -219,18 +184,6 @@ KHASH_INIT(pfx_moasinfo_map,
 typedef khash_t(pfx_moasinfo_map) pfx_moasinfo_map_t;
 
 
-
-KHASH_INIT(as_paths, char*, char, 1, kh_str_hash_func, kh_str_hash_equal);  
-typedef khash_t(as_paths) as_paths_t;
-
-KHASH_INIT(as_paths_map,
-           bgpstream_pfx_storage_t,
-           as_paths_t*, 1,
-           bgpstream_pfx_storage_hash_val,
-           bgpstream_pfx_storage_equal_val);
-typedef khash_t(as_paths_map) as_paths_map_t;
-
-
 /* our 'instance' */
 typedef struct bvc_moas_state {
 
@@ -243,18 +196,17 @@ typedef struct bvc_moas_state {
   /** current window size (always <= window size) */
   uint32_t current_window_size;
 
+  /** blacklist prefixes */
+  bgpstream_pfx_storage_set_t *blacklist_pfxs;
+
+  /** wandio file handler */
+  iow_t *wandio_fh;
+
   /** output folder */
   char output_folder[MAX_BUFFER_LEN];
 
   /** MOASes observed in the current window */
   pfx_moasinfo_map_t *current_moases;
-
-  /** Total number of prefixes that are currently
-      active */
-  uint32_t pfxs_count;
-
-  /** MOAS prefixes that are currently active */
-  uint32_t moas_pfxs_count;
 
   /** New/recurring/ongoing/finished MOAS prefixes count */
   uint32_t new_moas_pfxs_count;
@@ -277,8 +229,7 @@ typedef struct bvc_moas_state {
   int processed_delay_idx;
   int processing_time_idx;
   int current_window_size_idx;
-  int pfxs_count_idx;
-  int moas_pfxs_count_idx;
+
   int new_moas_pfxs_count_idx;
   int new_recurring_moas_pfxs_count_idx;
   int ongoing_moas_pfxs_count_idx;
@@ -294,12 +245,12 @@ static int output_timeseries(bvc_t *consumer, uint32_t ts)
   timeseries_kp_set(state->kp, state->arrival_delay_idx, state->arrival_delay);
   timeseries_kp_set(state->kp, state->processed_delay_idx, state->processed_delay);
   timeseries_kp_set(state->kp, state->processing_time_idx, state->processing_time);
-  timeseries_kp_set(state->kp, state->pfxs_count_idx, state->pfxs_count);
-  timeseries_kp_set(state->kp, state->moas_pfxs_count_idx, state->moas_pfxs_count);
+
   timeseries_kp_set(state->kp, state->new_moas_pfxs_count_idx, state->new_moas_pfxs_count);
   timeseries_kp_set(state->kp, state->new_recurring_moas_pfxs_count_idx, state->new_recurring_moas_pfxs_count);
   timeseries_kp_set(state->kp, state->ongoing_moas_pfxs_count_idx, state->ongoing_moas_pfxs_count);
   timeseries_kp_set(state->kp, state->finished_moas_pfxs_count_idx, state->finished_moas_pfxs_count);
+
   timeseries_kp_set(state->kp, state->current_window_size_idx, state->current_window_size);
 
   if(timeseries_kp_flush(state->kp, ts) != 0)
@@ -312,40 +263,220 @@ static int output_timeseries(bvc_t *consumer, uint32_t ts)
 }
 
 
-
-/** Update and log current moases */
-static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts, as_paths_map_t *as_paths_map)
+/* init log */
+static int init_output_log(bvc_t *consumer, uint32_t ts)
 {
+
   bvc_moas_state_t *state = STATE;
-
-  char pfx_str[INET6_ADDRSTRLEN+3];
-  char asn_buffer[MAX_BUFFER_LEN];
   char filename[MAX_BUFFER_LEN];
-  khiter_t p;
-  khiter_t m,n,k;
-  bgpstream_pfx_storage_t *pfx;
-  moasinfo_map_t *per_pfx_moases;
-  moas_signature_t *ms;
-  moas_properties_t *mpro;
-  state->moas_pfxs_count = 0;
-  state->new_moas_pfxs_count = 0;
-  state->new_recurring_moas_pfxs_count = 0;
-  state->ongoing_moas_pfxs_count = 0;
-  state->finished_moas_pfxs_count = 0;
-  as_paths_t *as_paths;
+  state->wandio_fh = NULL;
 
-  iow_t *f = NULL;
   /* OUTPUT_FILE_FORMAT            "%s/"NAME".%"PRIu32".%"PRIu32"s-window.events.gz" */
   snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT,
            state->output_folder, ts, state->current_window_size);
 
   /* open file for writing */
-  if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
+  if((state->wandio_fh = wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
     {
       fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
       return -1;
     }
 
+  state->new_moas_pfxs_count = 0;
+  state->new_recurring_moas_pfxs_count = 0;
+  state->ongoing_moas_pfxs_count = 0;
+  state->finished_moas_pfxs_count = 0;
+
+  return 0;
+}
+
+
+/* close log */
+static int close_output_log(bvc_t *consumer, uint32_t ts)
+{
+  bvc_moas_state_t *state = STATE;
+  char filename[MAX_BUFFER_LEN];
+
+  if(state->wandio_fh)
+    {
+      /* Close file and generate .done if new information was printed */
+      wandio_wdestroy(state->wandio_fh);
+
+      /* generate the .done file */
+      snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT".done",
+               state->output_folder, ts, state->current_window_size);
+      if((state->wandio_fh = wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                                            DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
+        {
+          fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
+          return -1;
+        }
+      wandio_wdestroy(state->wandio_fh);
+    }
+  state->wandio_fh = NULL;
+  return 0;
+}
+
+static char *get_category_str(moas_category_t mc)
+{
+  switch(mc)
+    {
+    case NEW:
+      return "NEW";
+    case NEWREC:
+      return "NEWREC";
+    case ONGOING:
+      return "ONGOING";
+    case FINISHED:
+      return "FINISHED";
+    }
+  return "ERROR";
+}
+
+
+static void update_moas_counters(bvc_t *consumer, moas_category_t mc)
+{
+  bvc_moas_state_t *state = STATE;
+  switch(mc)
+    {
+    case NEW:
+      state->new_moas_pfxs_count++;
+      break;
+    case NEWREC:
+      state->new_recurring_moas_pfxs_count++;
+      break;
+    case ONGOING:
+      state->ongoing_moas_pfxs_count++;
+      break;
+    case FINISHED:
+      state->finished_moas_pfxs_count++;
+      break;
+    }
+}
+
+static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it, bgpstream_pfx_t *pfx,
+                    moas_signature_t *ms, moas_properties_t *mp, moas_category_t mc,
+                    uint32_t ts)
+{
+  bvc_moas_state_t *state = STATE;
+  char pfx_str[INET6_ADDRSTRLEN+3];
+  char asn_buffer[MAX_BUFFER_LEN];
+  bgpstream_peer_id_t peerid;
+  bgpstream_as_path_seg_t *seg;
+  int ipv_idx;
+
+  bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
+
+  /* FILE FORMAT:
+   *
+   * view-timestamp|prefix|CATEGORY|first_seen_ts|start_ts|end_ts|announcing ASns[|ASPATHS]
+   *
+   * the list of aspaths observed for the prefix are outputted only if the moas is new or
+   * new-recurring
+   */
+
+  if(wandio_printf(state->wandio_fh,"%"PRIu32"|%s|%s|%"PRIu32"|%"PRIu32"|%"PRIu32"|",
+                   ts, pfx_str, get_category_str(mc), mp->first_seen, mp->start, mp->end) == -1)
+    {
+      fprintf(stderr, "ERROR: Could not write data to file\n");
+      return -1;
+    }
+
+  int i;
+  int ret;
+  for(i = 0; i < ms->n; i++)
+    {
+      // last origin
+      if(i == ms->n-1)
+        {
+          ret = wandio_printf(state->wandio_fh,"%"PRIu32, ms->origins[i]);
+        }
+      else
+        {
+          ret = wandio_printf(state->wandio_fh,"%"PRIu32" ", ms->origins[i]);
+        }
+      if (ret == -1)
+        {
+          fprintf(stderr, "ERROR: Could not write data to file\n");
+          return -1;
+        }
+    }
+
+  if(mc == NEW || mc == NEWREC)
+    {
+      /* mc is either NEW or NEWREC, hence we print the set of AS paths
+       * as observed by all full feed peers */
+      ipv_idx = bgpstream_ipv2idx(pfx->address.version);
+
+      for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+          bgpview_iter_pfx_has_more_peer(it);
+          bgpview_iter_pfx_next_peer(it))
+        {
+
+          // printing a path for each peer
+          peerid = bgpview_iter_peer_get_peer_id(it);
+          if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx], peerid))
+            {
+              bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
+
+              // first ASn
+              seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
+              if(seg != NULL)
+                {
+                  if(bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >= MAX_BUFFER_LEN)
+                    {
+                      fprintf(stderr, "ERROR: ASn print truncated output\n");
+                      return -1;
+                    }
+                  if(wandio_printf(state->wandio_fh,"|%s", asn_buffer) == -1)
+                    {
+                      fprintf(stderr, "ERROR: Could not write data to file\n");
+                      return -1;
+                    }
+                }
+              // second -> origin ASn
+              while((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL)
+                {
+                  // printing each segment
+                  if(bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >= MAX_BUFFER_LEN)
+                    {
+                      fprintf(stderr, "ERROR: ASn print truncated output\n");
+                      return -1;
+                    }
+                  if(wandio_printf(state->wandio_fh," %s", asn_buffer) == -1)
+                    {
+                      fprintf(stderr, "ERROR: Could not write data to file\n");
+                      return -1;
+                    }
+                }
+            }
+        }
+    }
+
+  // print end of line
+  if(wandio_printf(state->wandio_fh,"\n") == -1)
+    {
+      fprintf(stderr, "ERROR: Could not write data to file\n");
+      return -1;
+    }
+
+  update_moas_counters(consumer, mc);
+
+  return 0;
+}
+
+
+/** Update the moas structure (and log finished moases) */
+static int clean_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
+{
+
+  bvc_moas_state_t *state = STATE;
+  khiter_t p, m;
+  bgpstream_pfx_storage_t *pfx;
+  moasinfo_map_t *per_pfx_moases;
+  moas_signature_t *ms;
+  moas_properties_t *mpro;
 
   /* for each prefix */
   for(p = kh_begin(state->current_moases); p!= kh_end(state->current_moases); p++)
@@ -370,94 +501,14 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
                    }
                  else
                    {
-                     /* Print MOAS info */
-                     if(mpro->end == ts)
+                     if(mpro->end < ts)
                        {
-                         state->moas_pfxs_count++;
-
-                         /* NEW MOAS */
-                         if(mpro->start == ts)
+                         // report finished moases
+                         if(mpro->start > 0)
                            {
-
-                             /* observed for the first time in the window  */
-                             if(mpro->first_seen == ts)
+                             if(log_moas(consumer, NULL, NULL, (bgpstream_pfx_t *) pfx, ms, mpro, FINISHED, ts) != 0)
                                {
-                                n=kh_get(as_paths_map,as_paths_map,*pfx);
-                                as_paths=kh_value(as_paths_map,n);
-                                for(k = kh_begin(as_paths); k!= kh_end(as_paths); k++){
-                                  if(kh_exist(as_paths,k)){
-
-
-                                     if(wandio_printf(f,"%"PRIu32"|%s|NEW|%s|%s\n",
-                                                       ts,
-                                                       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx),
-                                                       print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN),kh_key(as_paths,k)) == -1)
-                                       {
-                                         fprintf(stderr, "ERROR: Could not write %s file\n",filename);
-                                         return -1;
-                                       }
-                                      }
-                                    }
-                                 state->new_moas_pfxs_count++;
-                               }
-                             else /* new occurence of a MOAS already observed in the window */
-                               {
-                                n=kh_get(as_paths_map,as_paths_map,*pfx);
-                                as_paths=kh_value(as_paths_map,n);
-                                for(k = kh_begin(as_paths); k!= kh_end(as_paths); k++){
-                                  if(kh_exist(as_paths,k)){
- 
-                                 if(wandio_printf(f,"%"PRIu32"|%s|NEWREC|%s|%s\n",
-                                                   ts,
-                                                   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx),
-                                                   print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN),kh_key(as_paths,k)) == -1)
-                                   {
-                                     fprintf(stderr, "ERROR: Could not write %s file\n",filename);
-                                     return -1;
-                                   }
-
-                                  }
-                                }
-                                 state->new_recurring_moas_pfxs_count++;
-                               }
-                           }
-                         else
-                           {
-                             /* CONTINUING MOAS */
-                             if(wandio_printf(f,"%"PRIu32"|%s|ONGOING|%s\n",
-                                              ts,
-                                              bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx),
-                                              print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN)) == -1)
-                               {
-                                 fprintf(stderr, "ERROR: Could not write %s file\n",filename);
                                  return -1;
-                               }
-                             state->ongoing_moas_pfxs_count++;
-                           }
-                       }
-                     else
-                       {
-                         if(mpro->end < ts)
-                           {
-                             if(mpro->start > 0)
-                               {
-                                 /* FINISHED MOAS */
-                                 if(wandio_printf(f,"%"PRIu32"|%s|FINISHED|%s\n",
-                                                   ts,
-                                                   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t *)pfx),
-                                                   print_moas_info(ms, mpro, asn_buffer, MAX_BUFFER_LEN)) == -1)
-                                   {
-                                     fprintf(stderr, "ERROR: Could not write %s file\n",filename);
-                                     return -1;
-                                   }
-                                 state->finished_moas_pfxs_count++;
-                                 /* signal that the moas finished */
-                                 mpro->start = 0;
-                               }
-                             else
-                               {
-                                 /* MOAS observed in the last window
-                                  * that is already over */
                                }
                            }
                        }
@@ -466,61 +517,56 @@ static int update_and_log_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid
             }
         }
     }
-
-  /* Close file and generate .done if new information was printed */
-  wandio_wdestroy(f);
-
-  /* generate the .done file */
-  snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT".done",
-           state->output_folder, ts, state->current_window_size);
-  if((f = wandio_wcreate(filename, wandio_detect_compression_type(filename), DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
-    {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
-      return -1;
-    }
-  wandio_wdestroy(f);
-
   return 0;
 }
 
 
+
 /** Add moas to current moases */
-static int add_moas(bvc_t *consumer, bgpstream_pfx_storage_t *pfx, moas_signature_t *ms, uint32_t *origins_visibility,
+static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it, moas_signature_t *ms,
                     uint32_t ts, uint32_t last_valid_ts)
 {
   bvc_moas_state_t *state = STATE;
+  bgpstream_pfx_t *pfx_ptr;
+  bgpstream_pfx_storage_t pfx;
+
+  moasinfo_map_t *per_pfx_moases;
+  moas_properties_t *moas_properties  = NULL ;
+
+  moas_category_t mc = FINISHED;
   khiter_t k;
   int khret;
-  int i;
-  moasinfo_map_t *per_pfx_moases;
-  int category;
 
-  /* check if prefix is in MOAS already*/
-  if((k = kh_get(pfx_moasinfo_map, state->current_moases, *pfx)) == kh_end(state->current_moases))
+  /* convert pfx_ptr in storage */
+  pfx_ptr = bgpview_iter_pfx_get_pfx(it);
+  pfx.mask_len = pfx_ptr->mask_len;
+  bgpstream_addr_copy((bgpstream_ip_addr_t *) &pfx.address , (bgpstream_ip_addr_t *) &pfx_ptr->address);
+
+
+  /* check if prefix is in MOAS already, otherwise create it */
+  if((k = kh_get(pfx_moasinfo_map, state->current_moases, pfx)) == kh_end(state->current_moases))
     {
-      category=1;
       /* if not insert the prefix */
-      k = kh_put(pfx_moasinfo_map, state->current_moases, *pfx, &khret);
+      k = kh_put(pfx_moasinfo_map, state->current_moases, pfx, &khret);
+      /* moasinfo_map is an empty map */
       if((kh_value(state->current_moases, k) = kh_init(moasinfo_map)) == NULL)
         {
           fprintf(stderr, "Error: could not create moas_info map\n");
           return -1;
         }
     }
+
+  /* get the moasinfo map*/
   per_pfx_moases = kh_value(state->current_moases, k);
+
   /* check if it is a new moas */
   if((k = kh_get(moasinfo_map, per_pfx_moases, *ms)) == kh_end(per_pfx_moases))
     {
-      category=1;
+      mc = NEW;
       k = kh_put(moasinfo_map, per_pfx_moases, *ms, &khret);
       kh_value(per_pfx_moases,k).start = ts;
       kh_value(per_pfx_moases,k).end = ts;
       kh_value(per_pfx_moases,k).first_seen = ts;
-      for(i = 0; i < ms->n; i++)
-        {
-          kh_value(per_pfx_moases,k).origins[i] = ms->origins[i];
-          kh_value(per_pfx_moases,k).origins_visibility[i] = origins_visibility[i];
-        }
     }
   else
     {
@@ -528,25 +574,27 @@ static int add_moas(bvc_t *consumer, bgpstream_pfx_storage_t *pfx, moas_signatur
        * so this is a new occurence */
       if(kh_value(per_pfx_moases,k).start == 0)
         {
-          category=1;
+          if(kh_value(per_pfx_moases,k).end < last_valid_ts)
+            {
+              mc = NEW;
+            }
+          else
+            {
+              mc = NEWREC;
+            }
           kh_value(per_pfx_moases,k).start = ts;
           kh_value(per_pfx_moases,k).end = ts;
         }
       else
         { /* otherwise is a moas which is continuing */
-          category=0;
+          mc = ONGOING;
           kh_value(per_pfx_moases,k).end = ts;
-        }
-
-      /* in all cases we update the ASns (order may have changed) and visibility */
-      for(i = 0; i < ms->n; i++)
-        {
-          kh_value(per_pfx_moases,k).origins[i] = ms->origins[i];
-          kh_value(per_pfx_moases,k).origins_visibility[i] = origins_visibility[i];
         }
     }
 
-  return category;
+  moas_properties = &kh_value(per_pfx_moases,k);
+
+  return log_moas(consumer, view, it, pfx_ptr, ms, moas_properties, mc, ts);
 }
 
 
@@ -568,23 +616,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "pfxs_count");
-  if((state->pfxs_count_idx =
-      timeseries_kp_add_key(state->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-  snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "moas_pfxs_count");
-  if((state->moas_pfxs_count_idx =
-      timeseries_kp_add_key(state->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-  snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "new_moas_pfxs_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "new_moas_count");
   if((state->new_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -592,7 +624,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "new_recurring_moas_pfxs_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "new_recurring_moas_count");
   if((state->new_recurring_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -600,7 +632,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "ongoing_moas_pfxs_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "ongoing_moas_count");
   if((state->ongoing_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -608,7 +640,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
     snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->window_size, "finished_moas_pfxs_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "finished_moas_count");
   if((state->finished_moas_pfxs_count_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -722,6 +754,7 @@ bvc_t *bvc_moas_alloc()
 int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_moas_state_t *state = NULL;
+  bgpstream_pfx_storage_t pfx;
 
   if((state = malloc_zero(sizeof(bvc_moas_state_t))) == NULL)
     {
@@ -734,6 +767,11 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
   strncpy(state->output_folder, DEFAULT_OUTPUT_FOLDER, MAX_BUFFER_LEN);
   state->output_folder[MAX_BUFFER_LEN -1] = '\0';
   state->current_moases = NULL;
+  if((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL)
+    {
+      fprintf(stderr, "Error: Could not create blacklist pfx set\n");
+      goto err;
+    }
 
   /* parse the command line args */
   if(parse_args(consumer, argc, argv) != 0)
@@ -750,6 +788,20 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
   if((state->current_moases = kh_init(pfx_moasinfo_map)) == NULL)
     {
       fprintf(stderr, "Error: Could not create current_moases\n");
+      goto err;
+    }
+
+  /* add default routes to blacklist */
+  if(!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
+       bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >=0) )
+    {
+      fprintf(stderr, "Could not insert prefix in blacklist\n");
+      goto err;
+    }
+  if(!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
+       bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >=0) )
+    {
+      fprintf(stderr, "Could not insert prefix in blacklist\n");
       goto err;
     }
 
@@ -792,6 +844,10 @@ void bvc_moas_destroy(bvc_t *consumer)
           kh_destroy(pfx_moasinfo_map, state->current_moases);
         }
 
+      if(state->blacklist_pfxs != NULL)
+        {
+          bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
+        }
       if(state->kp != NULL)
         {
           timeseries_kp_free(&state->kp);
@@ -801,61 +857,25 @@ void bvc_moas_destroy(bvc_t *consumer)
     }
 }
 
-void clear_aspaths(as_paths_t *as_paths){
-  khint_t p;
-  for(p = kh_begin(as_paths); p!= kh_end(as_paths); p++){
-    if(kh_exist(as_paths,p)){
-      free(kh_key(as_paths,p));
-    }
-  }
-  kh_clear(as_paths,as_paths);
-  kh_destroy(as_paths,as_paths);
 
 
-}
-
-void clear_aspaths_map(as_paths_map_t *as_paths_map){
-  khint_t p;
-  for(p = kh_begin(as_paths_map); p!= kh_end(as_paths_map); p++){
-    if(kh_exist(as_paths_map,p)){
-      clear_aspaths(kh_value(as_paths_map,p));
-      }
-  }
-  kh_destroy(as_paths_map,as_paths_map);
-
-}
 
 int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
 {
-  bvc_moas_state_t *state = STATE;
 
+  bvc_moas_state_t *state = STATE;
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
+  bgpstream_pfx_storage_t pfx_storage;
+
+  int ipv_idx; // ip version index
   bgpstream_peer_id_t peerid;
-  int ipv_idx,ret_add_moas,ret;
   bgpstream_as_path_seg_t *origin_seg;
-  uint32_t origin_asn;
-  uint32_t last_origin_asn;
-  uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
-  int i;
   moas_signature_t ms;
-  uint32_t peers_cnt;
-  uint32_t origins_visibility[MAX_UNIQUE_ORIGINS];
-  state->pfxs_count = 0;
-  char as_path_str[MAX_BUFFER_LEN];
+  int i;
+  uint32_t origin_asn;
+  uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
 
-  bgpstream_as_path_iter_t path_it;
-  as_paths_map_t *as_paths_map = kh_init(as_paths_map);
-
-  khint_t k;
-  bool atleast_one_ff;
-
-  /* initialize ms origins to all zeroes*/
-  ms.n = 0;
-  for(i = 0; i < MAX_UNIQUE_ORIGINS; i++) 
-    {
-      ms.origins[i] = 0;
-    }
 
   /* check visibility has been computed */
   if(BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0)
@@ -890,169 +910,101 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
     {
       return -1;
     }
-  char pfx_str[MAX_BUFFER_LEN];
+
+  /* init output log file */
+  if(init_output_log(consumer, bgpview_get_time(view)) != 0)
+    {
+      return -1;
+    }
+
   /* iterate through all prefixes */
   for(bgpview_iter_first_pfx(it, 0 /* all versions */, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(it);
       bgpview_iter_next_pfx(it))
     {
 
-      atleast_one_ff=false;
-      as_paths_t *as_paths = kh_init(as_paths);
-
       pfx = bgpview_iter_pfx_get_pfx(it);
+
+      pfx_storage.mask_len = pfx->mask_len;
+      bgpstream_addr_copy((bgpstream_ip_addr_t *) &pfx_storage.address , (bgpstream_ip_addr_t *) &pfx->address);
+
+      /* ignore prefixes in blacklist */
+      if(bgpstream_pfx_storage_set_exists(state->blacklist_pfxs, &pfx_storage))
+        {
+          continue;
+        }
+
       ipv_idx = bgpstream_ipv2idx(pfx->address.version);
-      peers_cnt = 0;
-      last_origin_asn = 0;
+
       ms.n = 0;
-      bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
 
       for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
           bgpview_iter_pfx_has_more_peer(it);
           bgpview_iter_pfx_next_peer(it))
         {
-          /* only consider peers that are full-feed */
 
           peerid = bgpview_iter_peer_get_peer_id(it);
+
+          /* only consider peers that are full-feed */
+
           if(bgpstream_id_set_exists(BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx], peerid))
             {
+
               /* get origin asn */
               if((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL)
                 {
                   return -1;
                 }
+
               /* we do not consider sets and confederations for the moment */
               /* TODO (extend the code to deal with segments */
               if(origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN)
                 {
                   continue;
                 }
-              atleast_one_ff=true; 
               origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
-              bgpstream_as_path_iter_reset(&path_it);
-              bgpstream_as_path_t *aspath; 
-              aspath = bgpview_iter_pfx_peer_get_as_path(it);
-              bgpstream_as_path_snprintf(as_path_str, MAX_BUFFER_LEN,aspath);
-              char *copy_asp;
-              
-              if((copy_asp=strdup(as_path_str))==NULL){
-                fprintf(stderr,"error copying aspath \n");
-                return -1;
-              }
-              kh_put(as_paths,as_paths,copy_asp,&ret);
-              bgpstream_as_path_destroy(aspath);
 
-
-              /* in order to improve performance we group together the entries having the
-               * same origin ASn, and we call the update function only when we find new
-               * origins or we are at the end of the row */
-
-              /* first entry in the row */
-              if(peers_cnt == 0)
+              /* check if origin is already in the moas signature struct
+               * this check works when the signature is empty too */
+              for(i = 0; i < ms.n; i++)
                 {
-                  last_origin_asn = origin_asn;
-                  peers_cnt = 1;
-                }
-              else
-                {
-                  /* subsequent entries */
-                  if(origin_asn == last_origin_asn)
+                  if(ms.origins[i] == origin_asn)
                     {
-                      peers_cnt++;
-                    }
-                  else
-                    {
-                      /* update current prefix */
-                      for(i = 0; i < ms.n; i++)
-                        {
-                          if(ms.origins[i] == last_origin_asn)
-                            {
-                              origins_visibility[i] += peers_cnt;
-                              i = -1;
-                              break;
-                            }
-                        }
-                      /* if the origin was not found then add it*/
-                      if(i != -1)
-                        {
-                          ms.origins[ms.n] = last_origin_asn;
-                          origins_visibility[ms.n] = peers_cnt;
-                          ms.n++;
-                        }
-
-                      last_origin_asn = origin_asn;
-                      peers_cnt = 1;
+                      break;
                     }
                 }
-            }
-        }
-      if(!atleast_one_ff){
-        kh_destroy(as_paths,as_paths);
-      }
-      /* update the last origin ASn peers count for the current prefix */
-      if(peers_cnt > 0)
-        {
-          /* update current information */
-          for(i = 0; i < ms.n; i++)
-            {
-              if(ms.origins[i] == last_origin_asn)
+              /* if the origin was not found, add it */
+              if(i == ms.n)
                 {
-                  origins_visibility[i] += peers_cnt;
-                  i = -1;
-                  break;
+                  ms.origins[ms.n] = origin_asn;
+                  ms.n++;
                 }
             }
-          /* if the origin was not found then add it*/
-          if(i != -1)
-            {
-              ms.origins[ms.n] = last_origin_asn;
-              origins_visibility[ms.n] = peers_cnt;
-              ms.n++;
-            }
-
-          /* if the program is here, at least one full feed peer
-           * observed the prefix */
-          state->pfxs_count++;
         }
 
       /* check if a moas has been detected */
-      //printf("len of aspaths %d \n",kh_size(as_paths));
       if(ms.n > 1)
         {
-          ret_add_moas=add_moas(consumer, (bgpstream_pfx_storage_t *)pfx, &ms, origins_visibility,
-                      bgpview_get_time(view), last_valid_ts);
-          if (ret_add_moas==-1){
-            return -1;
-
-          }
-          else if(ret_add_moas==1){
-            //add_to_Aspaths
-            k=kh_put(as_paths_map,as_paths_map, *(bgpstream_pfx_storage_t*) pfx,&ret);
-            kh_value(as_paths_map,k)=as_paths;
-          }
-          else{
-            clear_aspaths(as_paths);
-//            kh_destroy(as_paths,as_paths);
-          }
-
- 
-        }
-        else{
-          if(atleast_one_ff){
-            clear_aspaths(as_paths);
-          }
+          /* add moas to state and log it on file */
+          if(add_moas(consumer, view, it , &ms, bgpview_get_time(view), last_valid_ts) != 0)
+            {
+              return -1;
+            }
         }
     }
 
   bgpview_iter_destroy(it);
 
-    /* update the prefix map data structure and output information about MOAS prefixes */
-  if(update_and_log_moas(consumer, bgpview_get_time(view), last_valid_ts, as_paths_map) != 0)
+  /* remove stale moases and report these that are finished */
+  if(clean_moas(consumer, bgpview_get_time(view), last_valid_ts) != 0)
     {
       return -1;
     }
 
-  clear_aspaths_map(as_paths_map);  
+  if(close_output_log(consumer, bgpview_get_time(view)) != 0)
+    {
+      return -1;
+    }
 
   /* compute processed delay */
   state->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
@@ -1062,7 +1014,6 @@ int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   {
     return -1;
   }
-
 
   return 0;
 }

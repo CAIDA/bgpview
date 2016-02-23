@@ -402,52 +402,50 @@ void bvc_edges_destroy(bvc_t *consumer)
 }
 
 //Diagnostic function. Prints all edges
-void print_edges(bvc_t *consumer){
-  bvc_edges_state_t *state = STATE;
-  khint_t j,k;
-  printf("PRINGTIN \n");
-  for(k = kh_begin(state->edges_map); k!= kh_end(state->edges_map); k++){
-    if(kh_exist(state->edges_map,k)){
-      printf("for ASN %d : \n", kh_key(state->edges_map,k));
-      edge_list_t *edge_list=kh_value(state->edges_map,k);
-      for(j = kh_begin(edge_list); j!= kh_end(edge_list); j++){
-        if(kh_exist(edge_list,j)){
-          printf(" %d ",kh_key(edge_list,j));
-        }
-      }
-    }
-    printf( "\n");
-  }
-
-}
+/* static void print_edges(bvc_t *consumer){ */
+/*   bvc_edges_state_t *state = STATE; */
+/*   khint_t j,k; */
+/*   printf("PRINGTIN \n"); */
+/*   for(k = kh_begin(state->edges_map); k!= kh_end(state->edges_map); k++){ */
+/*     if(kh_exist(state->edges_map,k)){ */
+/*       printf("for ASN %d : \n", kh_key(state->edges_map,k)); */
+/*       edge_list_t *edge_list=kh_value(state->edges_map,k); */
+/*       for(j = kh_begin(edge_list); j!= kh_end(edge_list); j++){ */
+/*         if(kh_exist(edge_list,j)){ */
+/*           printf(" %d ",kh_key(edge_list,j)); */
+/*         } */
+/*       } */
+/*     } */
+/*     printf( "\n"); */
+/*   } */
+/* } */
 
 //Diagnostic function. Prints all edges
-void print_asps(as_paths_t *as_paths){
-  khint_t k;
-  printf("PRINGTIN \n");
+/* static void print_asps(as_paths_t *as_paths){ */
+/*   khint_t k; */
+/*   printf("PRINGTIN \n"); */
 
-  for(k = kh_begin(as_paths); k!= kh_end(as_paths); k++){
-    if(kh_exist(as_paths,k)){
-      printf("ASP: %s : \n", kh_key(as_paths,k));
-    }
-  }
+/*   for(k = kh_begin(as_paths); k!= kh_end(as_paths); k++){ */
+/*     if(kh_exist(as_paths,k)){ */
+/*       printf("ASP: %s : \n", kh_key(as_paths,k)); */
+/*     } */
+/*   } */
+/* } */
 
-}
+/* static void print_edge_hash(new_edges_t *new_edges){ */
+/*   khint_t k; */
+/*   //printf("PRINGTIN \n"); */
 
-void print_edge_hash(new_edges_t *new_edges){
-  khint_t k;
-  //printf("PRINGTIN \n");
-
-  for(k = kh_begin(new_edges); k!= kh_end(new_edges); k++){
-    if(kh_exist(new_edges,k)){
-      printf("%s : ", kh_key(new_edges,k));
-    }
-  }
-  printf("\n");
-}
+/*   for(k = kh_begin(new_edges); k!= kh_end(new_edges); k++){ */
+/*     if(kh_exist(new_edges,k)){ */
+/*       printf("%s : ", kh_key(new_edges,k)); */
+/*     } */
+/*   } */
+/*   printf("\n"); */
+/* } */
 
 
-edge_info_t get_edge_struct(bvc_t *consumer, char *asn1, char *asn2){
+static edge_info_t get_edge_struct(bvc_t *consumer, char *asn1, char *asn2){
   bvc_edges_state_t *state = STATE;
   khint_t j,k;
   edge_list_t *edge_list; 
@@ -474,7 +472,7 @@ edge_info_t get_edge_struct(bvc_t *consumer, char *asn1, char *asn2){
 
 }
 
-void print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx, as_paths_t *as_paths, new_edges_t *new_edges, newrec_edges_t *newrec_edges){
+static void print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx, as_paths_t *as_paths, new_edges_t *new_edges, newrec_edges_t *newrec_edges){
   //printf("****************Inside printer \n");
   bvc_edges_state_t *state = STATE;
   char pfx_str[MAX_BUFFER_LEN];
@@ -510,7 +508,7 @@ void print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx, as_paths_t *as_path
 }
 
 //Writes in output file for newedges
-void print_to_file_newedges(bvc_t *consumer, int status, edge_info_t edge_info, bgpstream_pfx_t *pfx){
+static void print_to_file_newedges(bvc_t *consumer, int status, edge_info_t edge_info, bgpstream_pfx_t *pfx){
 
   bvc_edges_state_t *state = STATE;
     //printf("printing \n");
@@ -535,7 +533,7 @@ void print_to_file_newedges(bvc_t *consumer, int status, edge_info_t edge_info, 
 
 
 
-void print_ongoing_newedges(bvc_t* consumer){
+static void print_ongoing_newedges(bvc_t* consumer){
   bvc_edges_state_t *state = STATE;
   khint_t k,j;
   for(k = kh_begin(state->edges_map); k!= kh_end(state->edges_map); k++){
@@ -567,7 +565,7 @@ void print_ongoing_newedges(bvc_t* consumer){
 
 
 //Scans all ongoing edges and remove stale ones
-void remove_stale_link(bvc_t *consumer){
+static void remove_stale_link(bvc_t *consumer){
   bvc_edges_state_t *state = STATE;
   khint_t k,j;
   for(k = kh_begin(state->edges_map); k!= kh_end(state->edges_map); k++){
@@ -684,7 +682,7 @@ int insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2, bgpstream
   return category;
 }
 
-void clear_aspaths(as_paths_t *as_paths){
+static void clear_aspaths(as_paths_t *as_paths){
   khint_t p;
   for(p = kh_begin(as_paths); p!= kh_end(as_paths); p++){
     if(kh_exist(as_paths,p)){
@@ -694,7 +692,7 @@ void clear_aspaths(as_paths_t *as_paths){
   kh_clear(as_paths,as_paths);
 }
 
-void clear_new_edges(new_edges_t *new_edges){
+static void clear_new_edges(new_edges_t *new_edges){
   khint_t p;
   for(p = kh_begin(new_edges); p!= kh_end(new_edges); p++){
     if(kh_exist(new_edges,p)){
@@ -705,7 +703,7 @@ void clear_new_edges(new_edges_t *new_edges){
 
 
 }
-void clear_newrec_edges(newrec_edges_t *newrec_edges){
+static void clear_newrec_edges(newrec_edges_t *newrec_edges){
   khint_t p;
   for(p = kh_begin(newrec_edges); p!= kh_end(newrec_edges); p++){
     if(kh_exist(newrec_edges,p)){
@@ -736,7 +734,6 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   state->ongoing_edges_count=0;
   state->finished_edges_count=0;
   state->newrec_edges_count=0;
-  khint_t k;
   
   //Opening file for newedges
   snprintf(state->filename_newedges, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_NEWEDGES,
@@ -765,7 +762,6 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
   uint32_t asn;
   uint32_t normal_asn;
   uint32_t prev_asn;
-  uint32_t prev_prev_asn;
   char pfx_str[MAX_BUFFER_LEN];
   //prints  ongoing edges
   print_ongoing_newedges(consumer); 
@@ -842,7 +838,6 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
               asn2=0;
               normal_asn=0;
               prev_asn=0;
-              prev_prev_asn=0;
               while((seg =bgpstream_as_path_get_next_seg(aspath, &path_it)) != NULL)
                 {         
                   i++;
@@ -900,7 +895,7 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
                         if ((copy_edge=strdup(edge_str))==NULL){
                           fprintf(stderr,"Cannot copy \n");
                         }
-                        k=kh_put(new_edges,new_edges,copy_edge,&ret);
+                        kh_put(new_edges,new_edges,copy_edge,&ret);
 
                         //printf("edge_str-NEW -%s-. The value was  %d \n",edge_str,ret);
                         //print_edge_hash(new_edges);
@@ -920,14 +915,12 @@ int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
                     }
                     //Reading atleast three different ASNs to create first triplet 
                     //updating ASN variables for next ASNs in the aspath
-                    prev_prev_asn=prev_asn;
                     prev_asn=asn;
 
                   }
                   
                 }
                 prev_asn=0;
-                prev_prev_asn=0;
                 bgpstream_as_path_destroy(aspath);
               }
           }

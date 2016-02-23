@@ -469,69 +469,69 @@ void bvc_submoas_destroy(bvc_t *consumer)
 
 
 /*DIAGNOSTIC USE ONLY */
-void print_origin_asn(pref_info_t pref_info){
-  printf("numberASN %d \n", pref_info.number_of_asns);
-  int i;
-  for (i=0;i<pref_info.number_of_asns;i++){
-    printf(" %d ",pref_info.origin_asns[i].asn);
-  }
-printf("\n");
-}
+/* static void print_origin_asn(pref_info_t pref_info){ */
+/*   printf("numberASN %d \n", pref_info.number_of_asns); */
+/*   int i; */
+/*   for (i=0;i<pref_info.number_of_asns;i++){ */
+/*     printf(" %d ",pref_info.origin_asns[i].asn); */
+/*   } */
+/* printf("\n"); */
+/* } */
 
-void print_subprefixes(bvc_t *consumer){
-  printf("done printing\n");
-  bvc_submoas_state_t *state = STATE;
-  char pfx_str[INET6_ADDRSTRLEN+3];
-  khint_t k;
-  char pfx2_str[INET6_ADDRSTRLEN+3];
-  char pfx3_str[INET6_ADDRSTRLEN+3];
-  khint_t m,n;
-  submoas_prefix_t submoas_struct;
-  bgpstream_patricia_node_t *pfx_node2;
-  pref_info_t *temp_pref;
-  int i;
-  for (k = kh_begin(state->subprefix_map); k != kh_end(state->subprefix_map); ++k) {
-    if (kh_exist(state->subprefix_map,k)){
+/* static void print_subprefixes(bvc_t *consumer){ */
+/*   printf("done printing\n"); */
+/*   bvc_submoas_state_t *state = STATE; */
+/*   char pfx_str[INET6_ADDRSTRLEN+3]; */
+/*   khint_t k; */
+/*   char pfx2_str[INET6_ADDRSTRLEN+3]; */
+/*   char pfx3_str[INET6_ADDRSTRLEN+3]; */
+/*   khint_t m,n; */
+/*   submoas_prefix_t submoas_struct; */
+/*   bgpstream_patricia_node_t *pfx_node2; */
+/*   pref_info_t *temp_pref; */
+/*   int i; */
+/*   for (k = kh_begin(state->subprefix_map); k != kh_end(state->subprefix_map); ++k) { */
+/*     if (kh_exist(state->subprefix_map,k)){ */
 
-      submoas_struct=kh_value(state->subprefix_map,k);
-      bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&submoas_struct.subprefix);
-      printf("***Subprefix was %s \n",pfx_str);
-      printf("number of subasns %d \n ",submoas_struct.number_of_subasns);
-      for ( i=0;i<submoas_struct.number_of_subasns;i++){
-        bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&submoas_struct.submoases[i].superprefix);
-        printf("For superprefix %s \n",pfx2_str);
-        m=kh_get(superprefix_map, state->superprefix_map,submoas_struct.submoases[i].superprefix);
-        if(m==kh_end(state->superprefix_map)){
-          fprintf(stderr, "submoas:FATAL ERms1\n");
-        }
-       subprefixes_in_superprefix_t *subprefixes_in_superprefix  = kh_value(state->superprefix_map,m);
-        for (n = kh_begin(subprefixes_in_superprefix); n != kh_end(subprefixes_in_superprefix); ++n) {
-          if(kh_exist(subprefixes_in_superprefix,n)){
-            bgpstream_pfx_snprintf(pfx3_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&kh_key(subprefixes_in_superprefix,n));
-            printf("Supermoas from hash %s \n",pfx3_str);
-            break;
-          }
-        }
+/*       submoas_struct=kh_value(state->subprefix_map,k); */
+/*       bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&submoas_struct.subprefix); */
+/*       printf("***Subprefix was %s \n",pfx_str); */
+/*       printf("number of subasns %d \n ",submoas_struct.number_of_subasns); */
+/*       for ( i=0;i<submoas_struct.number_of_subasns;i++){ */
+/*         bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&submoas_struct.submoases[i].superprefix); */
+/*         printf("For superprefix %s \n",pfx2_str); */
+/*         m=kh_get(superprefix_map, state->superprefix_map,submoas_struct.submoases[i].superprefix); */
+/*         if(m==kh_end(state->superprefix_map)){ */
+/*           fprintf(stderr, "submoas:FATAL ERms1\n"); */
+/*         } */
+/*        subprefixes_in_superprefix_t *subprefixes_in_superprefix  = kh_value(state->superprefix_map,m); */
+/*         for (n = kh_begin(subprefixes_in_superprefix); n != kh_end(subprefixes_in_superprefix); ++n) { */
+/*           if(kh_exist(subprefixes_in_superprefix,n)){ */
+/*             bgpstream_pfx_snprintf(pfx3_str, INET6_ADDRSTRLEN+3, (bgpstream_pfx_t*)&kh_key(subprefixes_in_superprefix,n)); */
+/*             printf("Supermoas from hash %s \n",pfx3_str); */
+/*             break; */
+/*           } */
+/*         } */
 
-        pfx_node2=bgpstream_patricia_tree_search_exact(state->pt,(bgpstream_pfx_t*)((bgpstream_pfx_storage_t*)&submoas_struct.submoases[i].superprefix));
-        if (pfx_node2==NULL){
-          printf("Fatal error \n");
-        }
-        printf("Originally by asns \n");
-        temp_pref=bgpstream_patricia_tree_get_user( pfx_node2);
-        print_origin_asn(*temp_pref);
-        printf("Submoased by asns %d\n",submoas_struct.submoases[i].subasn);
+/*         pfx_node2=bgpstream_patricia_tree_search_exact(state->pt,(bgpstream_pfx_t*)((bgpstream_pfx_storage_t*)&submoas_struct.submoases[i].superprefix)); */
+/*         if (pfx_node2==NULL){ */
+/*           printf("Fatal error \n"); */
+/*         } */
+/*         printf("Originally by asns \n"); */
+/*         temp_pref=bgpstream_patricia_tree_get_user( pfx_node2); */
+/*         print_origin_asn(*temp_pref); */
+/*         printf("Submoased by asns %d\n",submoas_struct.submoases[i].subasn); */
 
-      }
-    }
-  }
-  printf("done printing\n");
-}
+/*       } */
+/*     } */
+/*   } */
+/*   printf("done printing\n"); */
+/* } */
 
 
 
 //Given a subprefix struct, adds asn to it */
-submoas_prefix_t add_new_asn(submoas_prefix_t submoas_struct, int asn, bgpstream_pfx_storage_t pfx, bgpstream_pfx_storage_t parent_pfx,uint32_t time_now){
+static submoas_prefix_t add_new_asn(submoas_prefix_t submoas_struct, int asn, bgpstream_pfx_storage_t pfx, bgpstream_pfx_storage_t parent_pfx,uint32_t time_now){
   int existing_subasns=submoas_struct.number_of_subasns;
   subprefix_info_t subprefix_info;
   bgpstream_pfx_storage_t p_pfx=parent_pfx;
@@ -553,7 +553,7 @@ submoas_prefix_t add_new_asn(submoas_prefix_t submoas_struct, int asn, bgpstream
 }
 
 //Adds superprefix in superprefix map along with its subprefixes */
-void add_superprefix(bvc_t *consumer,bgpstream_pfx_storage_t superprefix, bgpstream_pfx_storage_t subprefix){
+static void add_superprefix(bvc_t *consumer,bgpstream_pfx_storage_t superprefix, bgpstream_pfx_storage_t subprefix){
   bvc_submoas_state_t *state = STATE;
   khint_t k,j;
   int ret;
@@ -584,7 +584,7 @@ void add_superprefix(bvc_t *consumer,bgpstream_pfx_storage_t superprefix, bgpstr
 }
 
 //For a given origin asn of a prefix, returns visibility */
-uint32_t get_visibility(bvc_t* consumer, bgpstream_pfx_storage_t pfx, uint32_t asn, int caller){
+static uint32_t get_visibility(bvc_t* consumer, bgpstream_pfx_storage_t pfx, uint32_t asn, int caller){
   uint32_t visibility=0;
   char pfx_str[MAX_BUFFER_LEN];
   bvc_submoas_state_t *state = STATE;
@@ -609,7 +609,7 @@ uint32_t get_visibility(bvc_t* consumer, bgpstream_pfx_storage_t pfx, uint32_t a
 
 
 //Returns char string having origin asns and their visibility for printing to file */
-char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx, bgpstream_pfx_t* pfx, char *buffer, const int buffer_len ){
+static char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx, bgpstream_pfx_t* pfx, char *buffer, const int buffer_len ){
 
   assert(buffer);
   assert(buffer_len > 0);
@@ -674,7 +674,7 @@ char* print_submoas_info(int caller,bvc_t* consumer, bgpstream_pfx_t* parent_pfx
 
 }
 //Runs once a view, prints all ongoing subprefixes */
-void print_ongoing(bvc_t *consumer){
+static void print_ongoing(bvc_t *consumer){
   bvc_submoas_state_t *state = STATE;
   submoas_prefix_t submoas_struct;
   char asn_buffer[MAX_BUFFER_LEN];
@@ -717,7 +717,7 @@ void print_ongoing(bvc_t *consumer){
 }
 
 /* Adds prefix or new asn for a existing prefix to patricia tree. Check if updating patricia tree results in submoas or not */
-void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, as_paths_t *as_paths, uint32_t timenow){
+static void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, as_paths_t *as_paths, uint32_t timenow){
 //void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_info_t *pref_info, uint32_t timenow){
   khint_t k,j;
   int ret;
@@ -918,7 +918,7 @@ void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t* pfx_node,pref_i
 }
 
 //In case of an origin asn being eemoved of a subprefix, check whether that prefix is still a submoas or not.
-int check_submoas_over(bvc_t *consumer,submoas_prefix_t submoas_struct, bgpstream_pfx_storage_t superprefix){
+static int check_submoas_over(bvc_t *consumer,submoas_prefix_t submoas_struct, bgpstream_pfx_storage_t superprefix){
   bvc_submoas_state_t *state = STATE;
   bgpstream_patricia_node_t *pfx_node = bgpstream_patricia_tree_search_exact(state->pt, (bgpstream_pfx_t*)&superprefix);
   pref_info_t *pref_info=bgpstream_patricia_tree_get_user(pfx_node);
@@ -938,7 +938,7 @@ int check_submoas_over(bvc_t *consumer,submoas_prefix_t submoas_struct, bgpstrea
 }
 
 /* Check if origin being removed requires any change in existing submoases */
-void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn){
+static void check_remove_submoas_asn(bvc_t *consumer,bgpstream_pfx_t *pfx, uint32_t asn){
   khint_t k,p,j;
   submoas_prefix_t submoas_struct;
   bvc_submoas_state_t *state = STATE;
@@ -1088,7 +1088,7 @@ void diag_check(bvc_t* consumer){
 */
 
 /* When a prefix is removed , check it it's a superprefix. if so then decide whether its subprefixes are still part of submoas or not*/
-void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
+static void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
   bvc_submoas_state_t *state = STATE;
   khint_t k,j,n,m;
   khint_t p;
@@ -1238,7 +1238,7 @@ void check_remove_superprefix(bvc_t* consumer, bgpstream_pfx_t* pfx ){
 
 /* This function is called for each node in patricia.
    Removed stale prefixes and origin asns */
-void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node, void *data){
+static void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node, void *data){
   bvc_t *consumer=data;
   bvc_submoas_state_t *state = STATE;
   uint32_t time_now=state->time_now;
@@ -1279,7 +1279,8 @@ void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node
 
 
 }
-void clear_aspaths(as_paths_t *as_paths){
+
+static void clear_aspaths(as_paths_t *as_paths){
   khint_t p;
   for(p = kh_begin(as_paths); p!= kh_end(as_paths); p++){
     if(kh_exist(as_paths,p)){
