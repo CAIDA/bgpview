@@ -135,7 +135,7 @@ typedef struct bvc_pergeovisibility_state {
   ipmeta_t *ipmeta;
   ipmeta_provider_t *provider;
   ipmeta_record_set_t *records;
-  
+
   /** Re-usable variables that are used in the flip table
    *  function: we make them part of the state to avoid
    *  allocating new memory each time we process a new
@@ -143,7 +143,7 @@ typedef struct bvc_pergeovisibility_state {
   bgpstream_id_set_t *ff_asns;
   uint32_t origin_asns[MAX_NUM_PEERS];
   uint16_t valid_origins;
-  
+
   /* Thresholds values */
   double thresholds[VIS_THRESHOLDS_CNT];
 
@@ -159,7 +159,7 @@ typedef struct bvc_pergeovisibility_state {
   int arrival_delay_idx;
   int processed_delay_idx;
   int processing_time_idx;
-  
+
 } bvc_pergeovisibility_state_t;
 
 
@@ -217,7 +217,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
       usage(consumer);
       return -1;
     }
-  
+
   return 0;
 }
 
@@ -456,8 +456,8 @@ static int create_geo_pfxs_vis(bvc_t *consumer)
   /* we create an entry in the geo_pfxs_vis state for each country */
   for(i=0; i < num_countries; i++)
     {
-      /* Netacq should return a set of unique countries however we still 
-       * check if this iso2 is already in the countrycode map */      
+      /* Netacq should return a set of unique countries however we still
+       * check if this iso2 is already in the countrycode map */
       if((k = kh_get(geo_pfxs_info, state->geo_pfxs_vis, countries[i]->iso2)) == kh_end(state->geo_pfxs_vis))
         {
           k = kh_put(geo_pfxs_info, state->geo_pfxs_vis,
@@ -475,7 +475,7 @@ static int create_geo_pfxs_vis(bvc_t *consumer)
 static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
 {
   bvc_pergeovisibility_state_t *state = STATE;
-  
+
   bgpstream_pfx_t * pfx = bgpview_iter_pfx_get_pfx(it);
   assert(pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4);
 
@@ -674,8 +674,8 @@ static int output_metrics_and_reset(bvc_t *consumer)
     }
   return 0;
 }
-  
-  
+
+
 
 
 /* ==================== CONSUMER INTERFACE FUNCTIONS ==================== */
@@ -751,7 +751,7 @@ int bvc_pergeovisibility_init(bvc_t *consumer, int argc, char **argv)
       goto err;
     }
 
-  /* the main hash table can be created only when ipmet has been 
+  /* the main hash table can be created only when ipmet has been
    * properly initialized */
   if(create_geo_pfxs_vis(consumer) != 0)
     {
@@ -770,8 +770,8 @@ int bvc_pergeovisibility_init(bvc_t *consumer, int argc, char **argv)
 static void
 bvc_destroy_pfx_user_ptr(void *user)
 {
-  khash_t(country_k_set) *cck_set = (khash_t(country_k_set) *) user; 
-  kh_destroy(country_k_set, cck_set);   
+  khash_t(country_k_set) *cck_set = (khash_t(country_k_set) *) user;
+  kh_destroy(country_k_set, cck_set);
 }
 
 
@@ -884,7 +884,7 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, uint8_t interests,
   timeseries_kp_set(state->kp, state->arrival_delay_idx, state->arrival_delay);
   timeseries_kp_set(state->kp, state->processed_delay_idx, state->processed_delay);
   timeseries_kp_set(state->kp, state->processing_time_idx, state->processing_time);
-  
+
   /* now flush the gen kp */
   if(timeseries_kp_flush(state->kp, bgpview_get_time(view)) != 0)
     {

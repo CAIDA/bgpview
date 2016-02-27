@@ -228,7 +228,7 @@ static void add_origin(bvc_perasvisibility_state_t *state, bgpstream_as_path_seg
     {
       origin_asn = ((bgpstream_as_path_seg_asn_t*)origin_seg)->asn;
     }
-  
+
   int i;
   for(i = 0; i < state->valid_origins; i++)
     {
@@ -652,7 +652,7 @@ int bvc_perasvisibility_process_view(bvc_t *consumer, uint8_t interests,
   timeseries_kp_set(state->kp, state->arrival_delay_idx, state->arrival_delay);
   timeseries_kp_set(state->kp, state->processed_delay_idx, state->processed_delay);
   timeseries_kp_set(state->kp, state->processing_time_idx, state->processing_time);
-  
+
   /* now flush the gen kp */
   if(timeseries_kp_flush(state->kp, bgpview_get_time(view)) != 0)
     {

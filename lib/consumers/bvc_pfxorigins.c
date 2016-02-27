@@ -52,6 +52,12 @@
 /** Default compression level of output file */
 #define DEFAULT_COMPRESS_LEVEL 6
 
+/* IPv4 default route */
+#define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
+
+/* IPv6 default route */
+#define IPV6_DEFAULT_ROUTE "0::/0"
+
 /** Default maximum number of unique origins */
 #define MAX_ORIGIN_AS_CNT 32
 
@@ -117,6 +123,9 @@ typedef struct bvc_pfxorigins_state {
   /** processing time */
   uint32_t processing_time;
   
+  /** blacklist prefixes */
+  bgpstream_pfx_storage_set_t *blacklist_pfxs;
+
   /** output folder */
   char output_folder[PATH_MAX];
 
@@ -466,6 +475,7 @@ bvc_t *bvc_pfxorigins_alloc()
 int bvc_pfxorigins_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_pfxorigins_state_t *state = NULL;
+  bgpstream_pfx_storage_t pfx;
 
   if((state = malloc_zero(sizeof(bvc_pfxorigins_state_t))) == NULL)
     {
@@ -490,6 +500,26 @@ int bvc_pfxorigins_init(bvc_t *consumer, int argc, char **argv)
   /* init */
   if((state->pfx_origins = kh_init(bwv_pfx_origin)) == NULL)
     {
+      goto err;
+    }
+
+  if((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL)
+    {
+      fprintf(stderr, "Error: Could not create blacklist pfx set\n");
+      goto err;
+    }
+
+  /* add default routes to blacklist */
+  if(!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
+       bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >=0) )
+    {
+      fprintf(stderr, "Could not insert prefix in blacklist\n");
+      goto err;
+    }
+  if(!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
+       bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >=0) )
+    {
+      fprintf(stderr, "Could not insert prefix in blacklist\n");
       goto err;
     }
 
@@ -541,6 +571,12 @@ void bvc_pfxorigins_destroy(bvc_t *consumer)
 	  kh_free_vals(bwv_pfx_origin, state->pfx_origins, origins_free);
 	  kh_destroy(bwv_pfx_origin, state->pfx_origins);
         }
+      
+      if(state->blacklist_pfxs != NULL)
+        {
+          bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
+        }
+
       timeseries_kp_free(&state->kp);
       free(state);
       BVC_SET_STATE(consumer, NULL);
@@ -554,12 +590,12 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, uint8_t interests,
   bvc_pfxorigins_state_t *state = STATE;
 
 
-  bgpstream_pfx_storage_t pfx_stg;
   bgpstream_pfx_t *pfx;
+  bgpstream_pfx_storage_t pfx_storage;
+
   bgpstream_peer_id_t peerid;
   int ipv_idx;
   bgpstream_as_path_seg_t *origin_seg;
-  size_t pfx_size;
 
   /* iterate through the pfxorigins map*/
   khiter_t k;
@@ -595,16 +631,16 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, uint8_t interests,
       bgpview_iter_next_pfx(it))
     {
       pfx = bgpview_iter_pfx_get_pfx(it);
-      
-      if(pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4)
+
+      pfx_storage.mask_len = pfx->mask_len;
+      bgpstream_addr_copy((bgpstream_ip_addr_t *) &pfx_storage.address , (bgpstream_ip_addr_t *) &pfx->address);
+
+      /* ignore prefixes in blacklist */
+      if(bgpstream_pfx_storage_set_exists(state->blacklist_pfxs, &pfx_storage))
         {
-          pfx_size = sizeof(bgpstream_ipv4_pfx_t);
+          continue;
         }
-      else
-        {
-          pfx_size = sizeof(bgpstream_ipv6_pfx_t);
-        }
-      
+
       ipv_idx = bgpstream_ipv2idx(pfx->address.version);
       os = NULL;
       
@@ -627,17 +663,12 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, uint8_t interests,
                * (if it is not there yet) and get the corresponding origin status */
               if(os == NULL)
                 {
-                  if(memcpy((void *)&pfx_stg, (void *) pfx, pfx_size) == NULL)
-                    {
-                      fprintf(stderr, "Malloc problem, could not allocate memory for prefix storage");
-                      return -1;
-                    }
 
                   /* check if prefix is already in the map */
-                  if((k = kh_get(bwv_pfx_origin, state->pfx_origins, pfx_stg)) == kh_end(state->pfx_origins))
+                  if((k = kh_get(bwv_pfx_origin, state->pfx_origins, pfx_storage)) == kh_end(state->pfx_origins))
                     {
                       /* if not insert the prefix and init the origin arrays */
-                      k = kh_put(bwv_pfx_origin, state->pfx_origins, pfx_stg, &khret);
+                      k = kh_put(bwv_pfx_origin, state->pfx_origins, pfx_storage, &khret);
                       os = &kh_value(state->pfx_origins, k);
                       os->previous.num_asns = 0;
                       os->current.num_asns = 0;

@@ -1,4 +1,4 @@
-/*TEST
+/*
  * This file is part of bgpstream
  *
  * CAIDA, UC San Diego
@@ -767,6 +767,7 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
   strncpy(state->output_folder, DEFAULT_OUTPUT_FOLDER, MAX_BUFFER_LEN);
   state->output_folder[MAX_BUFFER_LEN -1] = '\0';
   state->current_moases = NULL;
+  
   if((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL)
     {
       fprintf(stderr, "Error: Could not create blacklist pfx set\n");
@@ -848,6 +849,7 @@ void bvc_moas_destroy(bvc_t *consumer)
         {
           bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
         }
+
       if(state->kp != NULL)
         {
           timeseries_kp_free(&state->kp);

@@ -57,6 +57,12 @@
 /** Default compression level of output file */
 #define DEFAULT_COMPRESS_LEVEL 6
 
+/* IPv4 default route */
+#define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
+
+/* IPv6 default route */
+#define IPV6_DEFAULT_ROUTE "0::/0"
+
 
 #define STATE					\
   (BVC_GET_STATE(consumer, announcedpfxs))
@@ -96,6 +102,9 @@ typedef struct bvc_announcedpfxs_state {
   /** window size: i.e. for how long a prefix
    *  is considered "announced"  */
   uint32_t window_size;
+
+  /** blacklist prefixes */
+  bgpstream_pfx_storage_set_t *blacklist_pfxs;
 
   /** first timestamp processed by view consumer */
   uint32_t first_ts;
@@ -240,6 +249,7 @@ bvc_t *bvc_announcedpfxs_alloc()
 int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_announcedpfxs_state_t *state = NULL;
+  bgpstream_pfx_storage_t pfx;
 
   if((state = malloc_zero(sizeof(bvc_announcedpfxs_state_t))) == NULL)
     {
@@ -272,6 +282,27 @@ int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
       goto err;
     }
 
+    if((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL)
+    {
+      fprintf(stderr, "Error: Could not create blacklist pfx set\n");
+      goto err;
+    }
+
+    /* add default routes to blacklist */
+    if(!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
+         bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >=0) )
+      {
+        fprintf(stderr, "Could not insert prefix in blacklist\n");
+        goto err;
+      }
+    if(!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
+         bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >=0) )
+      {
+        fprintf(stderr, "Could not insert prefix in blacklist\n");
+        goto err;
+      }
+
+  
   if((state->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) == NULL)
     {
       fprintf(stderr, "Error: Could not create timeseries key package\n");
@@ -301,6 +332,11 @@ void bvc_announcedpfxs_destroy(bvc_t *consumer)
         {
 	  kh_destroy(bwv_v4pfx_timestamp,state->v4pfx_ts);
         }
+      if(state->blacklist_pfxs != NULL)
+        {
+          bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
+        }
+
       timeseries_kp_free(&state->kp);
       free(state);
       BVC_SET_STATE(consumer, NULL);
@@ -321,6 +357,8 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
   uint32_t current_window_size = 0;
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
+  bgpstream_pfx_storage_t pfx_storage;
+
   bgpstream_peer_id_t peerid;
   int ipv4_idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
 
@@ -348,6 +386,14 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
       bgpview_iter_next_pfx(it))
     {
       pfx = bgpview_iter_pfx_get_pfx(it);
+      pfx_storage.mask_len = pfx->mask_len;
+      bgpstream_addr_copy((bgpstream_ip_addr_t *) &pfx_storage.address , (bgpstream_ip_addr_t *) &pfx->address);
+
+      /* ignore prefixes in blacklist */
+      if(bgpstream_pfx_storage_set_exists(state->blacklist_pfxs, &pfx_storage))
+        {
+          continue;
+        }
 
       /* only consider ipv4 prefixes whose mask is within MIN and MAX LEN*/
       if(pfx->mask_len < MIN_PFX4_LEN || pfx->mask_len > MAX_PFX4_LEN)
