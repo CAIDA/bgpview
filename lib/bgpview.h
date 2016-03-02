@@ -1116,8 +1116,19 @@ bgpview_iter_pfx_activate_peer(bgpview_iter_t *iter);
 int
 bgpview_iter_pfx_deactivate_peer(bgpview_iter_t *iter);
 
+/** Create a new BGP View, which is a clone of the desired view
+ * The cloned view use the same peer map and as path store than the first view.
+ *
+ *
+ * A BGP View holds a snapshot of the aggregated prefix information.
+ * Basically, it maps from prefix -> peers -> prefix info
+ *
+ * @param view     pointer to a peersigns table that the view should use
+ *
+ * @return a pointer to the view if successful, NULL otherwise
+ */
 
-/** @} */
+bgpview_t* bgpview_clone_view(bgpview_t* view);
 
 
 #endif /* __BGPVIEW_H */

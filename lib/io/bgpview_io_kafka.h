@@ -28,6 +28,7 @@
 
 #include "bgpview_io.h"
 #include "bgpview.h"
+#include <librdkafka/rdkafka.h>
 
 
 typedef struct kafka_data{
@@ -57,7 +58,6 @@ typedef struct kafka_data{
 	   *  as the program crawl the topic to get the view offset
 	   *
 	   */
-
 	  int pfxs_paths_partition;
 	  int peers_partition;
 	  int metadata_partition;
@@ -70,12 +70,64 @@ typedef struct kafka_data{
 	   * to get the view offset
 	   *
 	   */
-
 	  int pfxs_paths_offset;
 	  int peers_offset;
 	  int metadata_offset;
 
+	  int pfxs_paths_sync_partition;
+	  int pfxs_paths_sync_offset;
+	  int pfxs_paths_sync_view_id;
+
+	  rd_kafka_t *pfxs_paths_rk;
+	  rd_kafka_t *peers_rk;
+	  rd_kafka_t *metadata_rk;
+
+	  rd_kafka_topic_t *pfxs_paths_rkt;
+	  rd_kafka_topic_t *peers_rkt;
+	  rd_kafka_topic_t *metadata_rkt;
+
+	  rd_kafka_conf_t *pfxs_paths_conf;
+	  rd_kafka_conf_t *peers_conf;
+	  rd_kafka_conf_t *metadata_conf;
+
+	  rd_kafka_topic_conf_t *pfxs_paths_topic_conf;
+	  rd_kafka_topic_conf_t *peers_topic_conf;
+	  rd_kafka_topic_conf_t *metadata_topic_conf;
+
+
 } kafka_data_t;
+
+
+typedef struct kafka_sync_view_data{
+
+	int pfxs_paths_sync_partition;
+	uint32_t pfxs_paths_sync_offset;
+	int pfxs_paths_sync_view_id;
+
+} kafka_sync_view_data_t;
+
+int set_sync_view_data(kafka_data_t dest,bgpview_t *view, kafka_sync_view_data_t *sync_view_data);
+
+int send_diffs(kafka_data_t dest, char *topic ,void* messages[], int messages_len[] ,int num_messages);
+
+int send_message_to_topic(kafka_data_t dest, char *topic, char* message, int len);
+
+void *row_serialize(char operation, bgpview_iter_t *it, int *len);
+
+int publish_metadata(kafka_data_t dest, bgpview_t *view, kafka_sync_view_data_t *sync_view_data, char *type);
+
+int set_metadata(kafka_data_t src,int interest_view);
+
+rd_kafka_topic_t * initialize_producer_connection(rd_kafka_t **rk,
+												  rd_kafka_conf_t **conf,
+												  rd_kafka_topic_conf_t **topic_conf,
+												  char *brokers, char *topic, int partition, int offset);
+
+rd_kafka_topic_t * initialize_consumer_connection(rd_kafka_t **rk,
+												  rd_kafka_conf_t **conf,
+												  rd_kafka_topic_conf_t **topic_conf,
+												  char *brokers, char *topic, int partition, int offset);
+
 
 
 /** Send the given view to the given socket
@@ -85,8 +137,9 @@ typedef struct kafka_data{
  * @param cb            callback function to use to filter peers (may be NULL)
  * @return 0 if the view was sent successfully, -1 otherwise
  */
-int bgpview_io_kafka_send(kafka_data_t dest, bgpview_t *view,
-		bgpview_io_filter_cb_t *cb);
+int bgpview_io_kafka_send(kafka_data_t dest,
+						  bgpview_t *view,
+						  bgpview_io_filter_cb_t *cb);
 
 /** Receive a view from the given socket
  *
@@ -95,9 +148,11 @@ int bgpview_io_kafka_send(kafka_data_t dest, bgpview_t *view,
  * @param interest      timestamp of the view
  * @return pointer to the view instance received, NULL if an error occurred.
  */
-int bgpview_io_kafka_recv(kafka_data_t src, bgpview_t *view, int interest,
-        		bgpview_io_filter_peer_cb_t *peer_cb,
-                  bgpview_io_filter_pfx_cb_t *pfx_cb,
-                  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+int bgpview_io_kafka_recv(kafka_data_t src,
+						  bgpview_t *view,
+						  int interest_view,
+						  bgpview_io_filter_peer_cb_t *peer_cb,
+						  bgpview_io_filter_pfx_cb_t *pfx_cb,
+						  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 #endif /* __BGPVIEW_IO_KAFKA_H */

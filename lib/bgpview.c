@@ -2294,3 +2294,92 @@ bgpview_get_as_path_store(bgpview_t *view)
   return view->pathstore;
 }
 
+
+static bgpstream_peer_sig_map_t *bgpview_get_peer_sig_map(bgpview_t* view)
+{
+	return view->peersigns;
+}
+
+bgpview_t* bgpview_clone_view(bgpview_t* view){
+
+	bgpstream_peer_sig_map_t *peersigns=bgpview_get_peer_sig_map(view);
+	bgpstream_as_path_store_t *pathstore=bgpview_get_as_path_store(view);
+	bgpview_iter_t *clone_it = NULL, *it = NULL;
+	bgpview_t *clone_view;
+
+	if((clone_view=bgpview_create_shared(peersigns,pathstore, NULL, NULL, NULL, NULL)) == NULL)
+	{
+	  goto err;
+	}
+
+	if(((clone_it = bgpview_iter_create(clone_view)) == NULL) || ((it = bgpview_iter_create(view)) == NULL))
+	{
+		goto err;
+	}
+
+	for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+		  bgpview_iter_has_more_peer(it);
+		  bgpview_iter_next_peer(it))
+	{
+
+	  bgpstream_peer_sig_t *ps=bgpview_iter_peer_get_sig(it);
+
+	  bgpstream_peer_id_t old_id;
+
+	  /* add peer to signatures' map */
+	  if((old_id = bgpstream_peer_sig_map_get_id(view->peersigns,
+			  	  	  	  	  	  	  	  	  ps->collector_str,
+											  (bgpstream_ip_addr_t*)&ps->peer_ip_addr,
+											  ps->peer_asnumber)) == 0)
+	    {
+	      fprintf(stderr, "Could not add peer to peersigns\n");
+	      fprintf(stderr,
+	              "Consider making bgpstream_peer_sig_map_set more robust\n");
+	      return NULL;
+	    }
+
+	  bgpstream_peer_id_t new_id;
+	  if((new_id=bgpview_iter_add_peer(clone_it,ps->collector_str,
+							 (bgpstream_ip_addr_t*)&ps->peer_ip_addr,
+							 ps->peer_asnumber))==0){
+		  fprintf(stderr,"ERROR: Impossible to instert new peer in the view\n");
+		  return NULL;
+	  }
+	}
+
+	bgpstream_as_path_store_t *store=bgpview_get_as_path_store(view);
+
+	for(bgpview_iter_first_pfx_peer(it, 0,BGPVIEW_FIELD_ACTIVE,BGPVIEW_FIELD_ACTIVE);
+			bgpview_iter_has_more_pfx_peer(it);
+			bgpview_iter_next_pfx_peer(it))
+	{
+		bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
+		bgpstream_peer_id_t peerid=bgpview_iter_peer_get_peer_id(it);
+		bgpstream_peer_sig_t *ps=bgpview_iter_peer_get_sig(it);
+		uint32_t peer_asn = ps->peer_asnumber;
+		bgpstream_as_path_store_path_id_t id;
+
+		bgpstream_as_path_t *path=bgpview_iter_pfx_peer_get_as_path(it);
+
+		if(bgpstream_as_path_store_get_path_id(store,path,peer_asn,&id)!=0)
+		{
+	      fprintf(stderr, "ERROR: Failed to get AS Path ID from store\n");
+	      return NULL;
+	    }
+
+		if(bgpview_iter_add_pfx_peer_by_id(clone_it,pfx,peerid,id)<0){
+			fprintf(stderr, "ERROR: Could not add prefix peer by id\n");
+			return NULL;
+		}
+		bgpview_iter_activate_peer(clone_it);
+		bgpview_iter_pfx_activate_peer(clone_it);
+
+
+	}
+
+
+	return clone_view;
+
+	err:
+	return NULL;
+}

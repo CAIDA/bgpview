@@ -24,14 +24,16 @@
 #ifndef __BGPVIEW_IO_KAFKA_CLIENT_H
 #define __BGPVIEW_IO_KAFKA_CLIENT_H
 
+
 #include <stdint.h>
 
-#include "bgpview.h"
-#include "bgpview_io_common.h"
+#include "bgpview_io_kafka.h"
+#include "bgpview_io_common.h" //bgpview_io_err_perr
+
 
 /** @file
  *
- * @brief Header file that exposes the public interface of the bgpview kiafka client
+ * @brief Header file that exposes the public interface of the bgpview kafka client
  *
  * @author Danilo Giordano
  *
@@ -43,7 +45,26 @@
  * @{ */
 
 /** Default URI for the server -> client connection */
-#define BGPVIEW_IO_CLIENT_KAFKA_SERVER_URI_DEFAULT "192.172.226.44:9092,192.172.226.46:9092"
+#define BGPVIEW_IO_KAFKA_CLIENT_SERVER_URI_DEFAULT "192.172.226.44:9092,192.172.226.46:9092"
+
+#define BGPVIEW_IO_KAFKA_CLIENT_PFXS_PATHS_TOPIC_DEFAULT "views"
+
+#define BGPVIEW_IO_KAFKA_CLIENT_PEERS_TOPIC_DEFAULT "peers"
+
+#define BGPVIEW_IO_KAFKA_CLIENT_METADATA_TOPIC_DEFAULT "metadata"
+
+#define BGPVIEW_IO_KAFKA_CLIENT_PEERS_PARTITION_DEFAULT 0
+
+#define BGPVIEW_IO_KAFKA_CLIENT_METADATA_PARTITION_DEFAULT 0
+
+#define BGPVIEW_IO_KAFKA_CLIENT_PEERS_OFFSET_DEFAULT 0
+
+#define BGPVIEW_IO_KAFKA_CLIENT_METADATA_OFFSET_DEFAULT RD_KAFKA_OFFSET_BEGINNING
+
+/*
+ * PFXS PAHTS PARTIOTION AND TOPIC FROM METADATA TOPIC
+ *
+ */
 
 /** @} */
 
@@ -68,50 +89,30 @@ typedef struct bgpview_io_kafka_client bgpview_io_kafka_client_t;
  *
  * @{ */
 
-typedef enum {
-  BGPVIEW_IO_CLIENT_RECV_MODE_NONBLOCK = 0,
-  BGPVIEW_IO_CLIENT_RECV_MODE_BLOCK    = 1,
-} bgpview_io_kafka_client_recv_mode_t;
-
-/** @} */
 
 /** Initialize a new BGPView Client instance
  *
- * @param interests     set of bgpview_consumer_interest_t flags
- * @param intents       set of bgpview_producer_intent_t flags
- * @return a pointer to a bgpview client instance if successful, NULL if an
+ * @return a pointer to a bgpview kafka client instance if successful, NULL if an
  * error occurred.
  *
  * @note calling a producer function or registering a consumer callback for an
  * intent/interest not registered will trigger an assert.
  */
-bgpview_io_client_t *bgpview_io_client_init(uint8_t interests, uint8_t intents);
+bgpview_io_kafka_client_t *bgpview_io_kafka_client_init();
 
-/** Set the user data that will provided to each callback function */
-void bgpview_io_client_set_cb_userdata(bgpview_io_client_t *client,
-                                       void *user);
-
-/** Start the given bgpview client instance
- *
- * @param client       pointer to a bgpview client instance to start
- * @return 0 if the client started successfully, -1 otherwise.
- */
-int bgpview_io_client_start(bgpview_io_client_t *client);
 
 /** Prints the error status (if any) to standard error and clears the error
  * state
  *
- * @param client       pointer to bgpview client instance to print error for
+ * @param client       pointer to bgpview kafka client instance to print error for
  */
-void bgpview_io_client_perr(bgpview_io_client_t *client);
-
-/** @todo add other error functions if needed (is_err, get_err) */
+void bgpview_io_kafka_client_perr(bgpview_io_kafka_client_t *client);
 
 /** Queue the given View for transmission to the server
  *
- * @param client        pointer to a bgpview client instance
+ * @param client        pointer to a bgpview kafka client instance
  * @param view          pointer to the view to transmit
- * @param cb            callback function to use to filter peers (may be NULL)
+ * @param cb            callback function to use to filter entries (may be NULL)
  * @return 0 if the view was transmitted successfully, -1 otherwise
  *
  * This function only sends 'active' fields. Any fields that are 'inactive' in
@@ -120,17 +121,18 @@ void bgpview_io_client_perr(bgpview_io_client_t *client);
  * @note The actual transmission may happen asynchronously, so a return from
  * this function simply means that the view was queued for transmission.
  */
-int bgpview_io_client_send_view(bgpview_io_client_t *client,
+int bgpview_io_kafka_client_send_view(bgpview_io_kafka_client_t *client,
                                 bgpview_t *view,
-                                bgpview_filter_peer_cb_t *cb);
+                                bgpview_io_filter_cb_t *cb);
+
 
 /** Attempt to receive an BGP View from the bgpview server
  *
  * @param client        pointer to the client instance to receive from
- * @param mode          receive mode (blocking/non-blocking)
- * @param[out] interests  set to all the interests the view satisfies
+ * @param interest_view	ID in form of timestamp of the view to receive
  * @param view          pointer to the view to fill
- * @return all the interests the view satisfies, -1 if an error occurred.
+ * @param cb            callback functions to use to filter entries (may be NULL)
+ * @return 0 or -1 if an error occurred.
  *
  * @note this function will only receive messages for which an interest was set
  * when initializing the client, but a view may satisfy *more* interests than
@@ -142,122 +144,56 @@ int bgpview_io_client_send_view(bgpview_io_client_t *client,
  * bgpview_create, and if it is being re-used, it *must* have been
  * cleared using bgpview_clear.
  */
-int bgpview_io_client_recv_view(bgpview_io_client_t *client,
-				bgpview_io_client_recv_mode_t blocking,
-				bgpview_t *view);
+int bgpview_io_kafka_client_recv_view(bgpview_io_kafka_client_t *client,
+								bgpview_t *view,
+								int interest_view,
+                                bgpview_io_filter_peer_cb_t *peer_cb,
+                                bgpview_io_filter_pfx_cb_t *pfx_cb,
+                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
-/** Stop the given bgpview client instance
- *
- * @param client       pointer to the bgpview client instance to stop
- */
-void bgpview_io_client_stop(bgpview_io_client_t *client);
+
 
 /** Free the given bgpview client instance
  *
- * @param client       pointer to the bgpview client instance to free
+ * @param client       pointer to the bgpview kafka client instance to free
  */
-void bgpview_io_client_free(bgpview_io_client_t *client);
+void bgpview_io_kafka_client_free(bgpview_io_kafka_client_t *client);
 
-/** Set the URI for the client to connect to the server on
+
+/** Set the URI for the client to connect to the kakfa server on
  *
- * @param client        pointer to a bgpview client instance to update
+ * @param client        pointer to a bgpview kafka client instance to update
  * @param uri           pointer to a uri string
  * @return 0 if successful, -1 otherwise
  */
-int bgpview_io_client_set_server_uri(bgpview_io_client_t *client,
-				     const char *uri);
 
-/** Set the URI for the client to subscribe to server table messages on
- *
- * @param client        pointer to a bgpview client instance to update
- * @param uri           pointer to a uri string
- * @return 0 if successful, -1 otherwise
- */
-int bgpview_io_client_set_server_sub_uri(bgpview_io_client_t *client,
-                                         const char *uri);
 
-/** Set the heartbeat interval
+/** Start the given bgpview kafka client to be a producer instance
  *
- * @param client        pointer to a bgpview client instance to update
- * @param interval_ms   time in ms between heartbeats
- *
- * @note defaults to BGPVIEW_IO_HEARTBEAT_INTERVAL_DEFAULT
+ * @param client       pointer to a bgpview client instance to start
+ * @return 0 if the client started successfully, -1 otherwise.
  */
-void bgpview_io_client_set_heartbeat_interval(bgpview_io_client_t *client,
-					      uint64_t interval_ms);
+int bgpview_io_kafka_client_start_producer(bgpview_io_kafka_client_t *client, char* topic);
 
-/** Set the heartbeat liveness
+/** Start the given bgpview client to be a consumer instance
  *
- * @param client        pointer to a bgpview client instance to update
- * @param beats         number of heartbeats that can go by before a client is
- *                      declared dead
- *
- * @note defaults to BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT
+ * @param client       pointer to a bgpview kafka client instance to start
+ * @return 0 if the client started successfully, -1 otherwise.
  */
-void bgpview_io_client_set_heartbeat_liveness(bgpview_io_client_t *client,
-					   int beats);
+int bgpview_io_kafka_client_start_consumer(bgpview_io_kafka_client_t *client, char* topic);
 
-/** Set the minimum reconnect time
- *
- * @param client        pointer to a bgpview client instance to update
- * @param time          min time in ms to wait before reconnecting to server
- *
- * @note defaults to BGPVIEW_IO_RECONNECT_INTERVAL_MIN
- */
-void bgpview_io_client_set_reconnect_interval_min(bgpview_io_client_t *client,
-					       uint64_t reconnect_interval_min);
 
-/** Set the maximum reconnect time
- *
- * @param client        pointer to a bgpview client instance to update
- * @param time          max time in ms to wait before reconnecting to server
- *
- * @note defaults to BGPVIEW_IO_RECONNECT_INTERVAL_MAX
- */
-void bgpview_io_client_set_reconnect_interval_max(bgpview_io_client_t *client,
-					       uint64_t reconnect_interval_max);
+int bgpview_io_kafka_client_set_server_uri(bgpview_io_kafka_client_t *client,
+					 const char *uri);
 
-/** Set the amount of time to wait for outstanding requests on shutdown
- *
- * @param client        pointer to a bgpview client instance to update
- * @param linger        time in ms to wait for outstanding requests
- *
- * @note defaults to BGPVIEW_IO_CLIENT_SHUTDOWN_LINGER_DEFAULT
- */
-void bgpview_io_client_set_shutdown_linger(bgpview_io_client_t *client,
-					   uint64_t linger);
 
-/** Set timeout for a single request
- *
- * @param client        pointer to a client instance to update
- * @param timeout_ms    time in msec before request is retried
- *
- * @note defaults to BGPVIEW_IO_CLIENT_REQUEST_TIMEOUT_DEFAULT
- */
-void bgpview_io_client_set_request_timeout(bgpview_io_client_t *client,
-					   uint64_t timeout_ms);
+int bgpview_io_kafka_client_send_diffs(bgpview_io_kafka_client_t *dest, char *topic, void* messages[], int messages_len[], int num_messages);
 
-/** Set the number of retries before a request is abandoned
- *
- * @param client        pointer to a client instance to update
- * @param retry_cnt     number of times to retry a request before giving up
- *
- * @note defaults to BGPVIEW_IO_CLIENT_REQUEST_RETRIES_DEFAULT
- */
-void bgpview_io_client_set_request_retries(bgpview_io_client_t *client,
-					   int retry_cnt);
+int bgpview_io_kafka_client_send_message_to_topic(bgpview_io_kafka_client_t *dest, char *topic, char* message, int len);
 
-/** Set the identity string for this client
- *
- * @param client        pointer to a bgpview client instance to update
- * @param identity      globally unique identity string
- * @return 0 if the identity was update successfully, -1 otherwise
- *
- * @note if an identity is not set, a random ID will be generated on every
- * connect to the server. This may/will cause problems if/when a server goes
- * away. Any pending transactions may be lost. Please set an ID.
- */
-int bgpview_io_client_set_identity(bgpview_io_client_t *client,
-				   const char *identity);
+int bgpview_kafka_client_publish_metadata(bgpview_io_kafka_client_t *dest, bgpview_t *view, kafka_sync_view_data_t sync_view_data, char *type);
+
+int bgpview_view_set_sync_view_data(bgpview_io_kafka_client_t *dest,bgpview_t *view, kafka_sync_view_data_t *sync_view_data);
 
 #endif
+

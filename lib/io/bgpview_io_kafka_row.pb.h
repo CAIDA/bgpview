@@ -41,10 +41,11 @@ struct  _BGPRow
   ProtobufCBinaryData pfx;
   size_t n_cells;
   BGPCell **cells;
+  char *operation;
 };
 #define BGPROW__INIT \
  { PROTOBUF_C_MESSAGE_INIT (&bgprow__descriptor) \
-    , {0,NULL}, 0,NULL }
+    , {0,NULL}, 0,NULL, NULL }
 
 
 /* BGPCell methods */

@@ -144,7 +144,7 @@ const ProtobufCMessageDescriptor bgpcell__descriptor =
   (ProtobufCMessageInit) bgpcell__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
-static const ProtobufCFieldDescriptor bgprow__field_descriptors[2] =
+static const ProtobufCFieldDescriptor bgprow__field_descriptors[3] =
 {
   {
     "Pfx",
@@ -170,15 +170,28 @@ static const ProtobufCFieldDescriptor bgprow__field_descriptors[2] =
     0,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "operation",
+    3,
+    PROTOBUF_C_LABEL_OPTIONAL,
+    PROTOBUF_C_TYPE_STRING,
+    0,   /* quantifier_offset */
+    offsetof(BGPRow, operation),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
 static const unsigned bgprow__field_indices_by_name[] = {
   1,   /* field[1] = Cells */
   0,   /* field[0] = Pfx */
+  2,   /* field[2] = operation */
 };
 static const ProtobufCIntRange bgprow__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 2 }
+  { 0, 3 }
 };
 const ProtobufCMessageDescriptor bgprow__descriptor =
 {
@@ -188,7 +201,7 @@ const ProtobufCMessageDescriptor bgprow__descriptor =
   "BGPRow",
   "",
   sizeof(BGPRow),
-  2,
+  3,
   bgprow__field_descriptors,
   bgprow__field_indices_by_name,
   1,  bgprow__number_ranges,

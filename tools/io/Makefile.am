@@ -35,7 +35,8 @@ bin_PROGRAMS =	bgpview-server		\
 		bgpview-consumer	\
 		bgpview-producer	\
 		bgpview-test-producer   \
-		bgpview-kafka-consumer  \
+		bgpview-consumer-kafka  \
+		bgpview-reader-kafka	\
 		bvcat
 
 # runs the bgpview server
@@ -62,10 +63,15 @@ bgpview_test_producer_SOURCES = \
 bgpview_test_producer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
 			      $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
-bgpview_kafka_consumer_SOURCES = \
-	bgpview-kafka-consumer.c
-bgpview_kafka_consumer_LDADD = $(top_builddir)/lib/libbgpstream.la \
-		         $(top_builddir)/bgpview/lib/libbgpview.la
+bgpview_consumer_kafka_SOURCES = \
+	bgpview-consumer-kafka.c
+bgpview_consumer_kafka_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
+			      $(top_builddir)/bgpview/lib/libbgpviewcaida.la
+
+bgpview_reader_kafka_SOURCES = \
+	bgpview-reader-kafka.c
+bgpview_reader_kafka_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
+			      $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
 # BGPView Cat
 bvcat_SOURCES = \
