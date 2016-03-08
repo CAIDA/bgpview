@@ -1538,6 +1538,10 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter)
 
   pfxinfo->state = BGPVIEW_FIELD_INVALID;
 
+  printf("before %d %d\n",pfxinfo->peers_cnt[BGPVIEW_FIELD_INACTIVE],pfxinfo->peers_cnt[BGPVIEW_FIELD_ACTIVE] );
+  printf("peers in %d\n",bgpview_iter_pfx_get_peer_cnt(iter,BGPVIEW_FIELD_ACTIVE));
+  printf("peers in %d\n",bgpview_iter_pfx_get_peer_cnt(iter,BGPVIEW_FIELD_INACTIVE));
+
   /* if there are any active or inactive pfx-peers, we remove them now */
   if(bgpview_iter_pfx_get_peer_cnt(iter, BGPVIEW_FIELD_ALL_VALID) > 0)
     {
@@ -1550,6 +1554,7 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter)
         }
     }
 
+  printf("%d %d\n",pfxinfo->peers_cnt[BGPVIEW_FIELD_INACTIVE],pfxinfo->peers_cnt[BGPVIEW_FIELD_ACTIVE] );
   assert(pfxinfo->peers_cnt[BGPVIEW_FIELD_INACTIVE] == 0 &&
          pfxinfo->peers_cnt[BGPVIEW_FIELD_ACTIVE] == 0);
 
@@ -1630,6 +1635,11 @@ bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
 int
 bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter)
 {
+
+
+  bgpstream_peer_sig_t *sm=bgpview_iter_peer_get_sig(iter);
+  printf("pid: %d\n",bgpview_iter_peer_get_peer_id(iter));
+  printf("%s %d\n",sm->collector_str,sm->peer_asnumber);
   bgpview_iter_t lit;
   bwv_peerid_pfxinfo_t *pfxinfo = __pfx_peerinfos(iter);
 
@@ -1675,7 +1685,7 @@ bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter)
     }
 
   /* and now advance the iterator */
-  __iter_pfx_next_peer(iter);
+  //__iter_pfx_next_peer(iter);
 
   return 0;
 }

@@ -708,6 +708,8 @@ bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter,
 
 /** Remove the current pfx currently referenced by the given iterator
  *
+ *
+ *
  * @param iter             pointer to a view iterator
  * @return 0 if the pfx was removed successfully, -1 otherwise
  *
@@ -764,6 +766,8 @@ bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
 
 /** Remove the current peer from the current prefix currently referenced by the
  * given iterator
+ *
+ *WARNING: IT DOES NOT ADVANCE THE ITERATOR ANYMORE
  *
  * @param iter             pointer to a view iterator
  * @return 0 if the pfx-peer was removed successfully, -1 otherwise
