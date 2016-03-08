@@ -893,6 +893,7 @@ int bgpview_io_server_start(bgpview_io_server_t *server)
 			     "Failed to create client PUB socket");
       return -1;
     }
+  zsocket_set_sndhwm(server->client_pub_socket, 2);
   if(zsocket_bind(server->client_pub_socket, "%s", server->client_pub_uri) < 0)
     {
       bgpview_io_err_set_err(ERR, errno,

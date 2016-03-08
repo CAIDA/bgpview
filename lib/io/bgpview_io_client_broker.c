@@ -122,7 +122,7 @@ static int server_subscribe(bgpview_io_client_broker_t *broker)
 			     "Failed to create server SUB connection");
       return -1;
     }
-
+  zsocket_set_rcvhwm(broker->server_sub_socket, 5);
   zsocket_set_subscribe(broker->server_sub_socket,
 			bgpview_consumer_interest_sub(CFG->interests));
 
