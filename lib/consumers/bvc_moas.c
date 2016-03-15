@@ -510,6 +510,8 @@ static int clean_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
                                {
                                  return -1;
                                }
+                             // signal that the moas has finished
+                             kh_val(per_pfx_moases, m).start = 0;
                            }
                        }
                    }
