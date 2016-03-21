@@ -48,6 +48,8 @@ bgpview_io_kafka_client_t *bgpview_io_kafka_client_init()
 
   /* now init the shared state for our broker */
 
+
+
   if((client->kafka_config.brokers =
       strdup(BGPVIEW_IO_KAFKA_CLIENT_SERVER_URI_DEFAULT)) == NULL)
     {
@@ -84,8 +86,8 @@ bgpview_io_kafka_client_t *bgpview_io_kafka_client_init()
   client->kafka_config.peers_partition=BGPVIEW_IO_KAFKA_CLIENT_PEERS_PARTITION_DEFAULT;
   client->kafka_config.metadata_partition=BGPVIEW_IO_KAFKA_CLIENT_METADATA_PARTITION_DEFAULT;
 
-  client->kafka_config.peers_offset=BGPVIEW_IO_KAFKA_CLIENT_PEERS_OFFSET_DEFAULT;
-  client->kafka_config.metadata_offset=BGPVIEW_IO_KAFKA_CLIENT_METADATA_OFFSET_DEFAULT;
+  client->kafka_config.peers_offset=0;
+  client->kafka_config.metadata_offset=0;
   client->kafka_config.pfxs_paths_offset=0;
   client->kafka_config.pfxs_paths_partition=0;
 
@@ -97,13 +99,30 @@ bgpview_io_kafka_client_t *bgpview_io_kafka_client_init()
   client->kafka_config.peers_rkt=NULL;
   client->kafka_config.metadata_rkt=NULL;
 
-  client->kafka_config.pfxs_paths_conf=NULL;
-  client->kafka_config.peers_conf=NULL;
-  client->kafka_config.metadata_conf=NULL;
+  client->kafka_config.view_frequency=BGPVIEW_IO_KAFKA_CLIENT_DIFF_FREQUENCY;
 
-  client->kafka_config.pfxs_paths_topic_conf=NULL;
-  client->kafka_config.peers_topic_conf=NULL;
-  client->kafka_config.metadata_topic_conf=NULL;
+  client->view_data.viewH=NULL;
+  client->view_data.sync_view_id=0;
+
+
+  int i;
+  for(i=0;i<2048;i++)
+	  client->view_data.peerid_map[i]=0;
+
+  client->view_data.current_pfxs_paths_offset=0;
+  client->view_data.current_peers_offset=0;
+
+  client->view_data.pfxs_paths_sync_partition=0;
+  client->view_data.pfxs_paths_sync_offset=0;
+  client->view_data.peers_sync_offset=0;
+
+  for(i=0;i<KAFKA_CLIENT_DIFF_FREQUENCY;i++){
+	  client->view_data.pfxs_paths_diffs_partition[i]=0;
+	  client->view_data.pfxs_paths_diffs_offset[i]=0;
+	  client->view_data.peers_offset[i]=0;
+  }
+
+  client->view_data.num_diffs=0;
 
   return client;
 
@@ -113,138 +132,6 @@ bgpview_io_kafka_client_t *bgpview_io_kafka_client_init()
       bgpview_io_kafka_client_free(client);
     }
   return NULL;
-}
-
-void bgpview_io_kafka_client_perr(bgpview_io_kafka_client_t *client)
-{
-  assert(client != NULL);
-  bgpview_io_err_perr(ERR);
-}
-
-
-int bgpview_io_kafka_client_send_view(bgpview_io_kafka_client_t *client,
-                                bgpview_t *view,
-                                bgpview_io_filter_cb_t *cb)
-{
-  /* now just transmit the view */
-  if(bgpview_io_kafka_send(client->kafka_config, view, cb) != 0)
-    {
-      goto err;
-    }
-
-  return 0;
-
- err:
-  return -1;
-}
-
-int bgpview_io_kafka_client_recv_view(bgpview_io_kafka_client_t *client,
-								bgpview_t *view,
-								int interest_view,
-								bgpview_io_filter_peer_cb_t *peer_cb,
-                                bgpview_io_filter_pfx_cb_t *pfx_cb,
-                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
-
-{
-  uint8_t interests = 1;
-
-  assert(view != NULL);
-
-  if(bgpview_io_kafka_recv(client->kafka_config, view,interest_view,
-                     peer_cb, pfx_cb, pfx_peer_cb) != 0)
-    {
-      fprintf(stderr, "Failed to receive view");
-      return -1;
-    }
-
-  return interests;
-}
-
-
-int bgpview_io_kafka_client_start_producer(bgpview_io_kafka_client_t *client, char* topic)
-{
-	if(strcmp(topic,"all")==0){
-		if((client->kafka_config.metadata_rkt =initialize_producer_connection(&client->kafka_config.metadata_rk,&client->kafka_config.metadata_conf,&client->kafka_config.metadata_topic_conf,
-				client->kafka_config.brokers,client->kafka_config.metadata_topic,client->kafka_config.metadata_partition,client->kafka_config.metadata_offset))==NULL){
-				fprintf(stderr,"error");
-		}
-		if((client->kafka_config.peers_rkt =initialize_producer_connection(&client->kafka_config.peers_rk,&client->kafka_config.peers_conf,&client->kafka_config.peers_topic_conf,
-				client->kafka_config.brokers,client->kafka_config.peers_topic,client->kafka_config.peers_partition,client->kafka_config.peers_offset))==NULL){
-				fprintf(stderr,"error");
-		}
-		if((client->kafka_config.pfxs_paths_rkt =initialize_producer_connection(&client->kafka_config.pfxs_paths_rk,&client->kafka_config.pfxs_paths_conf,&client->kafka_config.pfxs_paths_topic_conf,
-				client->kafka_config.brokers,client->kafka_config.pfxs_paths_topic,client->kafka_config.pfxs_paths_partition,client->kafka_config.pfxs_paths_offset))==NULL){
-				fprintf(stderr,"error");
-		}
-	}
-	else if(strcmp(topic,"peers")==0){
-		if((client->kafka_config.peers_rkt =initialize_producer_connection(&client->kafka_config.peers_rk,&client->kafka_config.peers_conf,&client->kafka_config.peers_topic_conf,
-				client->kafka_config.brokers,client->kafka_config.peers_topic,client->kafka_config.peers_partition,client->kafka_config.peers_offset))==NULL){
-				fprintf(stderr,"error");
-		}
-	}
-	//get and set the offset
-	else if(strcmp(topic,"pfxs_paths")==0){
-		if((client->kafka_config.pfxs_paths_rkt =initialize_producer_connection(&client->kafka_config.pfxs_paths_rk,&client->kafka_config.pfxs_paths_conf,&client->kafka_config.pfxs_paths_topic_conf,
-				client->kafka_config.brokers,client->kafka_config.pfxs_paths_topic,client->kafka_config.pfxs_paths_partition,client->kafka_config.pfxs_paths_offset))==NULL){
-				fprintf(stderr,"error");
-		}
-	}
-	else if(strcmp(topic,"metadata")==0){
-		if((client->kafka_config.metadata_rkt =initialize_producer_connection(&client->kafka_config.metadata_rk,&client->kafka_config.metadata_conf,&client->kafka_config.metadata_topic_conf,
-				client->kafka_config.brokers,client->kafka_config.metadata_topic,client->kafka_config.metadata_partition,client->kafka_config.metadata_offset))==NULL){
-				fprintf(stderr,"error");
-		}
-	}
-	else goto err;
-
-	return 0;
-
-	err:
-	return -1;
-
-}
-
-int bgpview_io_kafka_client_start_consumer(bgpview_io_kafka_client_t *client, char* topic)
-{
-	if(strcmp(topic,"all")==0){
-		if((client->kafka_config.metadata_rkt =initialize_consumer_connection(&client->kafka_config.metadata_rk,&client->kafka_config.metadata_conf,&client->kafka_config.metadata_topic_conf,
-				client->kafka_config.brokers,client->kafka_config.metadata_topic,client->kafka_config.metadata_partition,client->kafka_config.metadata_offset))==NULL){
-				fprintf(stderr,"error");
-		}
-	if((client->kafka_config.peers_rkt =initialize_consumer_connection(&client->kafka_config.peers_rk,&client->kafka_config.peers_conf,&client->kafka_config.peers_topic_conf,
-			client->kafka_config.brokers,client->kafka_config.peers_topic,client->kafka_config.peers_partition,client->kafka_config.peers_offset))==NULL){
-			fprintf(stderr,"error");
-	}
-	if((client->kafka_config.pfxs_paths_rkt =initialize_consumer_connection(&client->kafka_config.pfxs_paths_rk,&client->kafka_config.pfxs_paths_conf,&client->kafka_config.pfxs_paths_topic_conf,
-			client->kafka_config.brokers,client->kafka_config.pfxs_paths_topic,client->kafka_config.pfxs_paths_partition,client->kafka_config.pfxs_paths_offset))==NULL){
-			fprintf(stderr,"error");
-	}
-	}
-	if(strcmp(topic,"peers")==0){
-		if((client->kafka_config.peers_rkt =initialize_consumer_connection(&client->kafka_config.peers_rk,&client->kafka_config.peers_conf,&client->kafka_config.peers_topic_conf,
-			client->kafka_config.brokers,client->kafka_config.peers_topic,client->kafka_config.peers_partition,client->kafka_config.peers_offset))==NULL){
-			fprintf(stderr,"error");
-		}
-	}
-	if(strcmp(topic,"pfxs_paths")==0){
-		if((client->kafka_config.pfxs_paths_rkt =initialize_consumer_connection(&client->kafka_config.pfxs_paths_rk,&client->kafka_config.pfxs_paths_conf,&client->kafka_config.pfxs_paths_topic_conf,
-			client->kafka_config.brokers,client->kafka_config.pfxs_paths_topic,client->kafka_config.pfxs_paths_partition,client->kafka_config.pfxs_paths_offset))==NULL){
-			fprintf(stderr,"error");
-		}
-	}
-	if(strcmp(topic,"metadata")==0){
-		if((client->kafka_config.metadata_rkt =initialize_consumer_connection(&client->kafka_config.metadata_rk,&client->kafka_config.metadata_conf,&client->kafka_config.metadata_topic_conf,
-			client->kafka_config.brokers,client->kafka_config.metadata_topic,client->kafka_config.metadata_partition,client->kafka_config.metadata_offset))==NULL){
-			fprintf(stderr,"error");
-		}
-	}
-	else goto err;
-
-	return 0;
-
-	err:
-	return -1;
 }
 
 
@@ -287,27 +174,130 @@ void bgpview_io_kafka_client_free(bgpview_io_kafka_client_t *client)
   client->kafka_config.peers_rkt=NULL;
   client->kafka_config.metadata_rkt=NULL;
 
-  client->kafka_config.pfxs_paths_conf=NULL;
-  client->kafka_config.peers_conf=NULL;
-  client->kafka_config.metadata_conf=NULL;
 
-  client->kafka_config.pfxs_paths_topic_conf=NULL;
-  client->kafka_config.peers_topic_conf=NULL;
-  client->kafka_config.metadata_topic_conf=NULL;
+  bgpview_destroy(client->view_data.viewH);
 
   free(client);
 
   return;
 }
 
-int bgpview_io_kafka_client_set_server_uri(bgpview_io_kafka_client_t *client, const char *uri)
+
+
+void bgpview_io_kafka_client_perr(bgpview_io_kafka_client_t *client)
+{
+  assert(client != NULL);
+  bgpview_io_err_perr(ERR);
+}
+
+
+int bgpview_io_kafka_client_start_producer(bgpview_io_kafka_client_t *client)
+{
+
+	if(initialize_producer_connection(
+			&client->kafka_config.metadata_rk,
+			&client->kafka_config.metadata_rkt,
+			client->kafka_config.brokers,
+			client->kafka_config.metadata_topic)==-1){
+			fprintf(stderr,"error");
+			goto err;
+	}
+	if(initialize_producer_connection(
+			&client->kafka_config.peers_rk,
+			&client->kafka_config.peers_rkt,
+			client->kafka_config.brokers,
+			client->kafka_config.peers_topic)==-1){
+			fprintf(stderr,"error");
+			goto err;
+	}
+	if(initialize_producer_connection(
+			&client->kafka_config.pfxs_paths_rk,
+			&client->kafka_config.pfxs_paths_rkt,
+			client->kafka_config.brokers,
+			client->kafka_config.pfxs_paths_topic)==-1){
+			fprintf(stderr,"error");
+			goto err;
+	}
+
+	return 0;
+
+	err:
+	return -1;
+
+}
+
+int bgpview_io_kafka_client_start_consumer(bgpview_io_kafka_client_t *client)
+{
+	if(initialize_consumer_connection(
+			&client->kafka_config.metadata_rk,
+			&client->kafka_config.metadata_rkt,
+			client->kafka_config.brokers,
+			client->kafka_config.metadata_topic)==-1){
+			fprintf(stderr,"error");
+			goto err;
+	}
+	if(initialize_consumer_connection(
+			&client->kafka_config.peers_rk,
+			&client->kafka_config.peers_rkt,
+			client->kafka_config.brokers,
+			client->kafka_config.peers_topic)==-1){
+			fprintf(stderr,"error");
+			goto err;
+	}
+	if(initialize_consumer_connection(
+			&client->kafka_config.pfxs_paths_rk,
+			&client->kafka_config.pfxs_paths_rkt,
+			client->kafka_config.brokers,
+			client->kafka_config.pfxs_paths_topic)==-1){
+			fprintf(stderr,"error");
+			goto err;
+	}
+
+	return 0;
+
+	err:
+	return -1;
+
+}
+
+
+
+void bgpview_io_kafka_client_set_diff_frequency(bgpview_io_kafka_client_t *client, int frequency)
+{
+  assert(client != NULL);
+
+  assert(frequency >= 0);
+
+  client->kafka_config.view_frequency=frequency;
+
+}
+
+int bgpview_io_kafka_client_set_broker_addresses(bgpview_io_kafka_client_t *client, const char *addresses)
 {
   assert(client != NULL);
 
   if(client->kafka_config.brokers != NULL)
 	  free(client->kafka_config.brokers);
 
-  if((client->kafka_config.brokers = strdup(uri)) == NULL)
+  if((client->kafka_config.brokers = strdup(addresses)) == NULL)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Could not set server addresses");
+      return -1;
+    }
+
+  return 0;
+
+}
+
+int bgpview_io_kafka_client_set_pfxs_paths_topic(bgpview_io_kafka_client_t *client, const char *topic)
+{
+  assert(client != NULL);
+
+  if(client->kafka_config.pfxs_paths_topic != NULL)
+	  free(client->kafka_config.pfxs_paths_topic);
+
+  if((client->kafka_config.pfxs_paths_topic = strdup(topic)) == NULL)
     {
       bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
 			     "Could not set server uri");
@@ -318,25 +308,101 @@ int bgpview_io_kafka_client_set_server_uri(bgpview_io_kafka_client_t *client, co
 
 }
 
-int bgpview_io_kafka_client_send_diffs(bgpview_io_kafka_client_t *dest,char *topic, void* messages[], int messages_len[] ,int num_messages){
+int bgpview_io_kafka_client_set_peers_topic(bgpview_io_kafka_client_t *client, const char *topic)
+{
+  assert(client != NULL);
 
-	return send_diffs(dest->kafka_config,topic,messages,messages_len,num_messages);
-}
+  if(client->kafka_config.peers_topic != NULL)
+	  free(client->kafka_config.peers_topic);
 
-int bgpview_io_kafka_client_send_message_to_topic(bgpview_io_kafka_client_t *dest, char *topic, char* message, int len){
-	return send_message_to_topic(dest->kafka_config,topic,message,len);
+  if((client->kafka_config.peers_topic = strdup(topic)) == NULL)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Could not set server uri");
+      return -1;
+    }
 
-}
-
-int bgpview_kafka_client_publish_metadata(bgpview_io_kafka_client_t *dest, bgpview_t *view, kafka_sync_view_data_t sync_view_data, char *type){
-	return publish_metadata(dest->kafka_config, view,&sync_view_data,type);
-
-}
-
-int bgpview_view_set_sync_view_data(bgpview_io_kafka_client_t *dest,bgpview_t *view, kafka_sync_view_data_t *sync_view_data){
-
-	return set_sync_view_data(dest->kafka_config, view,sync_view_data);
+  return 0;
 
 }
 
+int bgpview_io_kafka_client_set_metadata_topic(bgpview_io_kafka_client_t *client, const char *topic)
+{
+  assert(client != NULL);
 
+  if(client->kafka_config.metadata_topic != NULL)
+	  free(client->kafka_config.metadata_topic);
+
+  if((client->kafka_config.metadata_topic = strdup(topic)) == NULL)
+    {
+      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
+			     "Could not set server uri");
+      return -1;
+    }
+
+  return 0;
+
+}
+
+void bgpview_io_kafka_client_set_pfxs_paths_partition(bgpview_io_kafka_client_t *client, int partition)
+{
+  assert(client != NULL);
+
+  client->kafka_config.pfxs_paths_partition = partition;
+
+}
+
+void bgpview_io_kafka_client_set_peers_partition(bgpview_io_kafka_client_t *client, int partition)
+{
+  assert(client != NULL);
+
+  client->kafka_config.peers_partition = partition;
+
+}
+
+void bgpview_io_kafka_client_set_metadata_partition(bgpview_io_kafka_client_t *client, int partition)
+{
+  assert(client != NULL);
+
+  client->kafka_config.metadata_partition =partition;
+
+}
+
+
+int bgpview_io_kafka_client_send_view(bgpview_io_kafka_client_t *client,
+                                bgpview_t *view,
+								kafka_performance_t *metrics,
+                                bgpview_io_filter_cb_t *cb)
+{
+
+  if(bgpview_io_kafka_send(client->kafka_config,&client->view_data,view,metrics, cb) != 0)
+    {
+      goto err;
+    }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+int bgpview_io_kafka_client_recv_view(bgpview_io_kafka_client_t *client,
+									bgpview_t *view,
+									bgpview_io_filter_peer_cb_t *peer_cb,
+									bgpview_io_filter_pfx_cb_t *pfx_cb,
+									bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
+
+{
+  uint8_t interests = 1;
+
+  assert(view != NULL);
+
+  if(bgpview_io_kafka_recv(&client->kafka_config,&client->view_data,view,
+		  	  	  	  	  peer_cb,pfx_cb,pfx_peer_cb) != 0)
+    {
+      fprintf(stderr, "Failed to receive view");
+      return -1;
+    }
+
+  return interests;
+}

@@ -31,6 +31,30 @@
 #include <librdkafka/rdkafka.h>
 
 
+#define KAFKA_CLIENT_DIFF_FREQUENCY 11
+#define KAFKA_PEER_MAP_SIZE 2048
+
+
+
+typedef struct kafka_performance{
+
+	int send_time;
+	int clone_time;
+	int total_time;
+	int arrival_time;
+	int processed_time;
+
+	int add;
+	int remove;
+	int common;
+	int change;
+	int current_pfx_cnt;
+	int historical_pfx_cnt;
+
+	int sync_cnt;
+
+} kafka_performance_t;
+
 typedef struct kafka_data{
 
 	  /*
@@ -70,13 +94,9 @@ typedef struct kafka_data{
 	   * to get the view offset
 	   *
 	   */
-	  int pfxs_paths_offset;
-	  int peers_offset;
-	  int metadata_offset;
-
-	  int pfxs_paths_sync_partition;
-	  int pfxs_paths_sync_offset;
-	  int pfxs_paths_sync_view_id;
+	  long int pfxs_paths_offset;
+	  long int peers_offset;
+	  long int metadata_offset;
 
 	  rd_kafka_t *pfxs_paths_rk;
 	  rd_kafka_t *peers_rk;
@@ -86,47 +106,47 @@ typedef struct kafka_data{
 	  rd_kafka_topic_t *peers_rkt;
 	  rd_kafka_topic_t *metadata_rkt;
 
-	  rd_kafka_conf_t *pfxs_paths_conf;
-	  rd_kafka_conf_t *peers_conf;
-	  rd_kafka_conf_t *metadata_conf;
 
-	  rd_kafka_topic_conf_t *pfxs_paths_topic_conf;
-	  rd_kafka_topic_conf_t *peers_topic_conf;
-	  rd_kafka_topic_conf_t *metadata_topic_conf;
-
+	  int view_frequency;
 
 } kafka_data_t;
 
+typedef struct kafka_view_data{
 
-typedef struct kafka_sync_view_data{
+	bgpstream_peer_id_t peerid_map[KAFKA_PEER_MAP_SIZE];
+	uint32_t sync_view_id;
+	bgpview_t *viewH;
+
+	long int current_pfxs_paths_offset;
+	long int current_peers_offset;
 
 	int pfxs_paths_sync_partition;
-	uint32_t pfxs_paths_sync_offset;
-	int pfxs_paths_sync_view_id;
+	long int pfxs_paths_sync_offset;
+	long int peers_sync_offset;
 
-} kafka_sync_view_data_t;
+	int pfxs_paths_diffs_partition[KAFKA_CLIENT_DIFF_FREQUENCY];
 
-int set_sync_view_data(kafka_data_t dest,bgpview_t *view, kafka_sync_view_data_t *sync_view_data);
+	long int pfxs_paths_diffs_offset[KAFKA_CLIENT_DIFF_FREQUENCY];
+	long int peers_offset[KAFKA_CLIENT_DIFF_FREQUENCY];
 
-int send_diffs(kafka_data_t dest, char *topic ,void* messages[], int messages_len[] ,int num_messages);
+	int num_diffs;
 
-int send_message_to_topic(kafka_data_t dest, char *topic, char* message, int len);
+	//int distance_sync; //producer
 
-void *row_serialize(char operation, bgpview_iter_t *it, int *len);
 
-int publish_metadata(kafka_data_t dest, bgpview_t *view, kafka_sync_view_data_t *sync_view_data, char *type);
+}kafka_view_data_t;
 
-int set_metadata(kafka_data_t src,int interest_view);
 
-rd_kafka_topic_t * initialize_producer_connection(rd_kafka_t **rk,
-												  rd_kafka_conf_t **conf,
-												  rd_kafka_topic_conf_t **topic_conf,
-												  char *brokers, char *topic, int partition, int offset);
 
-rd_kafka_topic_t * initialize_consumer_connection(rd_kafka_t **rk,
-												  rd_kafka_conf_t **conf,
-												  rd_kafka_topic_conf_t **topic_conf,
-												  char *brokers, char *topic, int partition, int offset);
+int initialize_producer_connection( rd_kafka_t **rk,
+									rd_kafka_topic_t **rkt,
+								    char *brokers, char *topic);
+
+
+int initialize_consumer_connection(rd_kafka_t **rk,
+									rd_kafka_topic_t **rkt,
+									char *brokers,
+									char *topic);
 
 
 
@@ -138,7 +158,9 @@ rd_kafka_topic_t * initialize_consumer_connection(rd_kafka_t **rk,
  * @return 0 if the view was sent successfully, -1 otherwise
  */
 int bgpview_io_kafka_send(kafka_data_t dest,
+						  kafka_view_data_t *view_data,
 						  bgpview_t *view,
+						  kafka_performance_t *metrics,
 						  bgpview_io_filter_cb_t *cb);
 
 /** Receive a view from the given socket
@@ -148,11 +170,11 @@ int bgpview_io_kafka_send(kafka_data_t dest,
  * @param interest      timestamp of the view
  * @return pointer to the view instance received, NULL if an error occurred.
  */
-int bgpview_io_kafka_recv(kafka_data_t src,
-						  bgpview_t *view,
-						  int interest_view,
-						  bgpview_io_filter_peer_cb_t *peer_cb,
-						  bgpview_io_filter_pfx_cb_t *pfx_cb,
-						  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+int bgpview_io_kafka_recv(kafka_data_t *src,
+		kafka_view_data_t *view_data,
+				bgpview_t *view,
+        		bgpview_io_filter_peer_cb_t *peer_cb,
+                  bgpview_io_filter_pfx_cb_t *pfx_cb,
+                  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 #endif /* __BGPVIEW_IO_KAFKA_H */

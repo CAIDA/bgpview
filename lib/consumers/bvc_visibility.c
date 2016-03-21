@@ -34,7 +34,6 @@
 
 #include "bgpstream_utils_pfx_set.h"
 #include "bgpstream_utils_id_set.h"
-#include "bgpview_io.h"
 
 
 #include "bgpview_consumer_interface.h"
@@ -414,14 +413,7 @@ int bvc_visibility_process_view(bvc_t *consumer, uint8_t interests,
 {
   bgpview_iter_t *it;
   int i;
-  /*FILE *fout;
-  iow_t *outfile;
-  outfile = wandio_wcreate("/scratch/kafka/results/wio_view.txt",WANDIO_COMPRESS_NONE, 0, O_CREAT);
-  if(bgpview_io_print(outfile, view) != 0)
-          {
-            fprintf(stderr, "ERROR: Failed to write view to file\n");
-          }
-  wandio_wdestroy(outfile);*/
+
   // compute arrival delay
   STATE->arrival_delay = zclock_time()/1000 - bgpview_get_time(view);
 
@@ -438,83 +430,6 @@ int bvc_visibility_process_view(bvc_t *consumer, uint8_t interests,
     {
       return -1;
     }
-  char pfxstr[4096];
-  char pathstr[4096];
-  char peer_str[4096];
-  bgpstream_as_path_seg_t *orig_seg = NULL;
-  char orig_str[4096] = "";
-  bgpstream_peer_sig_t *ps;
-  bgpstream_pfx_t *pfx;
-  bgpstream_as_path_t *path;
-
-  /*fout = fopen("/scratch/kafka/results/my_views.txt","w");
-
-  uint32_t mtime = bgpview_get_time(view);
-
-  fprintf(fout,
-                "# View %"PRIu32"\n"
-                "# IPv4 Prefixes: %d\n"
-                "# IPv6 Prefixes: %d\n",
-                mtime,
-                bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),
-                bgpview_v6pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));*/
-
-  int n_paths=0;
-  //int id=bgpview_get_time(view);
-    for(bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ACTIVE);
-        bgpview_iter_has_more_pfx(it);
-        bgpview_iter_next_pfx(it))
-    {
-    	pfx = bgpview_iter_pfx_get_pfx(it);
-    	bgpstream_pfx_snprintf(pfxstr,INET6_ADDRSTRLEN+3,pfx);
-
-    	for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-            bgpview_iter_pfx_has_more_peer(it);
-            bgpview_iter_pfx_next_peer(it))
-    	{
-
-    		ps = bgpview_iter_peer_get_sig(it);
-        	bgpstream_addr_ntop(peer_str, INET6_ADDRSTRLEN, &ps->peer_ip_addr);
-
-
-         	path = bgpview_iter_pfx_peer_get_as_path(it);
-        	orig_seg = bgpstream_as_path_get_origin_seg(path);
-
-        	bgpstream_as_path_seg_snprintf(orig_str, 4096, orig_seg);
-
-         	bgpstream_as_path_snprintf(pathstr,4096,path);
-        	bgpstream_as_path_destroy(path);
-
-        	/*fprintf(fout,
-        			"%d|"
-        			"%s|"
-        			"%s|"
-        			"%d|"
-        			"%s|"
-        			"%s|"
-        			"%s\n",
-        			id,
-					pfxstr,
-					ps->collector_str,
-					ps->peer_asnumber,
-					peer_str,
-					pathstr,
-					orig_str);*/
-
-        	n_paths++;
-
-        }
-    }
-    printf("pfx v4:%d\n",bgpview_v4pfx_cnt(view,BGPVIEW_FIELD_ACTIVE));
-
-    printf("pfx v6:%d\n",bgpview_v6pfx_cnt(view,BGPVIEW_FIELD_ACTIVE));
-
-    printf("pfx cnt:%d\n",bgpview_pfx_cnt(view,BGPVIEW_FIELD_ACTIVE));
-
-    printf("peer cnt:%d\n",bgpview_peer_cnt(view,BGPVIEW_FIELD_ACTIVE));
-
-    printf("paths cnt:%d\n",n_paths);
-
 
   /* find the full-feed peers */
   find_ff_peers(consumer, it);
@@ -537,6 +452,7 @@ int bvc_visibility_process_view(bvc_t *consumer, uint8_t interests,
   STATE->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
 
   STATE->processing_time = STATE->processed_delay - STATE->arrival_delay;
+  
   /* dump metrics and tables */
   dump_gen_metrics(consumer);
 

@@ -55,9 +55,13 @@ struct bgpview_io_kafka_client {
 	  /** Error status */
 	  bgpview_io_err_t err;
 
-	  uint32_t viewid;
-
 	  kafka_data_t kafka_config;
+
+	  kafka_view_data_t view_data;
+
+  /* Historical View*/
+	bgpview_t *viewH;
+
 };
 
 /** @} */

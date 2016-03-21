@@ -1132,7 +1132,10 @@ bgpview_iter_pfx_deactivate_peer(bgpview_iter_t *iter);
  * @return a pointer to the view if successful, NULL otherwise
  */
 
-bgpview_t* bgpview_clone_view(bgpview_t* view);
+int bgpview_clone_view(bgpview_t* view,bgpview_t** cloned_view);
+
+bgpstream_as_path_store_path_id_t
+bgpview_iter_pfx_peer_get_as_path_id(bgpview_iter_t *iter);
 
 
 #endif /* __BGPVIEW_H */
