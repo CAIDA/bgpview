@@ -339,21 +339,16 @@ int bvc_kafkasender_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *
 
 
 	time_t rawtime;
-	struct tm * timeinfo;
 	time(&rawtime);
-	timeinfo = localtime(&rawtime);
 
     time_t start, end;
-    int length;
 
     time(&start);
 
 	bgpview_io_kafka_client_send_view(state->client,view,state->metrics,NULL);
 
 	time(&rawtime);
-	timeinfo = localtime(&rawtime);
 	time(&end);
-	length = difftime(end,start);
 
 
 	// set remaining timeseries metrics

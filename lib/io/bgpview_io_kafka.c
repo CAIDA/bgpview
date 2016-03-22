@@ -144,7 +144,7 @@ static int change_consumer_offset_partition(rd_kafka_topic_t *rkt, int partition
   int err;
 
 	if ((err = rd_kafka_seek(rkt, partition, offset, 1000))){
-		fprintf(stderr,"consume_seek(%s, %"PRId32", %"PRId64") "
+		fprintf(stderr,"consume_seek(%s, %d, %ld) "
 			  "failed: %s\n",
 			  rd_kafka_topic_name(rkt), partition, offset,
 			  rd_kafka_err2str(err));
@@ -288,7 +288,6 @@ static void *row_serialize(char* operation,bgpview_iter_t *it, unsigned int *len
 	uint8_t *path_data;
 	uint16_t ndata;
 	void *buf;
-	int size;
 	int peers_cnt = bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
 
 	BGPRow row = BGPROW__INIT;
@@ -321,7 +320,6 @@ static void *row_serialize(char* operation,bgpview_iter_t *it, unsigned int *len
 
 		  peerid=bgpview_iter_peer_get_peer_id(it);
 
-		  size = sizeof(bgpstream_peer_id_t);
 		  cells[i] = malloc (sizeof (BGPCell));
 		  bgpcell__init(cells[i]);
 		  cells[i]->peerid=peerid;
@@ -488,7 +486,6 @@ static int recv_metadata(kafka_data_t *src, kafka_view_data_t *kafka_data){
 
   int i,nf=0;
   long int offset;
-  uint32_t view_id;
 
   offset=get_offset(*src,src->metadata_topic,src->metadata_partition);
 
@@ -521,7 +518,6 @@ static int recv_metadata(kafka_data_t *src, kafka_view_data_t *kafka_data){
 			  break;
 		}
 		  src->metadata_offset++;
-		  view_id=num_elements(rkmessage->payload,2);
 		  if(strstr(rkmessage->payload,"DIFF") == NULL){
 			  nf=0;
 			  kafka_data->pfxs_paths_sync_partition=num_elements(rkmessage->payload,6);
@@ -564,9 +560,7 @@ static int send_peers(kafka_data_t dest, bgpview_iter_t *it,bgpview_t *view,
 
 
   time_t rawtime;
-  struct tm * timeinfo;
   time ( &rawtime );
-  timeinfo = localtime ( &rawtime );
 
   rd_kafka_topic_t *rkt=dest.peers_rkt;
   rd_kafka_t *rk = dest.peers_rk;
@@ -876,9 +870,7 @@ static int recv_peers(kafka_data_t src, bgpview_iter_t *iter,
 static int send_pfxs_paths(kafka_data_t dest, kafka_performance_t *metrics, bgpview_iter_t *it, bgpview_io_filter_cb_t *cb){
 
 	  time_t rawtime;
-	  struct tm * timeinfo;
 	  time ( &rawtime );
-	  timeinfo = localtime ( &rawtime );
 
 
 	  rd_kafka_topic_t *rkt=dest.pfxs_paths_rkt;
@@ -901,7 +893,6 @@ static int send_pfxs_paths(kafka_data_t dest, kafka_performance_t *metrics, bgpv
 			rd_kafka_poll(rk, 0); //Poll to handle delivery reports
 	  }
 
-	  int string_size=0;
 
 	  //BGPCell **cells;
 	  //uint8_t *path_data;
@@ -911,7 +902,6 @@ static int send_pfxs_paths(kafka_data_t dest, kafka_performance_t *metrics, bgpv
 	      bgpview_iter_has_more_pfx(it);
 	      bgpview_iter_next_pfx(it))
 	    {
-		  string_size=0;
 	      if(cb != NULL)
 	        {
 	          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX)) < 0)
@@ -971,7 +961,6 @@ static int send_pfxs_paths(kafka_data_t dest, kafka_performance_t *metrics, bgpv
 
 
 	time ( &rawtime );
-	timeinfo = localtime ( &rawtime );
 
 	return 0;
 

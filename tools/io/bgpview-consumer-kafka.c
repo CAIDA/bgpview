@@ -396,7 +396,6 @@ int main(int argc, char **argv)
   timeseries_backend_t *backend = NULL;
 
   const char *server_uri = NULL;
-  const char *identity = NULL;
 
   uint8_t interests = 0;
   bgpview_io_kafka_client_t *client = NULL;
@@ -469,10 +468,6 @@ int main(int argc, char **argv)
 	      return -1;
 	    }
 	  consumer_cmds[consumer_cmds_cnt++] = optarg;
-	  break;
-
-	case 'n':
-	  identity = optarg;
 	  break;
 
 	case 's':

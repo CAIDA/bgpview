@@ -58,8 +58,8 @@ libbgpview_io_la_SOURCES = 		\
 	bgpview_io_kafka_row.pb.c	\
 	bgpview_io_kafka_row.pb.h	\
 	bgpview_io_kafka_client.h	\
-	bgpview_io_kafka_client.c	\	
-	bgpview_io_kafka_client_int.h	
+	bgpview_io_kafka_client.c	\
+	bgpview_io_kafka_client_int.h
 
 libbgpview_io_la_LIBADD =
 
@@ -67,4 +67,3 @@ libbgpview_io_la_LIBADD =
 ACLOCAL_AMFLAGS = -I m4
 
 CLEANFILES = *~
-
