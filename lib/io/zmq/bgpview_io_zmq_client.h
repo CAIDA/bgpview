@@ -25,9 +25,8 @@
 #define __BGPVIEW_IO_CLIENT_H
 
 #include <stdint.h>
-
 #include "bgpview_io.h"
-#include "bgpview_io_common.h"
+#include "bgpview.h"
 
 /** @file
  *
@@ -43,20 +42,20 @@
  * @{ */
 
 /** Default URI for the server -> client connection */
-#define BGPVIEW_IO_CLIENT_SERVER_URI_DEFAULT "tcp://127.0.0.1:6300"
+#define BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT "tcp://127.0.0.1:6300"
 
 /** Default URI for the server -> client pub/sub connection */
-#define BGPVIEW_IO_CLIENT_SERVER_SUB_URI_DEFAULT "tcp://127.0.0.1:6301"
+#define BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT "tcp://127.0.0.1:6301"
 
 /** Default time that the client will wait for outstanding messages when
     shutting down (in milliseconds) */
-#define BGPVIEW_IO_CLIENT_SHUTDOWN_LINGER_DEFAULT 600000
+#define BGPVIEW_IO_ZMQ_CLIENT_SHUTDOWN_LINGER_DEFAULT 600000
 
 /** Default request timeout */
-#define BGPVIEW_IO_CLIENT_REQUEST_TIMEOUT_DEFAULT 300000
+#define BGPVIEW_IO_ZMQ_CLIENT_REQUEST_TIMEOUT_DEFAULT 300000
 
 /** Default request retry count  */
-#define BGPVIEW_IO_CLIENT_REQUEST_RETRIES_DEFAULT 3
+#define BGPVIEW_IO_ZMQ_CLIENT_REQUEST_RETRIES_DEFAULT 3
 
 /** @} */
 
@@ -65,7 +64,7 @@
  *
  * @{ */
 
-typedef struct bgpview_io_client bgpview_io_client_t;
+typedef struct bgpview_io_zmq_client bgpview_io_zmq_client_t;
 
 /** @} */
 
@@ -82,9 +81,9 @@ typedef struct bgpview_io_client bgpview_io_client_t;
  * @{ */
 
 typedef enum {
-  BGPVIEW_IO_CLIENT_RECV_MODE_NONBLOCK = 0,
-  BGPVIEW_IO_CLIENT_RECV_MODE_BLOCK    = 1,
-} bgpview_io_client_recv_mode_t;
+  BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_NONBLOCK = 0,
+  BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_BLOCK    = 1,
+} bgpview_io_zmq_client_recv_mode_t;
 
 /** @} */
 
@@ -98,27 +97,21 @@ typedef enum {
  * @note calling a producer function or registering a consumer callback for an
  * intent/interest not registered will trigger an assert.
  */
-bgpview_io_client_t *bgpview_io_client_init(uint8_t interests, uint8_t intents);
+bgpview_io_zmq_client_t *
+bgpview_io_zmq_client_init(uint8_t interests, uint8_t intents);
 
 /** Set the user data that will provided to each callback function */
-void bgpview_io_client_set_cb_userdata(bgpview_io_client_t *client,
-                                       void *user);
+void
+bgpview_io_zmq_client_set_cb_userdata(bgpview_io_zmq_client_t *client,
+                                      void *user);
 
 /** Start the given bgpview client instance
  *
  * @param client       pointer to a bgpview client instance to start
  * @return 0 if the client started successfully, -1 otherwise.
  */
-int bgpview_io_client_start(bgpview_io_client_t *client);
-
-/** Prints the error status (if any) to standard error and clears the error
- * state
- *
- * @param client       pointer to bgpview client instance to print error for
- */
-void bgpview_io_client_perr(bgpview_io_client_t *client);
-
-/** @todo add other error functions if needed (is_err, get_err) */
+int
+bgpview_io_zmq_client_start(bgpview_io_zmq_client_t *client);
 
 /** Queue the given View for transmission to the server
  *
@@ -133,7 +126,8 @@ void bgpview_io_client_perr(bgpview_io_client_t *client);
  * @note The actual transmission may happen asynchronously, so a return from
  * this function simply means that the view was queued for transmission.
  */
-int bgpview_io_client_send_view(bgpview_io_client_t *client,
+int
+bgpview_io_zmq_client_send_view(bgpview_io_zmq_client_t *client,
                                 bgpview_t *view,
                                 bgpview_io_filter_cb_t *cb);
 
@@ -156,9 +150,10 @@ int bgpview_io_client_send_view(bgpview_io_client_t *client,
  * bgpview_create, and if it is being re-used, it *must* have been
  * cleared using bgpview_clear.
  */
-int bgpview_io_client_recv_view(bgpview_io_client_t *client,
-				bgpview_io_client_recv_mode_t blocking,
-				bgpview_t *view,
+int
+bgpview_io_zmq_client_recv_view(bgpview_io_zmq_client_t *client,
+                                bgpview_io_zmq_client_recv_mode_t blocking,
+                                bgpview_t *view,
                                 bgpview_io_filter_peer_cb_t *peer_cb,
                                 bgpview_io_filter_pfx_cb_t *pfx_cb,
                                 bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
@@ -167,13 +162,15 @@ int bgpview_io_client_recv_view(bgpview_io_client_t *client,
  *
  * @param client       pointer to the bgpview client instance to stop
  */
-void bgpview_io_client_stop(bgpview_io_client_t *client);
+void
+bgpview_io_zmq_client_stop(bgpview_io_zmq_client_t *client);
 
 /** Free the given bgpview client instance
  *
  * @param client       pointer to the bgpview client instance to free
  */
-void bgpview_io_client_free(bgpview_io_client_t *client);
+void
+bgpview_io_zmq_client_free(bgpview_io_zmq_client_t *client);
 
 /** Set the URI for the client to connect to the server on
  *
@@ -181,8 +178,9 @@ void bgpview_io_client_free(bgpview_io_client_t *client);
  * @param uri           pointer to a uri string
  * @return 0 if successful, -1 otherwise
  */
-int bgpview_io_client_set_server_uri(bgpview_io_client_t *client,
-				     const char *uri);
+int
+bgpview_io_zmq_client_set_server_uri(bgpview_io_zmq_client_t *client,
+                                     const char *uri);
 
 /** Set the URI for the client to subscribe to server table messages on
  *
@@ -190,7 +188,8 @@ int bgpview_io_client_set_server_uri(bgpview_io_client_t *client,
  * @param uri           pointer to a uri string
  * @return 0 if successful, -1 otherwise
  */
-int bgpview_io_client_set_server_sub_uri(bgpview_io_client_t *client,
+int
+bgpview_io_zmq_client_set_server_sub_uri(bgpview_io_zmq_client_t *client,
                                          const char *uri);
 
 /** Set the heartbeat interval
@@ -198,10 +197,11 @@ int bgpview_io_client_set_server_sub_uri(bgpview_io_client_t *client,
  * @param client        pointer to a bgpview client instance to update
  * @param interval_ms   time in ms between heartbeats
  *
- * @note defaults to BGPVIEW_IO_HEARTBEAT_INTERVAL_DEFAULT
+ * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT
  */
-void bgpview_io_client_set_heartbeat_interval(bgpview_io_client_t *client,
-					      uint64_t interval_ms);
+void
+bgpview_io_zmq_client_set_heartbeat_interval(bgpview_io_zmq_client_t *client,
+                                             uint64_t interval_ms);
 
 /** Set the heartbeat liveness
  *
@@ -209,60 +209,66 @@ void bgpview_io_client_set_heartbeat_interval(bgpview_io_client_t *client,
  * @param beats         number of heartbeats that can go by before a client is
  *                      declared dead
  *
- * @note defaults to BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT
+ * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT
  */
-void bgpview_io_client_set_heartbeat_liveness(bgpview_io_client_t *client,
-					   int beats);
+void
+bgpview_io_zmq_client_set_heartbeat_liveness(bgpview_io_zmq_client_t *client,
+                                             int beats);
 
 /** Set the minimum reconnect time
  *
  * @param client        pointer to a bgpview client instance to update
  * @param time          min time in ms to wait before reconnecting to server
  *
- * @note defaults to BGPVIEW_IO_RECONNECT_INTERVAL_MIN
+ * @note defaults to BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN
  */
-void bgpview_io_client_set_reconnect_interval_min(bgpview_io_client_t *client,
-					       uint64_t reconnect_interval_min);
+void
+bgpview_io_zmq_client_set_reconnect_interval_min(bgpview_io_zmq_client_t *client,
+                                                 uint64_t reconnect_interval_min);
 
 /** Set the maximum reconnect time
  *
  * @param client        pointer to a bgpview client instance to update
  * @param time          max time in ms to wait before reconnecting to server
  *
- * @note defaults to BGPVIEW_IO_RECONNECT_INTERVAL_MAX
+ * @note defaults to BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX
  */
-void bgpview_io_client_set_reconnect_interval_max(bgpview_io_client_t *client,
-					       uint64_t reconnect_interval_max);
+void
+bgpview_io_zmq_client_set_reconnect_interval_max(bgpview_io_zmq_client_t *client,
+                                                 uint64_t reconnect_interval_max);
 
 /** Set the amount of time to wait for outstanding requests on shutdown
  *
  * @param client        pointer to a bgpview client instance to update
  * @param linger        time in ms to wait for outstanding requests
  *
- * @note defaults to BGPVIEW_IO_CLIENT_SHUTDOWN_LINGER_DEFAULT
+ * @note defaults to BGPVIEW_IO_ZMQ_CLIENT_SHUTDOWN_LINGER_DEFAULT
  */
-void bgpview_io_client_set_shutdown_linger(bgpview_io_client_t *client,
-					   uint64_t linger);
+void
+bgpview_io_zmq_client_set_shutdown_linger(bgpview_io_zmq_client_t *client,
+                                          uint64_t linger);
 
 /** Set timeout for a single request
  *
  * @param client        pointer to a client instance to update
  * @param timeout_ms    time in msec before request is retried
  *
- * @note defaults to BGPVIEW_IO_CLIENT_REQUEST_TIMEOUT_DEFAULT
+ * @note defaults to BGPVIEW_IO_ZMQ_CLIENT_REQUEST_TIMEOUT_DEFAULT
  */
-void bgpview_io_client_set_request_timeout(bgpview_io_client_t *client,
-					   uint64_t timeout_ms);
+void
+bgpview_io_zmq_client_set_request_timeout(bgpview_io_zmq_client_t *client,
+                                          uint64_t timeout_ms);
 
 /** Set the number of retries before a request is abandoned
  *
  * @param client        pointer to a client instance to update
  * @param retry_cnt     number of times to retry a request before giving up
  *
- * @note defaults to BGPVIEW_IO_CLIENT_REQUEST_RETRIES_DEFAULT
+ * @note defaults to BGPVIEW_IO_ZMQ_CLIENT_REQUEST_RETRIES_DEFAULT
  */
-void bgpview_io_client_set_request_retries(bgpview_io_client_t *client,
-					   int retry_cnt);
+void
+bgpview_io_zmq_client_set_request_retries(bgpview_io_zmq_client_t *client,
+                                          int retry_cnt);
 
 /** Set the identity string for this client
  *
@@ -274,7 +280,8 @@ void bgpview_io_client_set_request_retries(bgpview_io_client_t *client,
  * connect to the server. This may/will cause problems if/when a server goes
  * away. Any pending transactions may be lost. Please set an ID.
  */
-int bgpview_io_client_set_identity(bgpview_io_client_t *client,
-				   const char *identity);
+int
+bgpview_io_zmq_client_set_identity(bgpview_io_zmq_client_t *client,
+                                   const char *identity);
 
 #endif

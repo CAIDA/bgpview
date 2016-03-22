@@ -22,22 +22,17 @@
  */
 
 #include "config.h"
-
+#include "bgpview_io_kafka_client.h"
+#include "bgpview.h"
+#include "bgpview_consumer_manager.h"
+#include "config.h"
+#include "utils.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>       /* time */
-
-/* this must be all we include from bgpview */
-#include "bgpview_io_kafka_client.h"
-#include "bgpview.h"
-#include "bgpview_io_common.h"
-#include "bgpview_consumer_manager.h"
-
-#include "config.h"
-#include "utils.h"
+#include <time.h>
 
 static bgpview_consumer_manager_t *manager = NULL;
 static timeseries_t *timeseries = NULL;
@@ -583,7 +578,6 @@ int main(int argc, char **argv)
   if(server_uri != NULL &&
 		  bgpview_io_kafka_client_set_broker_addresses(client, server_uri) != 0)
     {
-      bgpview_io_kafka_client_perr(client);
       goto err;
     }
   fprintf(stderr, "done\n");
@@ -627,8 +621,6 @@ int main(int argc, char **argv)
 
   fprintf(stderr, "INFO: Shutting down...\n");
 
-  bgpview_io_kafka_client_perr(client);
-
   /* cleanup */
   filters_destroy();
   bgpview_io_kafka_client_free(client);
@@ -647,7 +639,6 @@ int main(int argc, char **argv)
  err:
   filters_destroy();
   if(client != NULL) {
-    bgpview_io_kafka_client_perr(client);
     bgpview_io_kafka_client_free(client);
   }
   if(metric_prefix !=NULL)

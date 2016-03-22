@@ -21,13 +21,11 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** @todo this should all use the bgpview error framework */
-
-#include "bgpview_io_store.h"
-
-#include "bgpview_io_server_int.h"
+#include "bgpview_io_zmq_store.h"
+#include "bgpview_io_zmq_server_int.h"
+#include "bgpview_io_zmq_int.h"
+#include "bgpview_consumer_manager.h"
 #include "bgpview.h"
-
 #include "bgpstream_utils_str_set.h"
 #include "bgpstream_utils_id_set.h"
 #include "bgpstream_utils_peer_sig_map.h"
@@ -37,24 +35,24 @@
 #define WDW_ITEM_TIME   (60*5)
 #define WDW_DURATION    WDW_LEN * WDW_ITEM_TIME
 
-#define BGPVIEW_IO_STORE_BGPVIEW_TIMEOUT 3600
-#define BGPVIEW_IO_STORE_MAX_PEERS_CNT   1024
+#define BGPVIEW_IO_ZMQ_STORE_BGPVIEW_TIMEOUT 3600
+#define BGPVIEW_IO_ZMQ_STORE_MAX_PEERS_CNT   1024
 
 
 #define SERVER_STORE_METRIC_FORMAT "%s.meta.bgpview.server.store"
 
-#define DUMP_METRIC(metric_prefix, value, time, fmt, ...)                     \
-  do {                                                                        \
+#define DUMP_METRIC(metric_prefix, value, time, fmt, ...)               \
+  do {                                                                  \
     fprintf(stdout, SERVER_STORE_METRIC_FORMAT"."fmt" %"PRIu64" %"PRIu32"\n", \
-            metric_prefix, __VA_ARGS__, value, time);                         \
-  } while(0)                                                                  \
+            metric_prefix, __VA_ARGS__, value, time);                   \
+  } while(0)                                                            \
 
 
 
-#define VIEW_GET_SVIEW(store, viewp)                                     \
+#define VIEW_GET_SVIEW(store, viewp)                                    \
   (store->sviews[                                                       \
                  (store->sviews_first_idx +                             \
-                  ((bgpview_get_time(viewp)                     \
+                  ((bgpview_get_time(viewp)                             \
                     - store->sviews_first_time) / WDW_ITEM_TIME))       \
                  % WDW_LEN                                              \
                                                                         ])
@@ -125,36 +123,36 @@ typedef struct store_view {
 
 } store_view_t;
 
-KHASH_INIT(strclientstatus, char*, bgpview_io_server_client_info_t , 1,
+KHASH_INIT(strclientstatus, char*, bgpview_io_zmq_server_client_info_t , 1,
 	   kh_str_hash_func, kh_str_hash_equal)
 typedef khash_t(strclientstatus) clientinfo_map_t;
 
-struct bgpview_io_store {
-  /** BGPView Server handle */
-  bgpview_io_server_t *server;
+                                 struct bgpview_io_zmq_store {
+                                   /** BGPView Server handle */
+                                   bgpview_io_zmq_server_t *server;
 
-  /** Circular buffer of views */
-  store_view_t **sviews;
+                                   /** Circular buffer of views */
+                                   store_view_t **sviews;
 
-  /** Number of views in the circular buffer */
-  int sviews_cnt;
+                                   /** Number of views in the circular buffer */
+                                   int sviews_cnt;
 
-  /** The index of the first (oldest) view */
-  uint32_t sviews_first_idx;
+                                   /** The index of the first (oldest) view */
+                                   uint32_t sviews_first_idx;
 
-  /** The time of the first (oldest) view */
-  uint32_t sviews_first_time;
+                                   /** The time of the first (oldest) view */
+                                   uint32_t sviews_first_time;
 
-  /** active_clients contains, for each registered/active client (i.e. those
-   *  that are currently connected) its status.*/
-  clientinfo_map_t *active_clients;
+                                   /** active_clients contains, for each registered/active client (i.e. those
+                                    *  that are currently connected) its status.*/
+                                   clientinfo_map_t *active_clients;
 
-  /** Shared peersign table (each sview->view borrows a reference to this) */
-  bgpstream_peer_sig_map_t *peersigns;
+                                   /** Shared peersign table (each sview->view borrows a reference to this) */
+                                   bgpstream_peer_sig_map_t *peersigns;
 
-  /** Shared AS Path Store (each sview->view borrows a reference to this) */
-  bgpstream_as_path_store_t *pathstore;
-};
+                                   /** Shared AS Path Store (each sview->view borrows a reference to this) */
+                                   bgpstream_as_path_store_t *pathstore;
+                                 };
 
 enum {
   WINDOW_TIME_EXCEEDED,
@@ -183,7 +181,7 @@ static void store_view_destroy(store_view_t *sview)
   free(sview);
 }
 
-store_view_t *store_view_create(bgpview_io_store_t *store, int id)
+store_view_t *store_view_create(bgpview_io_zmq_store_t *store, int id)
 {
   store_view_t *sview;
   if((sview = malloc_zero(sizeof(store_view_t))) == NULL)
@@ -224,7 +222,7 @@ store_view_t *store_view_create(bgpview_io_store_t *store, int id)
   return NULL;
 }
 
-static store_view_t *store_view_clear(bgpview_io_store_t *store,
+static store_view_t *store_view_clear(bgpview_io_zmq_store_t *store,
 				      store_view_t *sview)
 {
   int i, idx;
@@ -272,11 +270,11 @@ static store_view_t *store_view_clear(bgpview_io_store_t *store,
   return sview;
 }
 
-static int store_view_completion_check(bgpview_io_store_t *store,
+static int store_view_completion_check(bgpview_io_zmq_store_t *store,
                                        store_view_t *sview)
 {
   khiter_t k;
-  bgpview_io_server_client_info_t *client;
+  bgpview_io_zmq_server_client_info_t *client;
 
   for (k = kh_begin(store->active_clients);
        k != kh_end(store->active_clients); ++k)
@@ -303,7 +301,7 @@ static int store_view_completion_check(bgpview_io_store_t *store,
   return 1;
 }
 
-static int store_view_remove(bgpview_io_store_t *store, store_view_t *sview)
+static int store_view_remove(bgpview_io_zmq_store_t *store, store_view_t *sview)
 {
   /* slide the window? */
   /* only if SVIEW_TIME(sview) == first_time */
@@ -322,12 +320,12 @@ static int store_view_remove(bgpview_io_store_t *store, store_view_t *sview)
   return 0;
 }
 
-static int dispatcher_run(bgpview_io_store_t *store,
+static int dispatcher_run(bgpview_io_zmq_store_t *store,
                           store_view_t *sview,
                           completion_trigger_t trigger)
 {
 #if 0
-  bgpstream_peer_id_t valid_peers[BGPVIEW_IO_STORE_MAX_PEERS_CNT];
+  bgpstream_peer_id_t valid_peers[BGPVIEW_IO_ZMQ_STORE_MAX_PEERS_CNT];
   int valid_peers_cnt;
 #endif
   int dispatch_interests = 0;
@@ -393,12 +391,12 @@ static int dispatcher_run(bgpview_io_store_t *store,
 
   DUMP_METRIC(store->server->metric_prefix,
               (uint64_t)bgpview_peer_cnt(sview->view,
-						 BGPVIEW_FIELD_ACTIVE),
+                                         BGPVIEW_FIELD_ACTIVE),
               SVIEW_TIME(sview),
               "%s", "active_peers_cnt");
   DUMP_METRIC(store->server->metric_prefix,
               (uint64_t)bgpview_peer_cnt(sview->view,
-						 BGPVIEW_FIELD_INACTIVE),
+                                         BGPVIEW_FIELD_INACTIVE),
               SVIEW_TIME(sview),
 	      "%s", "inactive_peers_cnt");
 
@@ -407,7 +405,7 @@ static int dispatcher_run(bgpview_io_store_t *store,
               SVIEW_TIME(sview),
               "%s", "peersigns_hash_size");
 
-    DUMP_METRIC(store->server->metric_prefix,
+  DUMP_METRIC(store->server->metric_prefix,
               (uint64_t)bgpstream_as_path_store_get_size(store->pathstore),
               SVIEW_TIME(sview),
               "%s", "pathstore_size");
@@ -441,12 +439,12 @@ static int dispatcher_run(bgpview_io_store_t *store,
 
   DUMP_METRIC(store->server->metric_prefix,
               (uint64_t)bgpview_v4pfx_cnt(sview->view,
-						  BGPVIEW_FIELD_ACTIVE),
+                                          BGPVIEW_FIELD_ACTIVE),
               SVIEW_TIME(sview),
               "views.%d.%s", sview->id, "v4pfxs_cnt");
   DUMP_METRIC(store->server->metric_prefix,
               (uint64_t)bgpview_v6pfx_cnt(sview->view,
-						  BGPVIEW_FIELD_ACTIVE),
+                                          BGPVIEW_FIELD_ACTIVE),
               SVIEW_TIME(sview),
               "views.%d.%s", sview->id, "v6pfxs_cnt");
 
@@ -461,8 +459,8 @@ static int dispatcher_run(bgpview_io_store_t *store,
               "views.%d.%s", sview->id, "time_created");
 
   /* now publish the view */
-  if(bgpview_io_server_publish_view(store->server, sview->view,
-                                    dispatch_interests) != 0)
+  if(bgpview_io_zmq_server_publish_view(store->server, sview->view,
+                                        dispatch_interests) != 0)
     {
       return -1;
     }
@@ -477,7 +475,7 @@ static int dispatcher_run(bgpview_io_store_t *store,
   return 0;
 }
 
-static int completion_check(bgpview_io_store_t *store, store_view_t *sview,
+static int completion_check(bgpview_io_zmq_store_t *store, store_view_t *sview,
                             completion_trigger_t trigger)
 {
   int to_remove = 0;
@@ -515,7 +513,7 @@ static int completion_check(bgpview_io_store_t *store, store_view_t *sview,
     }
 
   // DEBUG information about the current status
-  // dump_bgpview_io_store_cc_status(store, bgp_view, ts, trigger, remove_view);
+  // dump_bgpview_io_zmq_store_cc_status(store, bgp_view, ts, trigger, remove_view);
 
   // TODO: documentation
   if(dispatcher_run(store, sview, trigger) != 0)
@@ -532,7 +530,7 @@ static int completion_check(bgpview_io_store_t *store, store_view_t *sview,
   return 0;
 }
 
-static int store_view_get(bgpview_io_store_t *store, uint32_t new_time,
+static int store_view_get(bgpview_io_zmq_store_t *store, uint32_t new_time,
                           store_view_t **sview_p)
 {
   int i, idx, idx_offset;
@@ -632,7 +630,7 @@ static int store_view_get(bgpview_io_store_t *store, uint32_t new_time,
   return WINDOW_TIME_VALID;
 }
 
-static void store_views_dump(bgpview_io_store_t *store)
+static void store_views_dump(bgpview_io_zmq_store_t *store)
 {
   int i, idx;
 
@@ -660,14 +658,14 @@ static void store_views_dump(bgpview_io_store_t *store)
 
 /* ========== PROTECTED FUNCTIONS ========== */
 
-bgpview_io_store_t *bgpview_io_store_create(bgpview_io_server_t *server,
-					    int window_len)
+bgpview_io_zmq_store_t *bgpview_io_zmq_store_create(bgpview_io_zmq_server_t *server,
+                                                    int window_len)
 {
-  bgpview_io_store_t *store;
+  bgpview_io_zmq_store_t *store;
   int i;
 
   // allocate memory for the structure
-  if((store = malloc_zero(sizeof(bgpview_io_store_t))) == NULL)
+  if((store = malloc_zero(sizeof(bgpview_io_zmq_store_t))) == NULL)
     {
       return NULL;
     }
@@ -716,7 +714,7 @@ bgpview_io_store_t *bgpview_io_store_create(bgpview_io_server_t *server,
  err:
   if(store != NULL)
     {
-      bgpview_io_store_destroy(store);
+      bgpview_io_zmq_store_destroy(store);
     }
   return NULL;
 }
@@ -726,7 +724,7 @@ static void str_free(char *str)
   free(str);
 }
 
-void bgpview_io_store_destroy(bgpview_io_store_t *store)
+void bgpview_io_zmq_store_destroy(bgpview_io_zmq_store_t *store)
 {
   int i;
 
@@ -767,8 +765,8 @@ void bgpview_io_store_destroy(bgpview_io_store_t *store)
   free(store);
 }
 
-int bgpview_io_store_client_connect(bgpview_io_store_t *store,
-                                    bgpview_io_server_client_info_t *client)
+int bgpview_io_zmq_store_client_connect(bgpview_io_zmq_store_t *store,
+                                        bgpview_io_zmq_server_client_info_t *client)
 {
   khiter_t k;
   int khret;
@@ -796,8 +794,8 @@ int bgpview_io_store_client_connect(bgpview_io_store_t *store,
 
 
 
-int bgpview_io_store_client_disconnect(bgpview_io_store_t *store,
-                                       bgpview_io_server_client_info_t *client)
+int bgpview_io_zmq_store_client_disconnect(bgpview_io_zmq_store_t *store,
+                                           bgpview_io_zmq_server_client_info_t *client)
 {
   int i;
   khiter_t k;
@@ -825,8 +823,8 @@ int bgpview_io_store_client_disconnect(bgpview_io_store_t *store,
   return 0;
 }
 
-bgpview_t * bgpview_io_store_get_view(bgpview_io_store_t *store,
-                                              uint32_t time)
+bgpview_t * bgpview_io_zmq_store_get_view(bgpview_io_zmq_store_t *store,
+                                          uint32_t time)
 {
   store_view_t *sview = NULL;
   int ret;
@@ -853,9 +851,9 @@ bgpview_t * bgpview_io_store_get_view(bgpview_io_store_t *store,
   return sview->view;
 }
 
-int bgpview_io_store_view_updated(bgpview_io_store_t *store,
-                                  bgpview_t *view,
-                                  bgpview_io_server_client_info_t *client)
+int bgpview_io_zmq_store_view_updated(bgpview_io_zmq_store_t *store,
+                                      bgpview_t *view,
+                                      bgpview_io_zmq_server_client_info_t *client)
 {
   store_view_t * sview;
   int i;
@@ -881,10 +879,10 @@ int bgpview_io_store_view_updated(bgpview_io_store_t *store,
 }
 
 #if 0
-int bgpview_io_store_prefix_table_row(bgpview_io_store_t *store,
-                                      bgpview_pfx_table_t *table,
-                                      bgpstream_pfx_t *pfx,
-                                      bgpview_pfx_peer_info_t *peer_infos)
+int bgpview_io_zmq_store_prefix_table_row(bgpview_io_zmq_store_t *store,
+                                          bgpview_pfx_table_t *table,
+                                          bgpstream_pfx_t *pfx,
+                                          bgpview_pfx_peer_info_t *peer_infos)
 {
   store_view_t *sview;
 
@@ -921,7 +919,7 @@ int bgpview_io_store_prefix_table_row(bgpview_io_store_t *store,
       pfx_info = &(peer_infos[i]);
 
       if(bgpview_add_prefix(sview->view, pfx,
-                                    server_id, pfx_info->orig_asn, &view_cache) != 0)
+                            server_id, pfx_info->orig_asn, &view_cache) != 0)
         {
           return -1;
         }
@@ -948,7 +946,7 @@ int bgpview_io_store_prefix_table_row(bgpview_io_store_t *store,
 }
 #endif
 
-int bgpview_io_store_check_timeouts(bgpview_io_store_t *store)
+int bgpview_io_zmq_store_check_timeouts(bgpview_io_zmq_store_t *store)
 {
   store_view_t *sview = NULL;
   int i, idx;
@@ -966,7 +964,7 @@ int bgpview_io_store_check_timeouts(bgpview_io_store_t *store)
         }
 
       if((time_now.tv_sec - bgpview_get_time_created(sview->view))
-         > BGPVIEW_IO_STORE_BGPVIEW_TIMEOUT)
+         > BGPVIEW_IO_ZMQ_STORE_BGPVIEW_TIMEOUT)
         {
           if(completion_check(store, sview,
                               COMPLETION_TRIGGER_TIMEOUT_EXPIRED) != 0)
@@ -981,9 +979,9 @@ int bgpview_io_store_check_timeouts(bgpview_io_store_t *store)
 /* ========== DISABLED FUNCTIONS ========== */
 
 #if 0
-static void dump_bgpview_io_store_cc_status(bgpview_io_store_t *store, bgpview_t *bgp_view, uint32_t ts,
-				    bgpview_io_store_completion_trigger_t trigger,
-				    uint8_t remove_view)
+static void dump_bgpview_io_zmq_store_cc_status(bgpview_io_zmq_store_t *store, bgpview_t *bgp_view, uint32_t ts,
+                                                bgpview_io_zmq_store_completion_trigger_t trigger,
+                                                uint8_t remove_view)
 {
   time_t timer;
   char buffer[25];
@@ -995,16 +993,16 @@ static void dump_bgpview_io_store_cc_status(bgpview_io_store_t *store, bgpview_t
   fprintf(stderr,"\n[%s] CC on bgp time: %d \n", buffer, ts);
   switch(trigger)
     {
-    case BGPVIEW_IO_STORE_TABLE_END:
+    case BGPVIEW_IO_ZMQ_STORE_TABLE_END:
       fprintf(stderr,"\tReason:\t\tTABLE_END\n");
       break;
-    case BGPVIEW_IO_STORE_TIMEOUT_EXPIRED:
+    case BGPVIEW_IO_ZMQ_STORE_TIMEOUT_EXPIRED:
       fprintf(stderr,"\tReason:\t\tTIMEOUT_EXPIRED\n");
       break;
-    case BGPVIEW_IO_STORE_CLIENT_DISCONNECT:
+    case BGPVIEW_IO_ZMQ_STORE_CLIENT_DISCONNECT:
       fprintf(stderr,"\tReason:\t\tCLIENT_DISCONNECT\n");
       break;
-    case BGPVIEW_IO_STORE_WDW_EXCEEDED:
+    case BGPVIEW_IO_ZMQ_STORE_WDW_EXCEEDED:
       fprintf(stderr,"\tReason:\t\tWDW_EXCEEDED\n");
       break;
     default:
@@ -1026,13 +1024,13 @@ static void dump_bgpview_io_store_cc_status(bgpview_io_store_t *store, bgpview_t
   fprintf(stderr,"\tView removal:\t%d\n", remove_view);
   fprintf(stderr,"\tConnected clients:\t%d\n", kh_size(store->active_clients));
   fprintf(stderr,"\tts window:\t[%d,%d]\n", store->min_ts,
-	  store->min_ts + BGPVIEW_IO_STORE_TS_WDW_SIZE - BGPVIEW_IO_STORE_TS_WDW_LEN);
+	  store->min_ts + BGPVIEW_IO_ZMQ_STORE_TS_WDW_SIZE - BGPVIEW_IO_ZMQ_STORE_TS_WDW_LEN);
   fprintf(stderr,"\ttimeseries size:\t%d\n", kh_size(store->bgp_timeseries));
 
   fprintf(stderr,"\n");
 }
 
-int bgpview_io_store_ts_completed_handler(bgpview_io_store_t *store, uint32_t ts)
+int bgpview_io_zmq_store_ts_completed_handler(bgpview_io_zmq_store_t *store, uint32_t ts)
 {
   // get current completed bgpview
   khiter_t k;
@@ -1045,7 +1043,7 @@ int bgpview_io_store_ts_completed_handler(bgpview_io_store_t *store, uint32_t ts
     }
   bgpview_t *bgp_view = kh_value(store->bgp_timeseries,k);
 
-  int ret = bgpview_io_store_interests_dispatcher_run(store->active_clients, bgp_view, ts);
+  int ret = bgpview_io_zmq_store_interests_dispatcher_run(store->active_clients, bgp_view, ts);
 
   // TODO: decide whether to destroy the bgp_view or not
 

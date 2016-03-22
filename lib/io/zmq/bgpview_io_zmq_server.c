@@ -22,18 +22,12 @@
  */
 
 #include "config.h"
-
-#include <stdint.h>
-#include <stdio.h>
-
-#include "bgpview_io_common_int.h"
-#include "bgpview_io_server_int.h"
-#include "bgpview_io.h"
-
+#include "bgpview_io_zmq_server_int.h"
+#include "bgpview_io_zmq_int.h"
 #include "khash.h"
 #include "utils.h"
-
-#define ERR (&server->err)
+#include <stdint.h>
+#include <stdio.h>
 
 enum {
   POLL_ITEM_CLIENT = 0,
@@ -57,9 +51,9 @@ enum {
 #define SERVER_ZMQ_IO_THREADS 3
 
 
-static void client_free(bgpview_io_server_client_t **client_p)
+static void client_free(bgpview_io_zmq_server_client_t **client_p)
 {
-  bgpview_io_server_client_t *client = *client_p;
+  bgpview_io_zmq_server_client_t *client = *client_p;
 
   if(client == NULL)
     {
@@ -80,7 +74,7 @@ static void client_free(bgpview_io_server_client_t **client_p)
 }
 
 /* because the hash calls with only the pointer, not the local ref */
-static void client_free_wrap(bgpview_io_server_client_t *client)
+static void client_free_wrap(bgpview_io_zmq_server_client_t *client)
 {
   client_free(&client);
 }
@@ -142,14 +136,14 @@ static int msg_isbinary(zmq_msg_t *msg)
   return 0;
 }
 
-static bgpview_io_server_client_t *client_init(bgpview_io_server_t *server,
+static bgpview_io_zmq_server_client_t *client_init(bgpview_io_zmq_server_t *server,
 					       zmq_msg_t *id_msg)
 {
-  bgpview_io_server_client_t *client;
+  bgpview_io_zmq_server_client_t *client;
   int khret;
   khiter_t khiter;
 
-  if((client = malloc_zero(sizeof(bgpview_io_server_client_t))) == NULL)
+  if((client = malloc_zero(sizeof(bgpview_io_zmq_server_client_t))) == NULL)
     {
       return NULL;
     }
@@ -197,10 +191,10 @@ static bgpview_io_server_client_t *client_init(bgpview_io_server_t *server,
 }
 
 /** @todo consider using something other than the hex id as the key */
-static bgpview_io_server_client_t *client_get(bgpview_io_server_t *server,
+static bgpview_io_zmq_server_client_t *client_get(bgpview_io_zmq_server_t *server,
 					      zmq_msg_t *id_msg)
 {
-  bgpview_io_server_client_t *client;
+  bgpview_io_zmq_server_client_t *client;
   khiter_t khiter;
   char *id;
 
@@ -225,8 +219,8 @@ static bgpview_io_server_client_t *client_get(bgpview_io_server_t *server,
   return client;
 }
 
-static void clients_remove(bgpview_io_server_t *server,
-			   bgpview_io_server_client_t *client)
+static void clients_remove(bgpview_io_zmq_server_t *server,
+			   bgpview_io_zmq_server_client_t *client)
 {
   khiter_t khiter;
   if((khiter = kh_get(strclient, server->clients, client->hexid)) ==
@@ -240,10 +234,10 @@ static void clients_remove(bgpview_io_server_t *server,
   kh_del(strclient, server->clients, khiter);
 }
 
-static int clients_purge(bgpview_io_server_t *server)
+static int clients_purge(bgpview_io_zmq_server_t *server)
 {
   khiter_t k;
-  bgpview_io_server_client_t *client;
+  bgpview_io_zmq_server_client_t *client;
 
   for(k = kh_begin(server->clients); k != kh_end(server->clients); ++k)
     {
@@ -259,11 +253,10 @@ static int clients_purge(bgpview_io_server_t *server)
 	  fprintf(stderr, "INFO: Removing dead client (%s)\n", client->id);
 	  fprintf(stderr, "INFO: Expiry: %"PRIu64" Time: %"PRIu64"\n",
 		  client->expiry, zclock_time());
-	  if(bgpview_io_store_client_disconnect(server->store,
+	  if(bgpview_io_zmq_store_client_disconnect(server->store,
                                                 &client->info) != 0)
 	    {
-              bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_STORE,
-                                     "Store failed to handle client disconnect");
+              fprintf(stderr, "Store failed to handle client disconnect\n");
 	      return -1;
 	    }
 	  /* the key string is actually owned by the client, dont free */
@@ -275,7 +268,7 @@ static int clients_purge(bgpview_io_server_t *server)
   return 0;
 }
 
-static void clients_free(bgpview_io_server_t *server)
+static void clients_free(bgpview_io_zmq_server_t *server)
 {
   assert(server != NULL);
   assert(server->clients != NULL);
@@ -285,11 +278,11 @@ static void clients_free(bgpview_io_server_t *server)
   server->clients = NULL;
 }
 
-static int send_reply(bgpview_io_server_t *server,
-		      bgpview_io_server_client_t *client,
+static int send_reply(bgpview_io_zmq_server_t *server,
+		      bgpview_io_zmq_server_client_t *client,
 		      zmq_msg_t *seq_msg)
 {
-  uint8_t reply_t_p = BGPVIEW_MSG_TYPE_REPLY;
+  uint8_t reply_t_p = BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY;
   zmq_msg_t id_cpy;
 
 #ifdef DEBUG
@@ -302,8 +295,7 @@ static int send_reply(bgpview_io_server_t *server,
   if(zmq_msg_init(&id_cpy) == -1 ||
      zmq_msg_copy(&id_cpy, &client->identity) == -1)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to duplicate client id");
+      fprintf(stderr, "Failed to duplicate client id\n");
       goto err;
     }
   if(zmq_msg_send(&id_cpy,
@@ -311,28 +303,24 @@ static int send_reply(bgpview_io_server_t *server,
 		  ZMQ_SNDMORE) == -1)
     {
       zmq_msg_close(&id_cpy);
-      bgpview_io_err_set_err(ERR, errno,
-			     "Failed to send reply client id for %s",
-			     client->id);
-      fprintf(stderr, "Failed to send reply client id for %s - %d\n", client->id, errno);
+      fprintf(stderr, "Failed to send reply client id for %s - %d\n",
+              client->id, errno);
       goto err;
     }
 
   /* add the reply type */
   if(zmq_send(server->client_socket, &reply_t_p,
-	      bgpview_msg_type_size_t, ZMQ_SNDMORE)
-     != bgpview_msg_type_size_t)
+	      bgpview_io_zmq_msg_type_size_t, ZMQ_SNDMORE)
+     != bgpview_io_zmq_msg_type_size_t)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to send reply message type");
+      fprintf(stderr, "Failed to send reply message type\n");
       goto err;
     }
 
   /* add the seq num */
   if(zmq_msg_send(seq_msg, server->client_socket, 0) == -1)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not send reply seq frame");
+      fprintf(stderr, "Could not send reply seq frame\n");
       goto err;
     }
 
@@ -346,8 +334,8 @@ static int send_reply(bgpview_io_server_t *server,
   return -1;
 }
 
-static int handle_recv_view(bgpview_io_server_t *server,
-                            bgpview_io_server_client_t *client)
+static int handle_recv_view(bgpview_io_zmq_server_t *server,
+                            bgpview_io_zmq_server_client_t *client)
 {
   uint32_t view_time;
   bgpview_t *view;
@@ -356,8 +344,7 @@ static int handle_recv_view(bgpview_io_server_t *server,
   if(zmq_recv(server->client_socket, &view_time, sizeof(view_time), 0)
      != sizeof(view_time))
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Could not recieve view time header");
+      fprintf(stderr, "Could not recieve view time header\n");
       goto err;
     }
   view_time = ntohl(view_time);
@@ -375,7 +362,7 @@ static int handle_recv_view(bgpview_io_server_t *server,
 #endif
 
   /* ask the store for a pointer to the view to recieve into */
-  view = bgpview_io_store_get_view(server->store, view_time);
+  view = bgpview_io_zmq_store_get_view(server->store, view_time);
 
   /* temporarily store the truncated time so that we can fix the view after it
      has been rx'd */
@@ -385,7 +372,7 @@ static int handle_recv_view(bgpview_io_server_t *server,
     }
 
   /* receive the view */
-  if(bgpview_io_recv(server->client_socket, view, NULL, NULL, NULL) != 0)
+  if(bgpview_io_zmq_recv(server->client_socket, view, NULL, NULL, NULL) != 0)
     {
       goto err;
     }
@@ -402,7 +389,7 @@ static int handle_recv_view(bgpview_io_server_t *server,
               "view_receive.%s.receive_delay", client->id);
 
   /* tell the store that the view has been updated */
-  if(bgpview_io_store_view_updated(server->store, view, &client->info) != 0)
+  if(bgpview_io_zmq_store_view_updated(server->store, view, &client->info) != 0)
     {
       goto err;
     }
@@ -418,30 +405,27 @@ static int handle_recv_view(bgpview_io_server_t *server,
  * | DATA MSG TYPE |
  * | Payload       |
  */
-static int handle_view_message(bgpview_io_server_t *server,
-			       bgpview_io_server_client_t *client)
+static int handle_view_message(bgpview_io_zmq_server_t *server,
+			       bgpview_io_zmq_server_client_t *client)
 {
   zmq_msg_t seq_msg;
 
   /* grab the seq num and save it for later */
   if(zmq_msg_init(&seq_msg) == -1)
     {
-      bgpview_io_err_set_err(ERR, errno,
-			     "Could not init seq num msg");
+      fprintf(stderr, "Could not init seq num msg\n");
       goto err;
     }
 
   if(zmq_msg_recv(&seq_msg, server->client_socket, 0) == -1)
     {
-      bgpview_io_err_set_err(ERR, errno,
-			     "Could not extract seq number");
+      fprintf(stderr, "Could not extract seq number\n");
       goto err;
     }
   /* just to be safe */
   if(zmq_msg_size(&seq_msg) != sizeof(seq_num_t))
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Invalid seq number frame");
+      fprintf(stderr, "Invalid seq number frame\n");
       goto err;
     }
 
@@ -468,8 +452,8 @@ static int handle_view_message(bgpview_io_server_t *server,
   return -1;
 }
 
-static int handle_ready_message(bgpview_io_server_t *server,
-                                bgpview_io_server_client_t *client)
+static int handle_ready_message(bgpview_io_zmq_server_t *server,
+                                bgpview_io_zmq_server_client_t *client)
 {
 #ifdef DEBUG
   fprintf(stderr, "DEBUG: Creating new client %s\n", client->id);
@@ -481,32 +465,28 @@ static int handle_ready_message(bgpview_io_server_t *server,
   /* first frame is their interests */
   if(zsocket_rcvmore(server->client_socket) == 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Message missing interests");
+      fprintf(stderr, "Message missing interests\n");
       goto err;
     }
   if(zmq_recv(server->client_socket, &new_interests,
 	      sizeof(new_interests), 0)
      != sizeof(new_interests))
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Could not extract client interests");
+      fprintf(stderr, "Could not extract client interests\n");
       goto err;
     }
 
  /* next is the intents */
   if(zsocket_rcvmore(server->client_socket) == 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Message missing intents");
+      fprintf(stderr, "Message missing intents\n");
       goto err;
     }
   if(zmq_recv(server->client_socket, &new_intents,
 	      sizeof(new_intents), 0)
      != sizeof(new_intents))
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Could not extract client intents");
+      fprintf(stderr, "Could not extract client intents\n");
       goto err;
     }
 
@@ -521,10 +501,9 @@ static int handle_ready_message(bgpview_io_server_t *server,
   client->info.intents = new_intents;
 
   /* call the "client connect" callback */
-  if(bgpview_io_store_client_connect(server->store, &client->info) != 0)
+  if(bgpview_io_zmq_store_client_connect(server->store, &client->info) != 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_STORE,
-                             "Store failed to handle client connect");
+      fprintf(stderr, "Store failed to handle client connect\n");
       goto err;
     }
 
@@ -534,13 +513,13 @@ static int handle_ready_message(bgpview_io_server_t *server,
   return -1;
 }
 
-static int handle_message(bgpview_io_server_t *server,
-			  bgpview_io_server_client_t **client_p,
-                          bgpview_msg_type_t msg_type)
+static int handle_message(bgpview_io_zmq_server_t *server,
+			  bgpview_io_zmq_server_client_t **client_p,
+                          bgpview_io_zmq_msg_type_t msg_type)
 {
   uint64_t begin_time;
   assert(client_p != NULL);
-  bgpview_io_server_client_t *client = *client_p;
+  bgpview_io_zmq_server_client_t *client = *client_p;
   assert(client != NULL);
   zmq_msg_t msg;
 
@@ -548,7 +527,7 @@ static int handle_message(bgpview_io_server_t *server,
   /* check each type we support (in descending order of frequency) */
   switch(msg_type)
     {
-    case BGPVIEW_MSG_TYPE_VIEW:
+    case BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW:
       begin_time = zclock_time();
 
       /* every data now begins with interests and intents */
@@ -569,18 +548,18 @@ static int handle_message(bgpview_io_server_t *server,
 
       break;
 
-    case BGPVIEW_MSG_TYPE_HEARTBEAT:
+    case BGPVIEW_IO_ZMQ_MSG_TYPE_HEARTBEAT:
       /* safe to ignore these */
       break;
 
-    case BGPVIEW_MSG_TYPE_READY:
+    case BGPVIEW_IO_ZMQ_MSG_TYPE_READY:
       if(handle_ready_message(server, client) != 0)
         {
           goto err;
         }
       break;
 
-    case BGPVIEW_MSG_TYPE_TERM:
+    case BGPVIEW_IO_ZMQ_MSG_TYPE_TERM:
       /* if we get an explicit term, we want to remove the client from our
 	 hash, and also fire the appropriate callback */
 
@@ -590,10 +569,9 @@ static int handle_message(bgpview_io_server_t *server,
 #endif
 
       /* call the "client disconnect" callback */
-      if(bgpview_io_store_client_disconnect(server->store, &client->info) != 0)
+      if(bgpview_io_zmq_store_client_disconnect(server->store, &client->info) != 0)
         {
-          bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_STORE,
-                                 "Store failed to handle client disconnect");
+          fprintf(stderr, "Store failed to handle client disconnect\n");
           goto err;
         }
 
@@ -609,14 +587,12 @@ static int handle_message(bgpview_io_server_t *server,
         {
           if(zmq_msg_init(&msg) == -1)
             {
-              bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-                                     "Could not init proxy message");
+              fprintf(stderr, "Could not init proxy message\n");
               goto err;
             }
           if(zmq_msg_recv(&msg, server->client_socket, 0) == -1)
             {
-              bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                                     "Failed to clear message from socket");
+              fprintf(stderr, "Failed to clear message from socket\n");
               goto err;
             }
           zmq_msg_close(&msg);
@@ -633,10 +609,10 @@ static int handle_message(bgpview_io_server_t *server,
   return -1;
 }
 
-static int run_server(bgpview_io_server_t *server)
+static int run_server(bgpview_io_zmq_server_t *server)
 {
-  bgpview_msg_type_t msg_type;
-  bgpview_io_server_client_t *client = NULL;
+  bgpview_io_zmq_msg_type_t msg_type;
+  bgpview_io_zmq_server_client_t *client = NULL;
   khiter_t k;
 
   uint8_t msg_type_p;
@@ -649,8 +625,7 @@ static int run_server(bgpview_io_server_t *server)
   /* get the client id frame */
   if(zmq_msg_init(&client_id) == -1)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to init msg");
+      fprintf(stderr, "Failed to init msg\n");
       goto err;
     }
 
@@ -668,7 +643,7 @@ static int run_server(bgpview_io_server_t *server)
 	  break;
 
 	default:
-	  bgpview_io_err_set_err(ERR, errno, "Could not recv from client");
+	  fprintf(stderr, "Could not recv from client");
 	  goto err;
 	  break;
 	}
@@ -679,14 +654,13 @@ static int run_server(bgpview_io_server_t *server)
 
   if(zsocket_rcvmore(server->client_socket) == 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Invalid message received from client "
-			     "(missing seq num)");
+      fprintf(stderr, "Invalid message received from client "
+              "(missing seq num)\n");
       goto err;
     }
 
   /* now grab the message type */
-  msg_type = bgpview_io_recv_type(server->client_socket, 0);
+  msg_type = bgpview_io_zmq_recv_type(server->client_socket, 0);
 
   /* check if this client is already registered */
   if((client = client_get(server, &client_id)) == NULL)
@@ -722,8 +696,7 @@ static int run_server(bgpview_io_server_t *server)
 	  if(zmq_msg_init(&id_cpy) == -1 ||
 	     zmq_msg_copy(&id_cpy, &client->identity) == -1)
 	    {
-	      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-				     "Failed to duplicate client id");
+	      fprintf(stderr, "Failed to duplicate client id\n");
 	      goto err;
 	    }
 	  if(zmq_msg_send(&id_cpy,
@@ -731,20 +704,18 @@ static int run_server(bgpview_io_server_t *server)
 			  ZMQ_SNDMORE) == -1)
 	    {
 	      zmq_msg_close(&id_cpy);
-	      bgpview_io_err_set_err(ERR, errno,
-				     "Could not send client id to client %s",
-				     client->id);
+	      fprintf(stderr, "Could not send client id to client %s\n",
+                      client->id);
 	      goto err;
 	    }
 
-	  msg_type_p = BGPVIEW_MSG_TYPE_HEARTBEAT;
+	  msg_type_p = BGPVIEW_IO_ZMQ_MSG_TYPE_HEARTBEAT;
 	  if(zmq_send(server->client_socket, &msg_type_p,
-		      bgpview_msg_type_size_t, 0)
-	     != bgpview_msg_type_size_t)
+		      bgpview_io_zmq_msg_type_size_t, 0)
+	     != bgpview_io_zmq_msg_type_size_t)
 	    {
-	      bgpview_io_err_set_err(ERR, errno,
-				     "Could not send heartbeat msg to client %s",
-				     client->id);
+	      fprintf(stderr, "Could not send heartbeat msg to client %s\n",
+                      client->id);
 	      goto err;
 	    }
 	}
@@ -754,10 +725,9 @@ static int run_server(bgpview_io_server_t *server)
       if(server->store_timeout_cnt == STORE_HEARTBEATS_PER_TIMEOUT)
         {
           fprintf(stderr, "DEBUG: Checking store timeouts\n");
-          if(bgpview_io_store_check_timeouts(server->store) != 0)
+          if(bgpview_io_zmq_store_check_timeouts(server->store) != 0)
             {
-              bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_STORE,
-                                     "Failed to check store timeouts");
+              fprintf(stderr, "Failed to check store timeouts\n");
               goto err;
             }
           server->store_timeout_cnt = 0;
@@ -782,15 +752,15 @@ static int run_server(bgpview_io_server_t *server)
 
  interrupt:
   /* we were interrupted */
-  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INTERRUPT, "Caught SIGINT");
+  fprintf(stderr, "Caught SIGINT");
   return -1;
 }
 
-bgpview_io_server_t *bgpview_io_server_init()
+bgpview_io_zmq_server_t *bgpview_io_zmq_server_init()
 {
-  bgpview_io_server_t *server = NULL;
+  bgpview_io_zmq_server_t *server = NULL;
 
-  if((server = malloc_zero(sizeof(bgpview_io_server_t))) == NULL)
+  if((server = malloc_zero(sizeof(bgpview_io_zmq_server_t))) == NULL)
     {
       fprintf(stderr, "ERROR: Could not allocate server structure\n");
       return NULL;
@@ -799,81 +769,75 @@ bgpview_io_server_t *bgpview_io_server_init()
   /* init czmq */
   if((server->ctx = zctx_new()) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INIT_FAILED,
-			     "Failed to create 0MQ context");
+      fprintf(stderr, "Failed to create 0MQ context\n");
       goto err;
     }
 
   zsys_set_io_threads(SERVER_ZMQ_IO_THREADS);
-    
+
   /* set default config */
 
   if((server->client_uri =
-      strdup(BGPVIEW_IO_CLIENT_URI_DEFAULT)) == NULL)
+      strdup(BGPVIEW_IO_ZMQ_CLIENT_URI_DEFAULT)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to duplicate client uri string");
+      fprintf(stderr, "Failed to duplicate client uri string\n");
       goto err;
     }
 
   if((server->client_pub_uri =
-      strdup(BGPVIEW_IO_CLIENT_PUB_URI_DEFAULT)) == NULL)
+      strdup(BGPVIEW_IO_ZMQ_CLIENT_PUB_URI_DEFAULT)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to duplicate client pub uri string");
+      fprintf(stderr, "Failed to duplicate client pub uri string\n");
       goto err;
     }
 
-  server->heartbeat_interval = BGPVIEW_IO_HEARTBEAT_INTERVAL_DEFAULT;
+  server->heartbeat_interval = BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT;
 
-  server->heartbeat_liveness = BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT;
+  server->heartbeat_liveness = BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT;
 
-  server->store_window_len = BGPVIEW_IO_SERVER_WINDOW_LEN;
+  server->store_window_len = BGPVIEW_IO_ZMQ_SERVER_WINDOW_LEN;
 
   /* create an empty client list */
   if((server->clients = kh_init(strclient)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INIT_FAILED,
-			     "Could not create client list");
+      fprintf(stderr, "Could not create client list\n");
       goto err;
     }
 
-  strcpy(server->metric_prefix, BGPVIEW_IO_SERVER_METRIC_PREFIX_DEFAULT);
-  
+  strcpy(server->metric_prefix, BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_DEFAULT);
+
   return server;
 
  err:
   if(server != NULL)
     {
-      bgpview_io_server_free(server);
+      bgpview_io_zmq_server_free(server);
     }
   return NULL;
 }
 
 
-void bgpview_io_server_set_metric_prefix(bgpview_io_server_t *server, char *metric_prefix)
+void bgpview_io_zmq_server_set_metric_prefix(bgpview_io_zmq_server_t *server, char *metric_prefix)
 {
-  if(metric_prefix != NULL && strlen(metric_prefix) < BGPVIEW_IO_SERVER_METRIC_PREFIX_LEN-1)
+  if(metric_prefix != NULL && strlen(metric_prefix) < BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_LEN-1)
     {
       strcpy(server->metric_prefix, metric_prefix);
     }
 }
 
-int bgpview_io_server_start(bgpview_io_server_t *server)
+int bgpview_io_zmq_server_start(bgpview_io_zmq_server_t *server)
 {
   if((server->store =
-      bgpview_io_store_create(server, server->store_window_len)) == NULL)
+      bgpview_io_zmq_store_create(server, server->store_window_len)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INIT_FAILED,
-			     "Could not create store");
+      fprintf(stderr, "Could not create store\n");
       return -1;
     }
 
   /* bind to client socket */
   if((server->client_socket = zsocket_new(server->ctx, ZMQ_ROUTER)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_START_FAILED,
-			     "Failed to create client socket");
+      fprintf(stderr, "Failed to create client socket\n");
       return -1;
     }
   /*zsocket_set_router_mandatory(server->client_socket, 1);*/
@@ -882,23 +846,21 @@ int bgpview_io_server_start(bgpview_io_server_t *server)
   zsocket_set_rcvhwm(server->client_socket, 0);
   if(zsocket_bind(server->client_socket, "%s", server->client_uri) < 0)
     {
-      bgpview_io_err_set_err(ERR, errno, "Could not bind to client socket");
+      fprintf(stderr, "Could not bind to client socket");
       return -1;
     }
 
   /* bind to the pub socket */
   if((server->client_pub_socket = zsocket_new(server->ctx, ZMQ_PUB)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_START_FAILED,
-			     "Failed to create client PUB socket");
+      fprintf(stderr, "Failed to create client PUB socket\n");
       return -1;
     }
   zsocket_set_sndhwm(server->client_pub_socket, 2);
   if(zsocket_bind(server->client_pub_socket, "%s", server->client_pub_uri) < 0)
     {
-      bgpview_io_err_set_err(ERR, errno,
-                             "Could not bind to client PUB socket (%s)",
-                             server->client_pub_uri);
+      fprintf(stderr, "Could not bind to client PUB socket (%s)\n",
+              server->client_pub_uri);
       return -1;
     }
 
@@ -914,19 +876,13 @@ int bgpview_io_server_start(bgpview_io_server_t *server)
   return -1;
 }
 
-void bgpview_io_server_perr(bgpview_io_server_t *server)
-{
-  assert(server != NULL);
-  bgpview_io_err_perr(ERR);
-}
-
-void bgpview_io_server_stop(bgpview_io_server_t *server)
+void bgpview_io_zmq_server_stop(bgpview_io_zmq_server_t *server)
 {
   assert(server != NULL);
   server->shutdown = 1;
 }
 
-void bgpview_io_server_free(bgpview_io_server_t *server)
+void bgpview_io_zmq_server_free(bgpview_io_zmq_server_t *server)
 {
   assert(server != NULL);
 
@@ -939,7 +895,7 @@ void bgpview_io_server_free(bgpview_io_server_t *server)
   clients_free(server);
   server->clients = NULL;
 
-  bgpview_io_store_destroy(server->store);
+  bgpview_io_zmq_store_destroy(server->store);
   server->store = NULL;
 
   /* free'd by zctx_destroy */
@@ -952,14 +908,14 @@ void bgpview_io_server_free(bgpview_io_server_t *server)
   return;
 }
 
-void bgpview_io_server_set_window_len(bgpview_io_server_t *server,
+void bgpview_io_zmq_server_set_window_len(bgpview_io_zmq_server_t *server,
 				      int window_len)
 {
   assert(server != NULL);
   server->store_window_len = window_len;
 }
 
-int bgpview_io_server_set_client_uri(bgpview_io_server_t *server,
+int bgpview_io_zmq_server_set_client_uri(bgpview_io_zmq_server_t *server,
 				     const char *uri)
 {
   assert(server != NULL);
@@ -970,15 +926,14 @@ int bgpview_io_server_set_client_uri(bgpview_io_server_t *server,
 
   if((server->client_uri = strdup(uri)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not malloc client uri string");
+      fprintf(stderr, "Could not malloc client uri string\n");
       return -1;
     }
 
   return 0;
 }
 
-int bgpview_io_server_set_client_pub_uri(bgpview_io_server_t *server,
+int bgpview_io_zmq_server_set_client_pub_uri(bgpview_io_zmq_server_t *server,
                                          const char *uri)
 {
   assert(server != NULL);
@@ -989,15 +944,14 @@ int bgpview_io_server_set_client_pub_uri(bgpview_io_server_t *server,
 
   if((server->client_pub_uri = strdup(uri)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not malloc client pub uri string");
+      fprintf(stderr, "Could not malloc client pub uri string\n");
       return -1;
     }
 
   return 0;
 }
 
-void bgpview_io_server_set_heartbeat_interval(bgpview_io_server_t *server,
+void bgpview_io_zmq_server_set_heartbeat_interval(bgpview_io_zmq_server_t *server,
 					      uint64_t interval_ms)
 {
   assert(server != NULL);
@@ -1005,7 +959,7 @@ void bgpview_io_server_set_heartbeat_interval(bgpview_io_server_t *server,
   server->heartbeat_interval = interval_ms;
 }
 
-void bgpview_io_server_set_heartbeat_liveness(bgpview_io_server_t *server,
+void bgpview_io_zmq_server_set_heartbeat_liveness(bgpview_io_zmq_server_t *server,
 					      int beats)
 {
   assert(server != NULL);
@@ -1015,7 +969,7 @@ void bgpview_io_server_set_heartbeat_liveness(bgpview_io_server_t *server,
 
 /* ========== PUBLISH FUNCTIONS ========== */
 
-int bgpview_io_server_publish_view(bgpview_io_server_t *server,
+int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
                                    bgpview_t *view,
                                    int interests)
 {
@@ -1028,15 +982,14 @@ int bgpview_io_server_publish_view(bgpview_io_server_t *server,
   fprintf(stderr, "DEBUG: Publishing view:\n");
   if(bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE) < 100)
     {
-      bgpview_io_dump(view);
+      bgpview_io_zmq_dump(view);
     }
 #endif
 
   /* get the publication message prefix */
-  if((pub = bgpview_consumer_interest_pub(interests)) == NULL)
+  if((pub = bgpview_io_zmq_consumer_interest_pub(interests)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Failed to publish view (Invalid interests)");
+      fprintf(stderr, "Failed to publish view (Invalid interests)\n");
       goto err;
     }
   pub_len = strlen(pub);
@@ -1048,13 +1001,12 @@ int bgpview_io_server_publish_view(bgpview_io_server_t *server,
 
   if(zmq_send(server->client_pub_socket, pub, pub_len, ZMQ_SNDMORE) != pub_len)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to send publication string");
+      fprintf(stderr, "Failed to send publication string\n");
       goto err;
     }
 
   /* NULL -> no peer filtering */
-  if(bgpview_io_send(server->client_pub_socket, view, NULL) != 0)
+  if(bgpview_io_zmq_send(server->client_pub_socket, view, NULL) != 0)
     {
       return -1;
     }

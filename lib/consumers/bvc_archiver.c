@@ -17,20 +17,17 @@
  *
  */
 
+#include "config.h"
+#include "bgpview_consumer_interface.h"
+#include "bvc_archiver.h"
+#include "bgpview_io_file.h"
+#include "utils.h"
+#include "wandio_utils.h"
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
-
 #include <czmq.h> /*< for zclock_time */
 #include <wandio.h>
-
-#include "utils.h"
-#include "wandio_utils.h"
-
-#include "bgpview_io.h"
-
-#include "bgpview_consumer_interface.h"
-#include "bvc_archiver.h"
 
 #define NAME                        "archiver"
 
@@ -442,7 +439,7 @@ int bvc_archiver_process_view(bvc_t *consumer, uint8_t interests,
   switch(state->output_format)
     {
     case ASCII:
-      if(bgpview_io_print(state->outfile, view) != 0)
+      if(bgpview_io_file_print(state->outfile, view) != 0)
         {
           fprintf(stderr, "ERROR: Failed to write view to file\n");
           goto err;
@@ -451,7 +448,7 @@ int bvc_archiver_process_view(bvc_t *consumer, uint8_t interests,
 
     case BINARY:
       /* simply as the IO library to dump the view to a file */
-      if(bgpview_io_write(state->outfile, view, NULL) != 0)
+      if(bgpview_io_file_write(state->outfile, view, NULL) != 0)
         {
           fprintf(stderr, "ERROR: Failed to write view to file\n");
           goto err;

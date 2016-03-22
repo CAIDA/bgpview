@@ -27,6 +27,9 @@ AM_CPPFLAGS = -I$(top_srcdir) \
 	      -I$(top_srcdir)/lib/utils \
 	      -I$(top_srcdir)/bgpview/lib \
 	      -I$(top_srcdir)/bgpview/lib/io \
+	      -I$(top_srcdir)/bgpview/lib/io/file \
+	      -I$(top_srcdir)/bgpview/lib/io/kafka \
+	      -I$(top_srcdir)/bgpview/lib/io/zmq \
 	      -I$(top_srcdir)/bgpview/lib/consumers
 
 dist_bin_SCRIPTS =

@@ -22,22 +22,17 @@
  */
 
 #include "config.h"
-
+#include "bgpview_io_zmq.h"
+#include "bgpview.h"
+#include "bgpview_consumer_manager.h"
+#include "config.h"
+#include "utils.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>       /* time */
-
-/* this must be all we include from bgpview */
-#include "bgpview_io_client.h"
-#include "bgpview.h"
-#include "bgpview_io_common.h"
-#include "bgpview_consumer_manager.h"
-
-#include "config.h"
-#include "utils.h"
+#include <time.h>
 
 static bgpview_consumer_manager_t *manager = NULL;
 static timeseries_t *timeseries = NULL;
@@ -389,12 +384,12 @@ static void usage(const char *name)
 	  "                               (default: %s)\n"
           "       -S <server-sub-uri>   0MQ-style URI to subscribe to tables on\n"
           "                               (default: %s)\n",
-	  BGPVIEW_IO_HEARTBEAT_INTERVAL_DEFAULT,
-	  BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT,
-	  BGPVIEW_IO_RECONNECT_INTERVAL_MIN,
-	  BGPVIEW_IO_RECONNECT_INTERVAL_MAX,
-	  BGPVIEW_IO_CLIENT_SERVER_URI_DEFAULT,
-	  BGPVIEW_IO_CLIENT_SERVER_SUB_URI_DEFAULT);
+	  BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
+	  BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
+	  BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN,
+	  BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX,
+	  BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT,
+	  BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT);
 }
 
 int main(int argc, char **argv)
@@ -419,14 +414,14 @@ int main(int argc, char **argv)
   const char *server_sub_uri = NULL;
   const char *identity = NULL;
 
-  uint64_t heartbeat_interval = BGPVIEW_IO_HEARTBEAT_INTERVAL_DEFAULT;
-  int heartbeat_liveness      = BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT;
-  uint64_t reconnect_interval_min = BGPVIEW_IO_RECONNECT_INTERVAL_MIN;
-  uint64_t reconnect_interval_max = BGPVIEW_IO_RECONNECT_INTERVAL_MAX;
+  uint64_t heartbeat_interval = BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT;
+  int heartbeat_liveness      = BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT;
+  uint64_t reconnect_interval_min = BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN;
+  uint64_t reconnect_interval_max = BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX;
 
   uint8_t interests = 0;
   uint8_t intents = 0;
-  bgpview_io_client_t *client = NULL;
+  bgpview_io_zmq_client_t *client = NULL;
 
   int rx_interests;
   bgpview_t *view = NULL;
@@ -649,7 +644,7 @@ int main(int argc, char **argv)
     }
 
   if((client =
-      bgpview_io_client_init(interests, intents)) == NULL)
+      bgpview_io_zmq_client_init(interests, intents)) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize bgpview client\n");
       usage(argv[0]);
@@ -657,38 +652,34 @@ int main(int argc, char **argv)
     }
 
   if(server_uri != NULL &&
-     bgpview_io_client_set_server_uri(client, server_uri) != 0)
+     bgpview_io_zmq_client_set_server_uri(client, server_uri) != 0)
     {
-      bgpview_io_client_perr(client);
       goto err;
     }
 
   if(server_sub_uri != NULL &&
-     bgpview_io_client_set_server_sub_uri(client, server_sub_uri) != 0)
+     bgpview_io_zmq_client_set_server_sub_uri(client, server_sub_uri) != 0)
     {
-      bgpview_io_client_perr(client);
       goto err;
     }
 
   if(identity != NULL &&
-     bgpview_io_client_set_identity(client, identity) != 0)
+     bgpview_io_zmq_client_set_identity(client, identity) != 0)
     {
-      bgpview_io_client_perr(client);
       goto err;
     }
 
-  bgpview_io_client_set_heartbeat_interval(client, heartbeat_interval);
+  bgpview_io_zmq_client_set_heartbeat_interval(client, heartbeat_interval);
 
-  bgpview_io_client_set_heartbeat_liveness(client, heartbeat_liveness);
+  bgpview_io_zmq_client_set_heartbeat_liveness(client, heartbeat_liveness);
 
-  bgpview_io_client_set_reconnect_interval_min(client, reconnect_interval_min);
+  bgpview_io_zmq_client_set_reconnect_interval_min(client, reconnect_interval_min);
 
-  bgpview_io_client_set_reconnect_interval_max(client, reconnect_interval_max);
+  bgpview_io_zmq_client_set_reconnect_interval_max(client, reconnect_interval_max);
 
   fprintf(stderr, "INFO: Starting client... ");
-  if(bgpview_io_client_start(client) != 0)
+  if(bgpview_io_zmq_client_start(client) != 0)
     {
-      bgpview_io_client_perr(client);
       goto err;
     }
   fprintf(stderr, "done\n");
@@ -702,8 +693,8 @@ int main(int argc, char **argv)
   bgpview_disable_user_data(view);
 
   while((rx_interests =
-         bgpview_io_client_recv_view(client,
-                                     BGPVIEW_IO_CLIENT_RECV_MODE_BLOCK,
+         bgpview_io_zmq_client_recv_view(client,
+                                     BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_BLOCK,
                                      view,
                                      (peer_filters_cnt != 0) ? filter_peer : NULL,
                                      (pfx_filters_cnt != 0) ? filter_pfx : NULL,
@@ -729,12 +720,11 @@ int main(int argc, char **argv)
 
   fprintf(stderr, "INFO: Shutting down...\n");
 
-  bgpview_io_client_stop(client);
-  bgpview_io_client_perr(client);
+  bgpview_io_zmq_client_stop(client);
 
   /* cleanup */
   filters_destroy();
-  bgpview_io_client_free(client);
+  bgpview_io_zmq_client_free(client);
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
@@ -750,8 +740,7 @@ int main(int argc, char **argv)
  err:
   filters_destroy();
   if(client != NULL) {
-    bgpview_io_client_perr(client);
-    bgpview_io_client_free(client);
+    bgpview_io_zmq_client_free(client);
   }
   if(metric_prefix !=NULL)
     {

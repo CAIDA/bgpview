@@ -21,28 +21,13 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BGPVIEW_IO_COMMON_INT_H
-#define __BGPVIEW_IO_COMMON_INT_H
+#ifndef __BGPVIEW_IO_ZMQ_INT_H
+#define __BGPVIEW_IO_ZMQ_INT_H
 
-#include <czmq.h>
-#include <stdint.h>
-#include <sys/socket.h>
-
-#include "bgpview_io_common.h"
-#include "bgpview_consumer_manager.h" /* for interests */
-#include "bgpstream_utils_pfx.h"
-
-/** @file
- *
- * @brief Header file that exposes the public structures used by both
- * bgpview_io_client and bgpview_io_server
- *
- * @author Alistair King
- *
- */
+#include "bgpview_io_zmq.h"
 
 /**
- * @name Public Constants
+ * @name Private Constants
  *
  * @{ */
 
@@ -74,27 +59,12 @@
 
 #define BW_PFX_ROW_BUFFER_LEN 17 + (BGPVIEW_PEER_MAX_CNT*5)
 
-/* shared constants are in bgpview_io_common.h */
+/* shared constants are in bgpview_io_zmq.h */
 
 /** @} */
 
 /**
- * @name Public Opaque Data Structures
- *
- * @{ */
-
-/** @} */
-
-/**
- * @name Public Data Structures
- *
- * @{ */
-
-
-/** @} */
-
-/**
- * @name Public Enums
+ * @name Private Enums
  *
  * @{ */
 
@@ -105,29 +75,29 @@
  */
 typedef enum {
   /** Invalid message */
-  BGPVIEW_MSG_TYPE_UNKNOWN   = 0,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_UNKNOWN   = 0,
 
   /** Client is ready to send requests/Server is ready for requests */
-  BGPVIEW_MSG_TYPE_READY     = 1,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_READY     = 1,
 
   /** Client is explicitly disconnecting (clean shutdown) */
-  BGPVIEW_MSG_TYPE_TERM      = 2,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_TERM      = 2,
 
   /** Server/Client is still alive */
-  BGPVIEW_MSG_TYPE_HEARTBEAT = 3,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_HEARTBEAT = 3,
 
   /** A view for the server to process */
-  BGPVIEW_MSG_TYPE_VIEW   = 4,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW   = 4,
 
   /** Server is sending a response to a client */
-  BGPVIEW_MSG_TYPE_REPLY     = 5,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY     = 5,
 
   /** Highest message number in use */
-  BGPVIEW_MSG_TYPE_MAX      = BGPVIEW_MSG_TYPE_REPLY,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_MAX      = BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY,
 
-} bgpview_msg_type_t;
+} bgpview_io_zmq_msg_type_t;
 
-#define bgpview_msg_type_size_t sizeof(uint8_t)
+#define bgpview_io_zmq_msg_type_size_t sizeof(uint8_t)
 
 
 /** @} */
@@ -140,7 +110,7 @@ typedef enum {
  * @param flags        flags passed directed to zmq_recv (e.g. ZMQ_DONTWAIT)
  * @return the type of the message, or BGPVIEW_MSG_TYPE_UNKNOWN
  */
-bgpview_msg_type_t bgpview_io_recv_type(void *src, int flags);
+bgpview_io_zmq_msg_type_t bgpview_io_zmq_recv_type(void *src, int flags);
 
 
 /* ========== INTERESTS/VIEWS ========== */
@@ -151,7 +121,7 @@ bgpview_msg_type_t bgpview_io_recv_type(void *src, int flags);
  * @param interests     set of interests
  * @return most-specific publication string that satisfies the interests
  */
-const char *bgpview_consumer_interest_pub(int interests);
+const char *bgpview_io_zmq_consumer_interest_pub(int interests);
 
 /** Given a set of interests, find the least specific return the subscription
  * string
@@ -159,13 +129,35 @@ const char *bgpview_consumer_interest_pub(int interests);
  * @param interests     set of interests
  * @return least-specific subscription string that satisfies the interests
  */
-const char *bgpview_consumer_interest_sub(int interests);
+const char *bgpview_io_zmq_consumer_interest_sub(int interests);
 
 /** Receive an interest publication prefix and convert to an interests set
  *
  * @param src           socket to receive on
  * @return set of interest flags if successful, 0 otherwise
  */
-uint8_t bgpview_consumer_interest_recv(void *src);
+uint8_t bgpview_io_zmq_consumer_interest_recv(void *src);
 
-#endif
+/** Send the given view to the given socket
+ *
+ * @param dest          socket to send the view to
+ * @param view          pointer to the view to send
+ * @param cb            callback function to use to filter entries (may be NULL)
+ * @return 0 if the view was sent successfully, -1 otherwise
+ */
+int bgpview_io_zmq_send(void *dest, bgpview_t *view,
+                        bgpview_io_filter_cb_t *cb);
+
+/** Receive a view from the given socket
+ *
+ * @param src           socket to receive on
+ * @param view          pointer to the clear/new view to receive into
+ * @param cb            callback function to use to filter entries (may be NULL)
+ * @return pointer to the view instance received, NULL if an error occurred.
+ */
+int bgpview_io_zmq_recv(void *src, bgpview_t *view,
+                        bgpview_io_filter_peer_cb_t *peer_cb,
+                        bgpview_io_filter_pfx_cb_t *pfx_cb,
+                        bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+
+#endif /* __BGPVIEW_IO_ZMQ_H */

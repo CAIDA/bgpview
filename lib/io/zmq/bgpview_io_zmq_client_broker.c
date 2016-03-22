@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 
-#include "bgpview_io_client_int.h"
+#include "bgpview_io_zmq_client_int.h"
 
 #include "khash.h"
 #include "utils.h"
@@ -32,16 +32,15 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg);
 static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg);
 static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg);
 
-#define ERR (&broker->cfg->err)
 #define CFG (broker->cfg)
 
-#define DO_CALLBACK(cbfunc, args...)					\
-  do {									\
-    if(CFG->callbacks.cbfunc != NULL)                                   \
-      {									\
-	CFG->callbacks.cbfunc(CFG->master, args,			\
-                              CFG->callbacks.user);                  \
-      }									\
+#define DO_CALLBACK(cbfunc, args...)                    \
+  do {                                                  \
+    if(CFG->callbacks.cbfunc != NULL)                   \
+      {                                                 \
+	CFG->callbacks.cbfunc(CFG->master, args,        \
+                              CFG->callbacks.user);     \
+      }                                                 \
   } while(0)
 
 #define ISERR                                   \
@@ -51,7 +50,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg);
     }                                           \
   else
 
-static int req_list_find_empty(bgpview_io_client_broker_t *broker)
+static int req_list_find_empty(bgpview_io_zmq_client_broker_t *broker)
 {
   int i;
 
@@ -66,7 +65,7 @@ static int req_list_find_empty(bgpview_io_client_broker_t *broker)
   return -1;
 }
 
-static int req_list_find(bgpview_io_client_broker_t *broker, seq_num_t seq_num)
+static int req_list_find(bgpview_io_zmq_client_broker_t *broker, seq_num_t seq_num)
 {
   int i;
 
@@ -82,8 +81,8 @@ static int req_list_find(bgpview_io_client_broker_t *broker, seq_num_t seq_num)
   return -1;
 }
 
-static void req_mark_unused(bgpview_io_client_broker_t *broker,
-                            bgpview_io_client_broker_req_t *req)
+static void req_mark_unused(bgpview_io_zmq_client_broker_t *broker,
+                            bgpview_io_zmq_client_broker_req_t *req)
 {
   int i;
 
@@ -97,18 +96,18 @@ static void req_mark_unused(bgpview_io_client_broker_t *broker,
   req->msg_frames_cnt = 0;
 }
 
-static void reset_heartbeat_timer(bgpview_io_client_broker_t *broker,
+static void reset_heartbeat_timer(bgpview_io_zmq_client_broker_t *broker,
 				  uint64_t clock)
 {
   broker->heartbeat_next = clock + CFG->heartbeat_interval;
 }
 
-static void reset_heartbeat_liveness(bgpview_io_client_broker_t *broker)
+static void reset_heartbeat_liveness(bgpview_io_zmq_client_broker_t *broker)
 {
   broker->heartbeat_liveness_remaining = CFG->heartbeat_liveness;
 }
 
-static int server_subscribe(bgpview_io_client_broker_t *broker)
+static int server_subscribe(bgpview_io_zmq_client_broker_t *broker)
 {
   /* if we have no interests, don't bother connecting */
   if(CFG->interests == 0)
@@ -118,17 +117,16 @@ static int server_subscribe(bgpview_io_client_broker_t *broker)
 
   if((broker->server_sub_socket = zsocket_new(CFG->ctx, ZMQ_SUB)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_START_FAILED,
-			     "Failed to create server SUB connection");
+      fprintf(stderr, "Failed to create server SUB connection\n");
       return -1;
     }
   zsocket_set_rcvhwm(broker->server_sub_socket, 3);
   zsocket_set_subscribe(broker->server_sub_socket,
-			bgpview_consumer_interest_sub(CFG->interests));
+			bgpview_io_zmq_consumer_interest_sub(CFG->interests));
 
   if(zsocket_connect(broker->server_sub_socket, "%s", CFG->server_sub_uri) < 0)
     {
-      bgpview_io_err_set_err(ERR, errno, "Could not connect to server");
+      fprintf(stderr, "Could not connect to server");
       return -1;
     }
 
@@ -136,52 +134,48 @@ static int server_subscribe(bgpview_io_client_broker_t *broker)
   if(zloop_reader(broker->loop, broker->server_sub_socket,
                   handle_server_sub_msg, broker) != 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not add server sub socket to reactor");
+      fprintf(stderr, "Could not add server sub socket to reactor\n");
       return -1;
     }
 
   return 0;
 }
 
-static int server_send_interests_intents(bgpview_io_client_broker_t *broker,
+static int server_send_interests_intents(bgpview_io_zmq_client_broker_t *broker,
                                          int sndmore)
 {
   /* send our interests */
   if(zmq_send(broker->server_socket, &CFG->interests, 1, ZMQ_SNDMORE) == -1)
     {
-      bgpview_io_err_set_err(ERR, errno,
-			     "Could not send ready msg to server");
+      fprintf(stderr, "Could not send ready msg to server\n");
       return -1;
     }
 
   /* send our intents */
   if(zmq_send(broker->server_socket, &CFG->intents, 1, sndmore) == -1)
     {
-      bgpview_io_err_set_err(ERR, errno,
-			     "Could not send ready msg to server");
+      fprintf(stderr, "Could not send ready msg to server\n");
       return -1;
     }
 
   return 0;
 }
 
-static int server_connect(bgpview_io_client_broker_t *broker)
+static int server_connect(bgpview_io_zmq_client_broker_t *broker)
 {
   uint8_t msg_type_p;
 
   /* connect to server socket */
   if((broker->server_socket = zsocket_new(CFG->ctx, ZMQ_DEALER)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_START_FAILED,
-			     "Failed to create server connection");
+      fprintf(stderr, "Failed to create server connection\n");
       return -1;
     }
 
   /* up the hwm */
   /*
-  zsocket_set_sndhwm(broker->server_socket, 0);
-  zsocket_set_rcvhwm(broker->server_socket, MAX_OUTSTANDING_REQ*2);
+    zsocket_set_sndhwm(broker->server_socket, 0);
+    zsocket_set_rcvhwm(broker->server_socket, MAX_OUTSTANDING_REQ*2);
   */
 
   if(CFG->identity != NULL && strlen(CFG->identity) > 0)
@@ -195,15 +189,14 @@ static int server_connect(bgpview_io_client_broker_t *broker)
 
   if(zsocket_connect(broker->server_socket, "%s", CFG->server_uri) < 0)
     {
-      bgpview_io_err_set_err(ERR, errno, "Could not connect to server");
+      fprintf(stderr, "Could not connect to server");
       return -1;
     }
 
-  msg_type_p = BGPVIEW_MSG_TYPE_READY;
+  msg_type_p = BGPVIEW_IO_ZMQ_MSG_TYPE_READY;
   if(zmq_send(broker->server_socket, &msg_type_p, 1, ZMQ_SNDMORE) == -1)
     {
-      bgpview_io_err_set_err(ERR, errno,
-			     "Could not send ready msg to server");
+      fprintf(stderr, "Could not send ready msg to server\n");
       return -1;
     }
 
@@ -219,8 +212,7 @@ static int server_connect(bgpview_io_client_broker_t *broker)
   if(zloop_reader(broker->loop, broker->server_socket,
                   handle_server_msg, broker) != 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not add server socket to reactor");
+      fprintf(stderr, "Could not add server socket to reactor\n");
       return -1;
     }
 
@@ -230,7 +222,7 @@ static int server_connect(bgpview_io_client_broker_t *broker)
   return server_subscribe(broker);
 }
 
-static void server_disconnect(bgpview_io_client_broker_t *broker)
+static void server_disconnect(bgpview_io_zmq_client_broker_t *broker)
 {
   /* remove the server reader from the reactor */
   zloop_reader_end(broker->loop, broker->server_socket);
@@ -247,45 +239,42 @@ static void server_disconnect(bgpview_io_client_broker_t *broker)
     }
 }
 
-static int server_send_term(bgpview_io_client_broker_t *broker)
+static int server_send_term(bgpview_io_zmq_client_broker_t *broker)
 {
-  uint8_t msg_type_p = BGPVIEW_MSG_TYPE_TERM;
+  uint8_t msg_type_p = BGPVIEW_IO_ZMQ_MSG_TYPE_TERM;
 
   fprintf(stderr, "DEBUG: broker sending TERM\n");
 
   if(zmq_send(broker->server_socket, &msg_type_p, 1, 0) == -1)
     {
-      bgpview_io_err_set_err(ERR, errno,
-			     "Could not send ready msg to server");
+      fprintf(stderr, "Could not send ready msg to server\n");
       return -1;
     }
 
   return 0;
 }
 
-static int handle_reply(bgpview_io_client_broker_t *broker)
+static int handle_reply(bgpview_io_zmq_client_broker_t *broker)
 {
   seq_num_t seq_num;
-  bgpview_io_client_broker_req_t *req;
+  bgpview_io_zmq_client_broker_req_t *req;
 
   int idx;
 
   /* there must be more frames for us */
   if(zsocket_rcvmore(broker->server_socket) == 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Invalid message received from server "
-			     "(missing seq num)");
+      fprintf(stderr,
+              "Invalid message received from server (missing seq num)\n");
       goto err;
     }
 
   if(zmq_recv(broker->server_socket, &seq_num, sizeof(seq_num_t), 0)
      != sizeof(seq_num_t))
-        {
-	  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-				 "Invalid message received from server "
-				 "(malformed sequence number)");
-        }
+    {
+      fprintf(stderr, "Invalid message received from server "
+              "(malformed sequence number)\n");
+    }
 
   /* find the corresponding record from the outstanding req set */
   if((idx = req_list_find(broker, seq_num)) == -1)
@@ -312,8 +301,8 @@ static int handle_reply(bgpview_io_client_broker_t *broker)
   return -1;
 }
 
-static int send_request(bgpview_io_client_broker_t *broker,
-			bgpview_io_client_broker_req_t *req,
+static int send_request(bgpview_io_zmq_client_broker_t *broker,
+			bgpview_io_zmq_client_broker_req_t *req,
 			uint64_t clock)
 {
   int i = 1;
@@ -324,8 +313,8 @@ static int send_request(bgpview_io_client_broker_t *broker,
 
   /* send the type */
   if(zmq_send(broker->server_socket, &req->msg_type,
-              bgpview_msg_type_size_t, ZMQ_SNDMORE)
-     != bgpview_msg_type_size_t)
+              bgpview_io_zmq_msg_type_size_t, ZMQ_SNDMORE)
+     != bgpview_io_zmq_msg_type_size_t)
     {
       return -1;
     }
@@ -351,15 +340,13 @@ static int send_request(bgpview_io_client_broker_t *broker,
       zmq_msg_init(&llm_cpy);
       if(zmq_msg_copy(&llm_cpy, &req->msg_frames[i]) == -1)
         {
-	  bgpview_io_err_set_err(ERR, errno,
-				 "Could not copy message");
+	  fprintf(stderr, "Could not copy message\n");
 	  return -1;
         }
       if(zmq_sendmsg(broker->server_socket, &llm_cpy, mask) == -1)
 	{
           zmq_msg_close(&llm_cpy);
-	  bgpview_io_err_set_err(ERR, errno,
-				 "Could not pass message to server");
+	  fprintf(stderr, "Could not pass message to server\n");
 	  return -1;
 	}
     }
@@ -367,7 +354,7 @@ static int send_request(bgpview_io_client_broker_t *broker,
   return 0;
 }
 
-static int is_shutdown_time(bgpview_io_client_broker_t *broker, uint64_t clock)
+static int is_shutdown_time(bgpview_io_zmq_client_broker_t *broker, uint64_t clock)
 {
   if(broker->shutdown_time > 0 &&
      ((broker->req_count == 0) ||
@@ -379,10 +366,10 @@ static int is_shutdown_time(bgpview_io_client_broker_t *broker, uint64_t clock)
   return 0;
 }
 
-static int handle_timeouts(bgpview_io_client_broker_t *broker, uint64_t clock)
+static int handle_timeouts(bgpview_io_zmq_client_broker_t *broker, uint64_t clock)
 {
   int idx;
-  bgpview_io_client_broker_req_t *req;
+  bgpview_io_zmq_client_broker_req_t *req;
 
   /* nothing to time out */
   if(broker->req_count == 0)
@@ -438,7 +425,7 @@ static int handle_timeouts(bgpview_io_client_broker_t *broker, uint64_t clock)
 
 static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 {
-  bgpview_io_client_broker_t *broker = (bgpview_io_client_broker_t*)arg;
+  bgpview_io_zmq_client_broker_t *broker = (bgpview_io_zmq_client_broker_t*)arg;
 
   uint8_t msg_type_p;
 
@@ -475,11 +462,10 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
   /* send heartbeat to server if it is time */
   if(clock > broker->heartbeat_next)
     {
-      msg_type_p = BGPVIEW_MSG_TYPE_HEARTBEAT;
+      msg_type_p = BGPVIEW_IO_ZMQ_MSG_TYPE_HEARTBEAT;
       if(zmq_send(broker->server_socket, &msg_type_p, 1, 0) == -1)
 	{
-	  bgpview_io_err_set_err(ERR, errno,
-				 "Could not send heartbeat msg to server");
+	  fprintf(stderr, "Could not send heartbeat msg to server\n");
 	  goto err;
 	}
 
@@ -499,12 +485,12 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 
 static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
-  bgpview_io_client_broker_t *broker = (bgpview_io_client_broker_t*)arg;
-  bgpview_msg_type_t msg_type;
+  bgpview_io_zmq_client_broker_t *broker = (bgpview_io_zmq_client_broker_t*)arg;
+  bgpview_io_zmq_msg_type_t msg_type;
   uint64_t clock;
   int retries = 0;
 
-  while(retries < BGPVIEW_IO_CLIENT_BROKER_GREEDY_MAX_MSG)
+  while(retries < BGPVIEW_IO_ZMQ_CLIENT_BROKER_GREEDY_MAX_MSG)
     {
       clock = zclock_time();
 
@@ -513,7 +499,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
           return -1;
         }
 
-      msg_type = bgpview_io_recv_type(broker->server_socket, ZMQ_DONTWAIT);
+      msg_type = bgpview_io_zmq_recv_type(broker->server_socket, ZMQ_DONTWAIT);
 
       if(zctx_interrupted != 0)
         {
@@ -522,7 +508,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
 
       switch(msg_type)
         {
-        case BGPVIEW_MSG_TYPE_REPLY:
+        case BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY:
           reset_heartbeat_liveness(broker);
           if(handle_reply(broker) != 0)
             {
@@ -535,11 +521,11 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
             }
           break;
 
-        case BGPVIEW_MSG_TYPE_HEARTBEAT:
+        case BGPVIEW_IO_ZMQ_MSG_TYPE_HEARTBEAT:
           reset_heartbeat_liveness(broker);
           break;
 
-        case BGPVIEW_MSG_TYPE_UNKNOWN:
+        case BGPVIEW_IO_ZMQ_MSG_TYPE_UNKNOWN:
           /* nothing more to receive at the moment */
           if(errno == EAGAIN)
             {
@@ -548,9 +534,8 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
           /* fall through */
 
         default:
-          bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                                 "Invalid message type received from "
-                                 "server (%d)", msg_type);
+          fprintf(stderr, "Invalid message type received from "
+                  "server (%d)\n", msg_type);
           goto err;
         }
 
@@ -576,8 +561,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
           if(zloop_reader(broker->loop, broker->master_pipe,
                           handle_master_msg, broker) != 0)
             {
-              bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-                                     "Could not re-add master pipe to reactor");
+              fprintf(stderr, "Could not re-add master pipe to reactor\n");
               return -1;
             }
           broker->master_removed = 0;
@@ -589,7 +573,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
   return 0;
 
  interrupt:
-  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INTERRUPT, "Caught interrupt");
+  fprintf(stderr, "Caught interrupt");
   return -1;
 
  err:
@@ -598,7 +582,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
 
 static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
-  bgpview_io_client_broker_t *broker = (bgpview_io_client_broker_t*)arg;
+  bgpview_io_zmq_client_broker_t *broker = (bgpview_io_zmq_client_broker_t*)arg;
 
   uint8_t interests;
 
@@ -607,10 +591,9 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
 
   /* convert the prefix to flags */
   if((interests =
-      bgpview_consumer_interest_recv(broker->server_sub_socket)) == 0)
+      bgpview_io_zmq_consumer_interest_recv(broker->server_sub_socket)) == 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-			     "Invalid interest specification received");
+      fprintf(stderr, "Invalid interest specification received\n");
       goto err;
     }
 
@@ -618,8 +601,7 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
   if(zmq_send(broker->master_zocket,
 	      &interests, sizeof(uint8_t), ZMQ_SNDMORE) == -1)
     {
-      bgpview_io_err_set_err(ERR, errno,
-			     "Could not send interests to master");
+      fprintf(stderr, "Could not send interests to master\n");
       return -1;
     }
 
@@ -629,8 +611,7 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
       /* suck the next message from the server */
       if(zmq_msg_init(&msg) == -1)
 	{
-	  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-                                 "Could not init proxy message");
+	  fprintf(stderr, "Could not init proxy message\n");
 	  goto err;
 	}
       if(zmq_msg_recv(&msg, broker->server_sub_socket, 0) == -1)
@@ -642,8 +623,7 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
 	      break;
 
 	    default:
-	      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-				     "Failed to receive view");
+	      fprintf(stderr, "Failed to receive view\n");
 	      goto err;
 	      break;
 	    }
@@ -655,8 +635,7 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
       if(zmq_msg_send(&msg, broker->master_zocket, flags) == -1)
 	{
           zmq_msg_close(&msg);
-	  bgpview_io_err_set_err(ERR, errno,
-				 "Could not pass message to master");
+	  fprintf(stderr, "Could not pass message to master\n");
 	  return -1;
 	}
     }
@@ -664,7 +643,7 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
   return 0;
 
  interrupt:
-  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INTERRUPT, "Caught interrupt");
+  fprintf(stderr, "Caught interrupt");
   zmq_msg_close(&msg);
   return -1;
 
@@ -675,9 +654,9 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
 
 static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
-  bgpview_io_client_broker_t *broker = (bgpview_io_client_broker_t*)arg;
-  bgpview_msg_type_t msg_type;
-  bgpview_io_client_broker_req_t *req = NULL;
+  bgpview_io_zmq_client_broker_t *broker = (bgpview_io_zmq_client_broker_t*)arg;
+  bgpview_io_zmq_msg_type_t msg_type;
+  bgpview_io_zmq_client_broker_req_t *req = NULL;
 
   uint64_t clock = zclock_time();
 
@@ -689,21 +668,19 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
     }
 
   /* peek at the first frame (msg type) */
-  if((msg_type = bgpview_io_recv_type(broker->master_zocket, 0))
-     != BGPVIEW_MSG_TYPE_UNKNOWN)
+  if((msg_type = bgpview_io_zmq_recv_type(broker->master_zocket, 0))
+     != BGPVIEW_IO_ZMQ_MSG_TYPE_UNKNOWN)
     {
-      if(msg_type != BGPVIEW_MSG_TYPE_VIEW)
+      if(msg_type != BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW)
         {
-          bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                                 "Invalid message type received from master");
+          fprintf(stderr, "Invalid message type received from master\n");
           goto err;
         }
       /* there must be more frames for us */
       if(zsocket_rcvmore(broker->master_zocket) == 0)
         {
-          bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                                 "Invalid message received from master "
-                                 "(missing seq num)");
+          fprintf(stderr, "Invalid message received from master "
+                  "(missing seq num)\n");
           goto err;
         }
 
@@ -725,9 +702,8 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
         {
           ISERR
             {
-              bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                                     "Invalid message received from master "
-                                     "(malformed sequence number)");
+              fprintf(stderr, "Invalid message received from master "
+                      "(malformed sequence number)\n");
               goto err;
             }
         }
@@ -735,9 +711,8 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
       /* read the payload of the message into a list to send to the server */
       if(zsocket_rcvmore(broker->master_zocket) == 0)
         {
-          bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                                 "Invalid message received from master "
-                                 "(missing payload)");
+          fprintf(stderr, "Invalid message received from master "
+                  "(missing payload)\n");
           goto err;
         }
 
@@ -748,13 +723,12 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
           if(req->msg_frames_alloc == req->msg_frames_cnt)
             {
               req->msg_frames_alloc +=
-                BGPVIEW_IO_CLIENT_BROKER_REQ_MSG_FRAME_CHUNK;
+                BGPVIEW_IO_ZMQ_CLIENT_BROKER_REQ_MSG_FRAME_CHUNK;
               if((req->msg_frames =
                   realloc(req->msg_frames,
                           sizeof(zmq_msg_t) * req->msg_frames_alloc)) == NULL)
                 {
-                  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-                                         "Could not allocate message frames");
+                  fprintf(stderr, "Could not allocate message frames\n");
                   goto err;
                 }
 
@@ -764,8 +738,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
 
           if(zmq_msg_init(&req->msg_frames[req->msg_frames_cnt]) != 0)
             {
-              bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-                                     "Could not create llm");
+              fprintf(stderr, "Could not create llm\n");
               goto err;
             }
           if(zmq_msg_recv(&req->msg_frames[req->msg_frames_cnt],
@@ -798,8 +771,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
     }
   else
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                             "Invalid msg from master");
+      fprintf(stderr, "Invalid msg from master\n");
     }
 
   if(handle_timeouts(broker, clock) != 0)
@@ -818,7 +790,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
   return 0;
 
  interrupt:
-  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INTERRUPT, "Caught interrupt");
+  fprintf(stderr, "Caught interrupt");
   return -1;
 
  err:
@@ -827,7 +799,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
 
 static int handle_signal_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
-  bgpview_io_client_broker_t *broker = (bgpview_io_client_broker_t*)arg;
+  bgpview_io_zmq_client_broker_t *broker = (bgpview_io_zmq_client_broker_t*)arg;
   uint64_t clock = zclock_time();
 
   zmsg_t *msg = NULL;
@@ -863,8 +835,7 @@ static int handle_signal_msg(zloop_t *loop, zsock_t *reader, void *arg)
     }
   else
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_PROTOCOL,
-                             "Invalid signal from master");
+      fprintf(stderr, "Invalid signal from master\n");
       goto quit;
     }
 
@@ -878,7 +849,7 @@ static int handle_signal_msg(zloop_t *loop, zsock_t *reader, void *arg)
   return 0;
 
  interrupt:
-  bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INTERRUPT, "Caught interrupt");
+  fprintf(stderr, "Caught interrupt");
   zmsg_destroy(&msg);
   free(command);
   return -1;
@@ -889,10 +860,10 @@ static int handle_signal_msg(zloop_t *loop, zsock_t *reader, void *arg)
   return -1;
 }
 
-static void broker_free(bgpview_io_client_broker_t **broker_p)
+static void broker_free(bgpview_io_zmq_client_broker_t **broker_p)
 {
   assert(broker_p != NULL);
-  bgpview_io_client_broker_t *broker = *broker_p;
+  bgpview_io_zmq_client_broker_t *broker = *broker_p;
   int i;
 
   /* free our reactor */
@@ -919,13 +890,12 @@ static void broker_free(bgpview_io_client_broker_t **broker_p)
   return;
 }
 
-static int init_reactor(bgpview_io_client_broker_t *broker)
+static int init_reactor(bgpview_io_zmq_client_broker_t *broker)
 {
   /* set up the reactor */
   if((broker->loop = zloop_new()) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INIT_FAILED,
-			     "Could not initialize reactor");
+      fprintf(stderr, "Could not initialize reactor\n");
       return -1;
     }
   /* DEBUG */
@@ -936,8 +906,7 @@ static int init_reactor(bgpview_io_client_broker_t *broker)
                                      CFG->heartbeat_interval, 0,
                                      handle_heartbeat_timer, broker)) < 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not add heartbeat timer reactor");
+      fprintf(stderr, "Could not add heartbeat timer reactor\n");
       return -1;
     }
 
@@ -945,8 +914,7 @@ static int init_reactor(bgpview_io_client_broker_t *broker)
   if(zloop_reader(broker->loop, broker->master_pipe,
                   handle_master_msg, broker) != 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not add master pipe to reactor");
+      fprintf(stderr, "Could not add master pipe to reactor\n");
       return -1;
     }
 
@@ -954,23 +922,21 @@ static int init_reactor(bgpview_io_client_broker_t *broker)
   if(zloop_reader(broker->loop, broker->signal_pipe,
                   handle_signal_msg, broker) != 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not add signal pipe to reactor");
+      fprintf(stderr, "Could not add signal pipe to reactor\n");
       return -1;
     }
 
   return 0;
 }
 
-static bgpview_io_client_broker_t *broker_init(zsock_t *signal_pipe,
-                                   bgpview_io_client_broker_config_t *cfg)
+static bgpview_io_zmq_client_broker_t *broker_init(zsock_t *signal_pipe,
+                                                   bgpview_io_zmq_client_broker_config_t *cfg)
 {
-  bgpview_io_client_broker_t *broker;
+  bgpview_io_zmq_client_broker_t *broker;
 
-  if((broker = malloc_zero(sizeof(bgpview_io_client_broker_t))) == NULL)
+  if((broker = malloc_zero(sizeof(bgpview_io_zmq_client_broker_t))) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INIT_FAILED,
-			     "Could not initialize broker state");
+      fprintf(stderr, "Could not initialize broker state\n");
       return NULL;
     }
 
@@ -1001,15 +967,15 @@ static bgpview_io_client_broker_t *broker_init(zsock_t *signal_pipe,
 
 /* broker owns none of the memory passed to it. only responsible for what it
    mallocs itself (e.g. poller) */
-void bgpview_io_client_broker_run(zsock_t *pipe, void *args)
+void bgpview_io_zmq_client_broker_run(zsock_t *pipe, void *args)
 {
-  bgpview_io_client_broker_t *broker;
+  bgpview_io_zmq_client_broker_t *broker;
 
   assert(pipe != NULL);
   assert(args != NULL);
 
   if((broker =
-      broker_init(pipe, (bgpview_io_client_broker_config_t*)args)) == NULL)
+      broker_init(pipe, (bgpview_io_zmq_client_broker_config_t*)args)) == NULL)
     {
       return;
     }
@@ -1023,8 +989,7 @@ void bgpview_io_client_broker_run(zsock_t *pipe, void *args)
   /* signal to our master that we are ready */
   if(zsock_signal(pipe, 0) != 0)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_INIT_FAILED,
-			     "Could not send ready signal to master");
+      fprintf(stderr, "Could not send ready signal to master\n");
       return;
     }
 

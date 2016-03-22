@@ -17,18 +17,14 @@
  *
  */
 #include "config.h"
-
+#include "bgpview_io.h"
+#include "utils.h"
+#include "wandio_utils.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <wandio.h>
-
-#include "utils.h"
-#include "wandio_utils.h"
-
-#include "bgpview_io.h"
 
 #define VIEW_MAGIC 0x42475056 /* BGPV */
 
@@ -840,8 +836,8 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 
 /* ========== PUBLIC FUNCTIONS ========== */
 
-int bgpview_io_write(iow_t *outfile, bgpview_t *view,
-                     bgpview_io_filter_cb_t *cb)
+int bgpview_io_file_write(iow_t *outfile, bgpview_t *view,
+                          bgpview_io_filter_cb_t *cb)
 {
   uint32_t u32;
   bgpview_iter_t *it = NULL;
@@ -894,10 +890,10 @@ int bgpview_io_write(iow_t *outfile, bgpview_t *view,
   return -1;
 }
 
-int bgpview_io_read(io_t *infile, bgpview_t *view,
-                    bgpview_io_filter_peer_cb_t *peer_cb,
-                    bgpview_io_filter_pfx_cb_t *pfx_cb,
-                    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
+int bgpview_io_file_read(io_t *infile, bgpview_t *view,
+                         bgpview_io_filter_peer_cb_t *peer_cb,
+                         bgpview_io_filter_pfx_cb_t *pfx_cb,
+                         bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 {
   uint32_t u32;
 
@@ -976,7 +972,7 @@ int bgpview_io_read(io_t *infile, bgpview_t *view,
   return -1;
 }
 
-int bgpview_io_print(iow_t *outfile, bgpview_t *view)
+int bgpview_io_file_print(iow_t *outfile, bgpview_t *view)
 {
   bgpview_iter_t *it = NULL;
 

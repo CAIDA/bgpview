@@ -2407,3 +2407,4 @@ bgpview_get_as_path_store(bgpview_t *view)
 {
   return view->pathstore;
 }
+

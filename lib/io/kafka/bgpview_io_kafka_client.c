@@ -31,8 +31,6 @@
 #include "khash.h"
 #include "utils.h"
 
-#define ERR (&client->err)
-
 
 /* ========== PUBLIC FUNCS BELOW HERE ========== */
 
@@ -53,32 +51,29 @@ bgpview_io_kafka_client_t *bgpview_io_kafka_client_init()
   if((client->kafka_config.brokers =
       strdup(BGPVIEW_IO_KAFKA_CLIENT_SERVER_URI_DEFAULT)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to duplicate kafka server uri string");
+      fprintf(stderr, "Failed to duplicate kafka server uri string\n");
       goto err;
     }
 
   if((client->kafka_config.pfxs_paths_topic =
       strdup(BGPVIEW_IO_KAFKA_CLIENT_PFXS_PATHS_TOPIC_DEFAULT)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Failed to duplicate kafka prefixes paths topic string");
+      fprintf(stderr,
+              "Failed to duplicate kafka prefixes paths topic string\n");
       goto err;
     }
 
   if((client->kafka_config.peers_topic =
       strdup(BGPVIEW_IO_KAFKA_CLIENT_PEERS_TOPIC_DEFAULT)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-    		  "Failed to duplicate kafka peers topic string");
+      fprintf(stderr, "Failed to duplicate kafka peers topic string\n");
       goto err;
     }
 
   if((client->kafka_config.metadata_topic =
       strdup(BGPVIEW_IO_KAFKA_CLIENT_METADATA_TOPIC_DEFAULT)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-    		  "Failed to duplicate kafka metadata topic string");
+      fprintf(stderr, "Failed to duplicate kafka metadata topic string\n");
       goto err;
     }
 
@@ -184,13 +179,6 @@ void bgpview_io_kafka_client_free(bgpview_io_kafka_client_t *client)
 
 
 
-void bgpview_io_kafka_client_perr(bgpview_io_kafka_client_t *client)
-{
-  assert(client != NULL);
-  bgpview_io_err_perr(ERR);
-}
-
-
 int bgpview_io_kafka_client_start_producer(bgpview_io_kafka_client_t *client)
 {
 
@@ -281,8 +269,7 @@ int bgpview_io_kafka_client_set_broker_addresses(bgpview_io_kafka_client_t *clie
 
   if((client->kafka_config.brokers = strdup(addresses)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not set server addresses");
+      fprintf(stderr, "Could not set server addresses\n");
       return -1;
     }
 
@@ -299,8 +286,7 @@ int bgpview_io_kafka_client_set_pfxs_paths_topic(bgpview_io_kafka_client_t *clie
 
   if((client->kafka_config.pfxs_paths_topic = strdup(topic)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not set server uri");
+      fprintf(stderr, "Could not set server uri\n");
       return -1;
     }
 
@@ -317,8 +303,7 @@ int bgpview_io_kafka_client_set_peers_topic(bgpview_io_kafka_client_t *client, c
 
   if((client->kafka_config.peers_topic = strdup(topic)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not set server uri");
+      fprintf(stderr, "Could not set server uri\n");
       return -1;
     }
 
@@ -335,8 +320,7 @@ int bgpview_io_kafka_client_set_metadata_topic(bgpview_io_kafka_client_t *client
 
   if((client->kafka_config.metadata_topic = strdup(topic)) == NULL)
     {
-      bgpview_io_err_set_err(ERR, BGPVIEW_IO_ERR_MALLOC,
-			     "Could not set server uri");
+      fprintf(stderr, "Could not set server uri\n");
       return -1;
     }
 
@@ -400,7 +384,7 @@ int bgpview_io_kafka_client_recv_view(bgpview_io_kafka_client_t *client,
   if(bgpview_io_kafka_recv(&client->kafka_config,&client->view_data,view,
 		  	  	  	  	  peer_cb,pfx_cb,pfx_peer_cb) != 0)
     {
-      fprintf(stderr, "Failed to receive view");
+      fprintf(stderr, "Failed to receive view\n");
       return -1;
     }
 

@@ -21,33 +21,25 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS = consumers io
+SUBDIRS =
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
                 -I$(top_srcdir)/lib \
                 -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib/consumers \
+                -I$(top_srcdir)/bgpview/lib \
                 -I$(top_srcdir)/bgpview/lib/io
 
-lib_LTLIBRARIES = libbgpviewcaida.la
+noinst_LTLIBRARIES = libbgpview_io_file.la
 
-include_HEADERS = 			\
-	bgpview.h
+include_HEADERS =
 
-libbgpviewcaida_la_SOURCES = 	\
-	bgpview.h		\
-	bgpview.c		\
-	bgpview_debug.c		\
-	bgpview_debug.h
+libbgpview_io_file_la_SOURCES = 	\
+	bgpview_io_file.c		\
+	bgpview_io_file.h
 
-libbgpviewcaida_la_LIBADD = \
-			$(top_builddir)/lib/libbgpstreamcaida.la \
-		       	$(top_builddir)/common/libcccommon.la \
-		       	$(top_builddir)/bgpview/lib/io/libbgpview_io.la \
-		       	$(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la
+libbgpview_io_file_la_LIBADD =
 
-libbgpviewcaida_la_LDFLAGS = -version-info @LIBBGPSTREAM_MAJOR_VERSION@:@LIBBGPSTREAM_MID_VERSION@:@LIBBGPSTREAM_MINOR_VERSION@
 
 ACLOCAL_AMFLAGS = -I m4
 

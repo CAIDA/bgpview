@@ -22,14 +22,10 @@
  */
 
 #include "config.h"
-
+#include "bgpview_io_zmq_int.h"
+#include "bgpview_consumer_manager.h"
 #include <stdio.h>
-
 #include <czmq.h>
-
-#include "bgpview_io_common_int.h"
-#include "bgpview_io.h"
-
 
 #define BUFFER_LEN 16384
 #define BUFFER_1M  1048576
@@ -47,8 +43,6 @@
       fprintf(stderr, "ERROR: Malformed view message at line %d\n", __LINE__); \
       goto err;					\
     }
-
-/* ========== PRIVATE FUNCTIONS ========== */
 
 /* ========== UTILITIES ========== */
 
@@ -197,84 +191,6 @@ static int deserialize_ip(uint8_t *buf, size_t len,
 
   return -1;
 }
-
-static void peers_dump(bgpview_t *view,
-		       bgpview_iter_t *it)
-{
-  bgpstream_peer_id_t peerid;
-  bgpstream_peer_sig_t *ps;
-  int v4pfx_cnt = -1;
-  int v6pfx_cnt = -1;
-  char peer_str[INET6_ADDRSTRLEN] = "";
-
-  fprintf(stdout, "Peers (%d):\n",
-          bgpview_peer_cnt(view, BGPVIEW_FIELD_ACTIVE));
-
-  for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_peer(it);
-      bgpview_iter_next_peer(it))
-    {
-      peerid = bgpview_iter_peer_get_peer_id(it);
-      ps = bgpview_iter_peer_get_sig(it);
-      assert(ps);
-      v4pfx_cnt =
-        bgpview_iter_peer_get_pfx_cnt(it,
-                                              BGPSTREAM_ADDR_VERSION_IPV4,
-                                              BGPVIEW_FIELD_ACTIVE);
-      assert(v4pfx_cnt >= 0);
-      v6pfx_cnt =
-        bgpview_iter_peer_get_pfx_cnt(it,
-                                              BGPSTREAM_ADDR_VERSION_IPV6,
-                                              BGPVIEW_FIELD_ACTIVE);
-      assert(v6pfx_cnt >= 0);
-
-      inet_ntop(ps->peer_ip_addr.version, &(ps->peer_ip_addr.ipv4),
-		peer_str, INET6_ADDRSTRLEN);
-
-      fprintf(stdout,
-              "  %"PRIu16":\t%s, %s %"PRIu32" (%d v4 pfxs, %d v6 pfxs)\n",
-	      peerid, ps->collector_str, peer_str,
-              ps->peer_asnumber, v4pfx_cnt, v6pfx_cnt);
-    }
-}
-
-static void pfxs_dump(bgpview_t *view,
-                      bgpview_iter_t *it)
-{
-  bgpstream_pfx_t *pfx;
-  char pfx_str[INET6_ADDRSTRLEN+3] = "";
-  char path_str[4096] = "";
-  bgpstream_as_path_t *path = NULL;
-
-  fprintf(stdout, "Prefixes (v4 %d, v6 %d):\n",
-          bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),
-          bgpview_v6pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
-
-  for(bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_pfx(it);
-      bgpview_iter_next_pfx(it))
-    {
-      pfx = bgpview_iter_pfx_get_pfx(it);
-      bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx);
-      fprintf(stdout, "  %s (%d peers)\n",
-              pfx_str,
-              bgpview_iter_pfx_get_peer_cnt(it,
-                                                    BGPVIEW_FIELD_ACTIVE));
-
-      for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-          bgpview_iter_pfx_has_more_peer(it);
-          bgpview_iter_pfx_next_peer(it))
-        {
-          path = bgpview_iter_pfx_peer_get_as_path(it);
-          bgpstream_as_path_snprintf(path_str, 4096, path);
-          bgpstream_as_path_destroy(path);
-          fprintf(stdout, "    %"PRIu16":\t%s\n",
-                  bgpview_iter_peer_get_peer_id(it),
-                  path_str);
-        }
-    }
-}
-
 
 #define SERIALIZE_VAL(from)				\
   do {							\
@@ -1128,42 +1044,135 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
 /* ========== PROTECTED FUNCTIONS ========== */
 
-void bgpview_io_dump(bgpview_t *view)
+static char *recv_str(void *src)
 {
-  bgpview_iter_t *it = NULL;
+  zmq_msg_t llm;
+  size_t len;
+  char *str = NULL;
 
-  if(view == NULL)
+  if(zmq_msg_init(&llm) == -1 || zmq_msg_recv(&llm, src, 0) == -1)
     {
-      fprintf(stdout,
-	      "------------------------------\n"
-              "NULL\n"
-	      "------------------------------\n\n");
+      goto err;
+    }
+  len = zmq_msg_size(&llm);
+  if((str = malloc(len + 1)) == NULL)
+    {
+      goto err;
+    }
+  memcpy(str, zmq_msg_data(&llm), len);
+  str[len] = '\0';
+  zmq_msg_close(&llm);
+
+  return str;
+
+ err:
+  free(str);
+  return NULL;
+}
+
+/* ========== PROTECTED FUNCTIONS BELOW HERE ========== */
+
+/* ========== MESSAGE TYPES ========== */
+
+bgpview_io_zmq_msg_type_t bgpview_io_zmq_recv_type(void *src, int flags)
+{
+  bgpview_io_zmq_msg_type_t type = BGPVIEW_IO_ZMQ_MSG_TYPE_UNKNOWN;
+
+  if((zmq_recv(src, &type, bgpview_io_zmq_msg_type_size_t, flags)
+      != bgpview_io_zmq_msg_type_size_t) ||
+     (type > BGPVIEW_IO_ZMQ_MSG_TYPE_MAX))
+    {
+      return BGPVIEW_IO_ZMQ_MSG_TYPE_UNKNOWN;
+    }
+
+  return type;
+}
+
+
+/* ========== INTERESTS/VIEWS ========== */
+
+const char *bgpview_io_zmq_consumer_interest_pub(int interests)
+{
+  /* start with the most specific and work backward */
+  /* NOTE: a view CANNOT satisfy FIRSTFULL and NOT satisfy FULL/PARTIAL */
+  if(interests & BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
+    {
+      return BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL;
+    }
+  else if(interests & BGPVIEW_CONSUMER_INTEREST_FULL)
+    {
+      return BGPVIEW_CONSUMER_INTEREST_SUB_FULL;
+    }
+  else if(interests & BGPVIEW_CONSUMER_INTEREST_PARTIAL)
+    {
+      return BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL;
+    }
+
+  return NULL;
+}
+
+const char *bgpview_io_zmq_consumer_interest_sub(int interests)
+{
+  /* start with the least specific and work backward */
+  if(interests & BGPVIEW_CONSUMER_INTEREST_PARTIAL)
+    {
+      return BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL;
+    }
+  else if(interests & BGPVIEW_CONSUMER_INTEREST_FULL)
+    {
+      return BGPVIEW_CONSUMER_INTEREST_SUB_FULL;
+    }
+  else if(interests & BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
+    {
+      return BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL;
+    }
+
+  return NULL;
+}
+
+uint8_t bgpview_io_zmq_consumer_interest_recv(void *src)
+{
+  char *pub_str = NULL;
+  uint8_t interests = 0;
+
+  /* grab the subscription frame and convert to interests */
+  if((pub_str = recv_str(src)) == NULL)
+    {
+      goto err;
+    }
+
+  /** @todo make all this stuff less hard-coded and extensible */
+  if(strcmp(pub_str, BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL) == 0)
+    {
+      interests |= BGPVIEW_CONSUMER_INTEREST_PARTIAL;
+      interests |= BGPVIEW_CONSUMER_INTEREST_FULL;
+      interests |= BGPVIEW_CONSUMER_INTEREST_FIRSTFULL;
+    }
+  else if(strcmp(pub_str, BGPVIEW_CONSUMER_INTEREST_SUB_FULL) == 0)
+    {
+      interests |= BGPVIEW_CONSUMER_INTEREST_PARTIAL;
+      interests |= BGPVIEW_CONSUMER_INTEREST_FULL;
+    }
+  else if(strcmp(pub_str, BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL) == 0)
+    {
+      interests |= BGPVIEW_CONSUMER_INTEREST_PARTIAL;
     }
   else
     {
-      it = bgpview_iter_create(view);
-      assert(it);
-
-      fprintf(stdout,
-	      "------------------------------\n"
-	      "Time:\t%"PRIu32"\n"
-	      "Created:\t%ld\n",
-	      bgpview_get_time(view),
-	      (long)bgpview_get_time_created(view));
-
-      peers_dump(view, it);
-
-      pfxs_dump(view, it);
-
-      fprintf(stdout,
-	      "------------------------------\n\n");
-
-      bgpview_iter_destroy(it);
+      goto err;
     }
+
+  free(pub_str);
+  return interests;
+
+ err:
+  free(pub_str);
+  return 0;
 }
 
-int bgpview_io_send(void *dest, bgpview_t *view,
-                    bgpview_io_filter_cb_t *cb)
+
+int bgpview_io_zmq_send(void *dest, bgpview_t *view,
+                        bgpview_io_filter_cb_t *cb)
 {
   uint32_t u32;
 
@@ -1213,10 +1222,10 @@ int bgpview_io_send(void *dest, bgpview_t *view,
   return -1;
 }
 
-int bgpview_io_recv(void *src, bgpview_t *view,
-                    bgpview_io_filter_peer_cb_t *peer_cb,
-                    bgpview_io_filter_pfx_cb_t *pfx_cb,
-                    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
+int bgpview_io_zmq_recv(void *src, bgpview_t *view,
+                        bgpview_io_filter_peer_cb_t *peer_cb,
+                        bgpview_io_filter_pfx_cb_t *pfx_cb,
+                        bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 {
   uint32_t u32;
 

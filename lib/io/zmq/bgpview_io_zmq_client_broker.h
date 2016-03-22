@@ -21,15 +21,14 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BGPVIEW_IO_CLIENT_BROKER_H
-#define __BGPVIEW_IO_CLIENT_BROKER_H
+#ifndef __BGPVIEW_IO_ZMQ_CLIENT_BROKER_H
+#define __BGPVIEW_IO_ZMQ_CLIENT_BROKER_H
 
+#include "bgpview_io_zmq_int.h"
+#include "khash.h"
 #include <czmq.h>
 #include <stdint.h>
 
-#include <khash.h>
-
-#include "bgpview_io_common_int.h"
 
 /** @file
  *
@@ -44,11 +43,11 @@
 #define MAX_OUTSTANDING_REQ 2
 
 /** The number of frames that we allocate each time we need more messages */
-#define BGPVIEW_IO_CLIENT_BROKER_REQ_MSG_FRAME_CHUNK 256000
+#define BGPVIEW_IO_ZMQ_CLIENT_BROKER_REQ_MSG_FRAME_CHUNK 256000
 
 /** The maximum number of messages that we receive from the server before
     yielding back to the reactor */
-#define BGPVIEW_IO_CLIENT_BROKER_GREEDY_MAX_MSG 10
+#define BGPVIEW_IO_ZMQ_CLIENT_BROKER_GREEDY_MAX_MSG 10
 
 /**
  * @name Public Enums
@@ -71,23 +70,23 @@
 
 /** Collection of asynchronous callbacks used to notify the client of incoming
     messages from the server. */
-typedef struct bgpview_io_client_broker_callbacks {
+typedef struct bgpview_io_zmq_client_broker_callbacks {
 
   /** @todo add other signals from server here (table rx, etc) */
 
   /** pointer to user-provided data */
   void *user;
 
-} bgpview_io_client_broker_callbacks_t;
+} bgpview_io_zmq_client_broker_callbacks_t;
 
 /** Holds information about a single outstanding request sent to the server */
-typedef struct bgpview_io_client_broker_req {
+typedef struct bgpview_io_zmq_client_broker_req {
 
   /** Is this request in use? */
   int in_use;
 
   /** Message type in the request (and reply) */
-  bgpview_msg_type_t msg_type;
+  bgpview_io_zmq_msg_type_t msg_type;
 
   /** The sequence number in the request (used to match replies) */
   seq_num_t seq_num;
@@ -107,10 +106,10 @@ typedef struct bgpview_io_client_broker_req {
   /** Number of allocated msg frames */
   int msg_frames_alloc;
 
-} bgpview_io_client_broker_req_t;
+} bgpview_io_zmq_client_broker_req_t;
 
 /** Config for the broker. Populated by the client */
-typedef struct bgpview_io_client_broker_config {
+typedef struct bgpview_io_zmq_client_broker_config {
 
   /** set of bgpview_consumer_interest_t flags */
   uint8_t interests;
@@ -119,10 +118,10 @@ typedef struct bgpview_io_client_broker_config {
   uint8_t intents;
 
   /** Pointer to the master's state (passed to callbacks) */
-  struct bgpview_io_client *master;
+  struct bgpview_io_zmq_client *master;
 
   /** Client callbacks */
-  bgpview_io_client_broker_callbacks_t callbacks;
+  bgpview_io_zmq_client_broker_callbacks_t callbacks;
 
   /** 0MQ context pointer (for broker->server comms) */
   zctx_t *ctx;
@@ -157,8 +156,8 @@ typedef struct bgpview_io_client_broker_config {
   /** Request retries */
   int request_retries;
 
-  /** Error status (needs to be here so the master to retrieve err status) */
-  bgpview_io_err_t err;
+  /** Set if the broker is in an error state */
+  int err;
 
   /** Identity of this client. MUST be globally unique.  If this field is set
    * when the broker is started, it will be used to set the identity of the zmq
@@ -169,14 +168,14 @@ typedef struct bgpview_io_client_broker_config {
   /** Pointer to the pipe used to talk to the master */
   zsock_t *master_pipe;
 
-} bgpview_io_client_broker_config_t;
+} bgpview_io_zmq_client_broker_config_t;
 
 
 /** State for a broker instance */
-typedef struct bgpview_io_client_broker {
+typedef struct bgpview_io_zmq_client_broker {
 
   /** Pointer to the config info that our master prepared for us (READ-ONLY) */
-  bgpview_io_client_broker_config_t *cfg;
+  bgpview_io_zmq_client_broker_config_t *cfg;
 
   /** Pointer to the pipe used to get/send signals to/from the master */
   zsock_t *signal_pipe;
@@ -197,7 +196,7 @@ typedef struct bgpview_io_client_broker {
   void *server_sub_socket;
 
   /** Ordered list of outstanding requests (used for re-transmits) */
-  bgpview_io_client_broker_req_t req_list[MAX_OUTSTANDING_REQ];
+  bgpview_io_zmq_client_broker_req_t req_list[MAX_OUTSTANDING_REQ];
 
   /** Number of currently outstanding requests (<= MAX_OUTSTANDING_REQ) */
   int req_count;
@@ -221,7 +220,7 @@ typedef struct bgpview_io_client_broker {
   /** Heartbeat timer ID */
   int timer_id;
 
-} bgpview_io_client_broker_t;
+} bgpview_io_zmq_client_broker_t;
 
 /** @} */
 
@@ -233,18 +232,18 @@ typedef struct bgpview_io_client_broker {
  * @note all communication with the broker must be through the pipe. NO shared
  * memory is to be used.
  */
-void bgpview_io_client_broker_run(zsock_t *pipe, void *args);
+void bgpview_io_zmq_client_broker_run(zsock_t *pipe, void *args);
 
 /** Initialize a request instance
  *
  * @return pointer to a request instance if successful, NULL otherwise
  */
-bgpview_io_client_broker_req_t *bgpview_io_client_broker_req_init();
+bgpview_io_zmq_client_broker_req_t *bgpview_io_zmq_client_broker_req_init();
 
 /** Free a request instance
  *
  * @param req_p           double-pointer to a request instance
  */
-void bgpview_io_client_broker_req_free(bgpview_io_client_broker_req_t **req_p);
+void bgpview_io_zmq_client_broker_req_free(bgpview_io_zmq_client_broker_req_t **req_p);
 
 #endif

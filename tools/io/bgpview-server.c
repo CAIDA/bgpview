@@ -30,10 +30,7 @@
 #include <string.h>
 #include <unistd.h>
 
-/* include bgpview server's public interface */
-/* @@ never include the _int.h file from tools. */
-#include "bgpview_io_server.h"
-#include "bgpview_io_common.h"
+#include "bgpview_io_zmq.h"
 
 /** Indicates that bgpview is waiting to shutdown */
 volatile sig_atomic_t bgpview_shutdown = 0;
@@ -41,7 +38,7 @@ volatile sig_atomic_t bgpview_shutdown = 0;
 /** The number of SIGINTs to catch before aborting */
 #define HARD_SHUTDOWN 3
 
-static bgpview_io_server_t *server = NULL;
+static bgpview_io_zmq_server_t *server = NULL;
 
 /** Handles SIGINT gracefully and shuts down */
 static void catch_sigint(int sig)
@@ -58,7 +55,7 @@ static void catch_sigint(int sig)
 
   if(server != NULL)
     {
-      bgpview_io_server_stop(server);
+      bgpview_io_zmq_server_stop(server);
     }
 
   signal(sig, catch_sigint);
@@ -79,12 +76,12 @@ static void usage(const char *name)
 	  "       -w <window-len>    Number of views in the window (default: %d)\n"
           "       -m <prefix>        Metric prefix (default: %s)\n",
 	  name,
-	  BGPVIEW_IO_CLIENT_URI_DEFAULT,
-	  BGPVIEW_IO_CLIENT_PUB_URI_DEFAULT,
-	  BGPVIEW_IO_HEARTBEAT_INTERVAL_DEFAULT,
-	  BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT,
-	  BGPVIEW_IO_SERVER_WINDOW_LEN,
-          BGPVIEW_IO_SERVER_METRIC_PREFIX_DEFAULT);
+	  BGPVIEW_IO_ZMQ_CLIENT_URI_DEFAULT,
+	  BGPVIEW_IO_ZMQ_CLIENT_PUB_URI_DEFAULT,
+	  BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
+	  BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
+	  BGPVIEW_IO_ZMQ_SERVER_WINDOW_LEN,
+          BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_DEFAULT);
 }
 
 int main(int argc, char **argv)
@@ -97,13 +94,13 @@ int main(int argc, char **argv)
   const char *client_uri = NULL;
   const char *client_pub_uri = NULL;
 
-  uint64_t heartbeat_interval = BGPVIEW_IO_HEARTBEAT_INTERVAL_DEFAULT;
-  int heartbeat_liveness      = BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT;
-  char metric_prefix[BGPVIEW_IO_SERVER_METRIC_PREFIX_LEN];
+  uint64_t heartbeat_interval = BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT;
+  int heartbeat_liveness      = BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT;
+  char metric_prefix[BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_LEN];
 
-  strcpy(metric_prefix, BGPVIEW_IO_SERVER_METRIC_PREFIX_DEFAULT);
+  strcpy(metric_prefix, BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_DEFAULT);
 
-  int window_len = BGPVIEW_IO_SERVER_WINDOW_LEN;
+  int window_len = BGPVIEW_IO_ZMQ_SERVER_WINDOW_LEN;
 
   signal(SIGINT, catch_sigint);
 
@@ -166,46 +163,43 @@ int main(int argc, char **argv)
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
-  if((server = bgpview_io_server_init()) == NULL)
+  if((server = bgpview_io_zmq_server_init()) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize bgpview server\n");
       goto err;
     }
 
-  bgpview_io_server_set_metric_prefix(server, metric_prefix);
+  bgpview_io_zmq_server_set_metric_prefix(server, metric_prefix);
 
   if(client_uri != NULL)
     {
-      bgpview_io_server_set_client_uri(server, client_uri);
+      bgpview_io_zmq_server_set_client_uri(server, client_uri);
     }
 
   if(client_pub_uri != NULL)
     {
-      bgpview_io_server_set_client_pub_uri(server, client_pub_uri);
+      bgpview_io_zmq_server_set_client_pub_uri(server, client_pub_uri);
     }
 
-  bgpview_io_server_set_heartbeat_interval(server, heartbeat_interval);
+  bgpview_io_zmq_server_set_heartbeat_interval(server, heartbeat_interval);
 
-  bgpview_io_server_set_heartbeat_liveness(server, heartbeat_liveness);
+  bgpview_io_zmq_server_set_heartbeat_liveness(server, heartbeat_liveness);
 
-  bgpview_io_server_set_window_len(server, window_len);
+  bgpview_io_zmq_server_set_window_len(server, window_len);
 
   /* do work */
   /* this function will block until the server shuts down */
-  bgpview_io_server_start(server);
-
-  /* this will always be set, normally to a SIGINT-caught message */
-  bgpview_io_server_perr(server);
+  bgpview_io_zmq_server_start(server);
 
   /* cleanup */
-  bgpview_io_server_free(server);
+  bgpview_io_zmq_server_free(server);
 
   /* complete successfully */
   return 0;
 
  err:
   if(server != NULL) {
-    bgpview_io_server_free(server);
+    bgpview_io_zmq_server_free(server);
   }
   return -1;
 }

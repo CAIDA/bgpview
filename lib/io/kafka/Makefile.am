@@ -21,33 +21,33 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS = consumers io
+SUBDIRS =
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
                 -I$(top_srcdir)/lib \
                 -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib/consumers \
-                -I$(top_srcdir)/bgpview/lib/io
+                -I$(top_srcdir)/bgpview/lib \
+                -I$(top_srcdir)/bgpview/lib/io \
+                -I$(top_srcdir)/bgpview/lib/consumers
 
-lib_LTLIBRARIES = libbgpviewcaida.la
+noinst_LTLIBRARIES = libbgpview_io_kafka.la
 
-include_HEADERS = 			\
-	bgpview.h
+include_HEADERS =
 
-libbgpviewcaida_la_SOURCES = 	\
-	bgpview.h		\
-	bgpview.c		\
-	bgpview_debug.c		\
-	bgpview_debug.h
+libbgpview_io_kafka_la_SOURCES = 	\
+	bgpview_io_kafka.c		\
+	bgpview_io_kafka.h		\
+	bgpview_io_kafka_peer.pb.c	\
+	bgpview_io_kafka_peer.pb.h	\
+	bgpview_io_kafka_row.pb.c	\
+	bgpview_io_kafka_row.pb.h	\
+	bgpview_io_kafka_client.h	\
+	bgpview_io_kafka_client.c	\
+	bgpview_io_kafka_client_int.h
 
-libbgpviewcaida_la_LIBADD = \
-			$(top_builddir)/lib/libbgpstreamcaida.la \
-		       	$(top_builddir)/common/libcccommon.la \
-		       	$(top_builddir)/bgpview/lib/io/libbgpview_io.la \
-		       	$(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la
+libbgpview_io_kafka_la_LIBADD =
 
-libbgpviewcaida_la_LDFLAGS = -version-info @LIBBGPSTREAM_MAJOR_VERSION@:@LIBBGPSTREAM_MID_VERSION@:@LIBBGPSTREAM_MINOR_VERSION@
 
 ACLOCAL_AMFLAGS = -I m4
 

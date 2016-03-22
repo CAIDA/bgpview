@@ -21,10 +21,10 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BGPVIEW_IO_STORE_H
-#define __BGPVIEW_IO_STORE_H
+#ifndef __BGPVIEW_IO_ZMQ_STORE_H
+#define __BGPVIEW_IO_ZMQ_STORE_H
 
-#include "bgpview_io_server.h"
+#include "bgpview_io_zmq_server.h"
 #include "bgpview.h"
 #include "bgpstream_utils_pfx.h"
 
@@ -41,7 +41,7 @@
  *
  * @{ */
 
-typedef struct bgpview_io_store bgpview_io_store_t;
+typedef struct bgpview_io_zmq_store bgpview_io_zmq_store_t;
 
 /** @} */
 
@@ -52,14 +52,14 @@ typedef struct bgpview_io_store bgpview_io_store_t;
  * @return a pointer to a bgpview store instance, or NULL if an error
  * occurred
  */
-bgpview_io_store_t *bgpview_io_store_create(bgpview_io_server_t *server,
-					    int window_len);
+bgpview_io_zmq_store_t *bgpview_io_zmq_store_create(bgpview_io_zmq_server_t *server,
+                                                    int window_len);
 
 /** Destroy the given bgpview store instance
  *
  * @param store         pointer to the store instance to destroy
  */
-void bgpview_io_store_destroy(bgpview_io_store_t *store);
+void bgpview_io_zmq_store_destroy(bgpview_io_zmq_store_t *store);
 
 /** Register a new bgpview client
  *
@@ -69,8 +69,8 @@ void bgpview_io_store_destroy(bgpview_io_store_t *store);
  * @param intents       client intents
  * @return 0 if successful, -1 otherwise
  */
-int bgpview_io_store_client_connect(bgpview_io_store_t *store,
-                                    bgpview_io_server_client_info_t *client);
+int bgpview_io_zmq_store_client_connect(bgpview_io_zmq_store_t *store,
+                                        bgpview_io_zmq_server_client_info_t *client);
 
 /** Deregister a bgpview client
  *
@@ -78,8 +78,8 @@ int bgpview_io_store_client_connect(bgpview_io_store_t *store,
  * @param name          string name of the client that disconnected
  * @return 0 if successful, -1 otherwise
  */
-int bgpview_io_store_client_disconnect(bgpview_io_store_t *store,
-                                       bgpview_io_server_client_info_t *client);
+int bgpview_io_zmq_store_client_disconnect(bgpview_io_zmq_store_t *store,
+                                           bgpview_io_zmq_server_client_info_t *client);
 
 /** Retrieve a pointer to the view that represents the given time
  *
@@ -88,8 +88,8 @@ int bgpview_io_store_client_disconnect(bgpview_io_store_t *store,
  * @return borrowed pointer to a view if the given time is inside the current
  *         window, NULL if it is outside
  */
-bgpview_t *bgpview_io_store_get_view(bgpview_io_store_t *store,
-                                             uint32_t time);
+bgpview_t *bgpview_io_zmq_store_get_view(bgpview_io_zmq_store_t *store,
+                                         uint32_t time);
 
 /** Notify the store that a view it manages has been updated with new data
  *
@@ -98,15 +98,15 @@ bgpview_t *bgpview_io_store_get_view(bgpview_io_store_t *store,
  * @param client        pointer to info about the client that sent the view
  * @return 0 if the view was processed successfully, -1 otherwise
  */
-int bgpview_io_store_view_updated(bgpview_io_store_t *store,
-                                  bgpview_t *view,
-                                  bgpview_io_server_client_info_t *client);
+int bgpview_io_zmq_store_view_updated(bgpview_io_zmq_store_t *store,
+                                      bgpview_t *view,
+                                      bgpview_io_zmq_server_client_info_t *client);
 
 /** Force a timeout check on the views currently in the store
  *
  * @param store         pointer to a store instance
  * @return 0 if successful, -1 otherwise
  */
-int bgpview_io_store_check_timeouts(bgpview_io_store_t *store);
+int bgpview_io_zmq_store_check_timeouts(bgpview_io_zmq_store_t *store);
 
 #endif /* __BGPSTORE_LIB_H */

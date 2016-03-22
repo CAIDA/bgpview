@@ -21,7 +21,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS =
+SUBDIRS = file kafka zmq
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
@@ -35,33 +35,12 @@ noinst_LTLIBRARIES = libbgpview_io.la
 include_HEADERS =
 
 libbgpview_io_la_SOURCES = 		\
-	bgpview_io_common.h		\
-	bgpview_io_common_int.h		\
-	bgpview_io_common.c		\
-	bgpview_io_client.h		\
-	bgpview_io_client_int.h		\
-	bgpview_io_client.c		\
-	bgpview_io_client_broker.h	\
-	bgpview_io_client_broker.c	\
-	bgpview_io_file.c		\
-	bgpview_io_server.h		\
-	bgpview_io_server_int.h		\
-	bgpview_io_server.c		\
-	bgpview_io_store.h		\
-	bgpview_io_store.c		\
-	bgpview_io.h			\
-	bgpview_io.c			\
-	bgpview_io_kafka.c		\
-	bgpview_io_kafka.h		\
-	bgpview_io_kafka_peer.pb.c	\
-	bgpview_io_kafka_peer.pb.h	\
-	bgpview_io_kafka_row.pb.c	\
-	bgpview_io_kafka_row.pb.h	\
-	bgpview_io_kafka_client.h	\
-	bgpview_io_kafka_client.c	\
-	bgpview_io_kafka_client_int.h
+	bgpview_io.h
 
-libbgpview_io_la_LIBADD =
+libbgpview_io_la_LIBADD = 						\
+	$(top_builddir)/bgpview/lib/io/file/libbgpview_io_file.la	\
+	$(top_builddir)/bgpview/lib/io/kafka/libbgpview_io_kafka.la	\
+	$(top_builddir)/bgpview/lib/io/zmq/libbgpview_io_zmq.la
 
 
 ACLOCAL_AMFLAGS = -I m4

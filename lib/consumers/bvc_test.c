@@ -28,7 +28,7 @@
 #include "utils.h"
 
 #include "bgpview.h"
-#include "bgpview_io.h" /*< for bgpview_io_dump */
+#include "bgpview_debug.h" /*< for bgpview_debug_dump */
 
 #include "bgpview_consumer_interface.h"
 #include "bgpstream_utils_pfx_set.h"
@@ -162,7 +162,7 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
   if(bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE)
      < MAX_DUMP_SIZE)
     {
-      bgpview_io_dump(view);
+      bgpview_debug_dump(view);
     }
   else
     {
@@ -280,7 +280,7 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
 
   // dump view after random pfx-peer deactivation
   fprintf(stderr,"Deactivated %d pfx-peers\n", d);
-  bgpview_io_dump(view);
+  bgpview_debug_dump(view);
 
   // TEST: check pfx iterator and deactivate
   /* d = 0; */
@@ -298,7 +298,7 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
 
   /* // dump view after random pfx deactivation */
   /* fprintf(stderr,"Deactivated %d pfxs\n", d); */
-  /* bgpview_io_dump(view); */
+  /* bgpview_debug_dump(view); */
 
   // TEST: check peer iterator and deactivate
   d = 0;
@@ -315,7 +315,7 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
 
   // dump view after random peer deactivation
   fprintf(stderr,"Deactivated %d peers\n", d);
-  bgpview_io_dump(view);
+  bgpview_debug_dump(view);
 
 
 
@@ -341,7 +341,7 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
 
   // dump view after random pfx-peer deactivation
   fprintf(stderr,"Removed %d pfx-peers\n", d);
-  bgpview_io_dump(view);
+  bgpview_debug_dump(view);
 
   // TEST: check pfx iterator and remove
   /* d = 0; */
@@ -359,7 +359,7 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
 
   /* // dump view after random pfx deactivation */
   /* fprintf(stderr,"Removed %d pfxs\n", d); */
-  /* bgpview_io_dump(view); */
+  /* bgpview_debug_dump(view); */
 
   // TEST: check peer iterator and remove
   d = 0;
@@ -376,17 +376,17 @@ int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
 
   // dump view after random peer deactivation
   fprintf(stderr,"Removed %d peers\n", d);
-  bgpview_io_dump(view);
+  bgpview_debug_dump(view);
 
   // garbage collect the view
   fprintf(stderr, "Running garbage collector\n");
   bgpview_gc(view);
-  bgpview_io_dump(view);
+  bgpview_debug_dump(view);
   
   // TEST: bgpview clear
   /* bgpview_clear(view); */
   /* fprintf(stderr,"Cleared view \n"); */
-  /* bgpview_io_dump(view); */
+  /* bgpview_debug_dump(view); */
 
   fprintf(stderr,"End of test\n");
   

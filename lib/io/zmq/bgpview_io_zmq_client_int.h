@@ -21,20 +21,21 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BGPVIEW_IO_KAFKA_CLIENT_INT_H
-#define __BGPVIEW_IO_KAFKA_CLIENT_INT_H
+#ifndef __BGPVIEW_IO_ZMQ_CLIENT_INT_H
+#define __BGPVIEW_IO_ZMQ_CLIENT_INT_H
 
-
+#include <czmq.h>
 #include <stdint.h>
-#include "bgpview_io_kafka.h"
-#include "bgpview_io_common.h"
+
+#include "bgpview_io_zmq_client.h"
+#include "bgpview_io_zmq_client_broker.h"
 
 /** @file
  *
  * @brief Header file that exposes the private interface of the bgpview
  * client
  *
- * @author Danilo Giordano
+ * @author Alistair King
  *
  */
 
@@ -50,17 +51,25 @@
  *
  * @{ */
 
-struct bgpview_io_kafka_client {
+struct bgpview_io_zmq_client {
 
-	  /** Error status */
-	  bgpview_io_err_t err;
+  /** shared config that we have prepared for our broker(s) */
+  bgpview_io_zmq_client_broker_config_t broker_config;
 
-	  kafka_data_t kafka_config;
+  /** handle to communicate with our broker */
+  zactor_t *broker;
 
-	  kafka_view_data_t view_data;
+  /** Socket to communicate data with the broker */
+  zsock_t *broker_sock;
 
-  /* Historical View*/
-	bgpview_t *viewH;
+  /** raw socket to the broker */
+  void *broker_zocket;
+
+  /** Next request sequence number to use */
+  seq_num_t seq_num;
+
+  /** Indicates that the client has been signaled to shutdown */
+  int shutdown;
 
 };
 
@@ -73,4 +82,4 @@ struct bgpview_io_kafka_client {
 
 /** @} */
 
-#endif
+#endif /* __BGPVIEW_IO_ZMQ_CLIENT_INT_H */

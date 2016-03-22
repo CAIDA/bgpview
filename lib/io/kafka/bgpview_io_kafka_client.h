@@ -28,7 +28,6 @@
 #include <stdint.h>
 
 #include "bgpview_io_kafka.h"
-#include "bgpview_io_common.h" //bgpview_io_err_perr
 
 
 /** @file
@@ -101,14 +100,6 @@ typedef struct bgpview_io_kafka_client bgpview_io_kafka_client_t;
  * intent/interest not registered will trigger an assert.
  */
 bgpview_io_kafka_client_t *bgpview_io_kafka_client_init();
-
-
-/** Prints the error status (if any) to standard error and clears the error
- * state
- *
- * @param client       pointer to bgpview kafka client instance to print error for
- */
-void bgpview_io_kafka_client_perr(bgpview_io_kafka_client_t *client);
 
 /** Queue the given View for transmission to the server
  *

@@ -21,19 +21,15 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BGPVIEW_IO_SERVER_INT_H
-#define __BGPVIEW_IO_SERVER_INT_H
+#ifndef __BGPVIEW_IO_ZMQ_SERVER_INT_H
+#define __BGPVIEW_IO_ZMQ_SERVER_INT_H
 
+#include "bgpview_io_zmq_server.h"
+#include "bgpview.h"
+#include "bgpview_io_zmq_store.h"
+#include "khash.h"
 #include <czmq.h>
 #include <stdint.h>
-
-#include "bgpview_io_server.h"
-#include "bgpview.h"
-#include "bgpview_io_common.h"
-#include "bgpview_io_common_int.h"
-#include "bgpview_io_store.h"
-
-#include "khash.h"
 
 /** @file
  *
@@ -49,7 +45,7 @@
  *
  * @{ */
 
-/* shared constants are in bgpview_io_common.h */
+/* shared constants are in bgpview_io_zmq.h */
 
 /** @} */
 
@@ -73,7 +69,7 @@
  * @{ */
 
 /** Protected information about a client used to handle client connections */
-typedef struct bgpview_io_server_client {
+typedef struct bgpview_io_zmq_server_client {
 
   /** Identity frame data that the client sent us */
   zmq_msg_t identity;
@@ -88,20 +84,17 @@ typedef struct bgpview_io_server_client {
   uint64_t expiry;
 
   /** info about this client that we will send to the client connect handler */
-  bgpview_io_server_client_info_t info;
+  bgpview_io_zmq_server_client_info_t info;
 
-} bgpview_io_server_client_t;
+} bgpview_io_zmq_server_client_t;
 
-KHASH_INIT(strclient, char*, bgpview_io_server_client_t*, 1,
+KHASH_INIT(strclient, char*, bgpview_io_zmq_server_client_t*, 1,
 	   kh_str_hash_func, kh_str_hash_equal);
 
-struct bgpview_io_server {
+struct bgpview_io_zmq_server {
 
   /** Metric prefix to output metrics */
-  char metric_prefix[BGPVIEW_IO_SERVER_METRIC_PREFIX_LEN];
-  
-  /** Error status */
-  bgpview_io_err_t err;
+  char metric_prefix[BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_LEN];
 
   /** 0MQ context pointer */
   zctx_t *ctx;
@@ -138,7 +131,7 @@ struct bgpview_io_server {
   uint64_t view_num;
 
   /** BGPView Store instance */
-  bgpview_io_store_t *store;
+  bgpview_io_zmq_store_t *store;
 
   /** The number of heartbeats that have gone by since the last timeout check */
   int store_timeout_cnt;
@@ -161,9 +154,9 @@ struct bgpview_io_server {
  * @param table         pointer to a bgp view to publish
  * @param interests     flags indicating which interests this table satisfies
  */
-int bgpview_io_server_publish_view(bgpview_io_server_t *server,
-                                   bgpview_t *view,
-                                   int interests);
+int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
+                                       bgpview_t *view,
+                                       int interests);
 
 /** @} */
 
