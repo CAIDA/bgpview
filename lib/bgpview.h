@@ -206,6 +206,17 @@ bgpview_clear(bgpview_t *view);
 void
 bgpview_gc(bgpview_t *view);
 
+/** Copy one BGPView into another
+ *
+ * @param dst           pointer to the destination view
+ * @param src           pointer to the source view
+ * @return 0 if the view was copied successfully, -1 otherwise
+ *
+ * The destination view will be cleared prior to copying.
+ */
+int
+bgpview_copy(bgpview_t* dst, bgpview_t *src);
+
 /** Disable user data for a view
  *
  * @param view          view to disable user data for
@@ -708,8 +719,6 @@ bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter,
 
 /** Remove the current pfx currently referenced by the given iterator
  *
- *
- *
  * @param iter             pointer to a view iterator
  * @return 0 if the pfx was removed successfully, -1 otherwise
  *
@@ -717,9 +726,7 @@ bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter,
  * associated with the pfx. If memory should be reclaimed, run the
  * bgpview_gc function after removals are complete.
  *
- * After removing a pfx, the provided iterator will be advanced to the next pfx
- * that matches the current iterator configuration, or will be invalidated if
- * there are no more pfxs.
+ * After removing a pfx, the provided iterator will **not** be advanced.
  *
  * If the pfx is currently active, it will be deactivated prior to removal (thus
  * deactivating and removing all associated pfx-peers).
@@ -767,8 +774,6 @@ bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
 /** Remove the current peer from the current prefix currently referenced by the
  * given iterator
  *
- *WARNING: IT DOES NOT ADVANCE THE ITERATOR ANYMORE
- *
  * @param iter             pointer to a view iterator
  * @return 0 if the pfx-peer was removed successfully, -1 otherwise
  *
@@ -776,15 +781,15 @@ bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
  * associated with the pfx-peer. If memory should be reclaimed, run the
  * bgpview_gc function after removals are complete.
  *
- * After removing a pfx-peer, the provided iterator will be advanced to the next
- * pfx-peer that matches the current iterator configuration, or will be
- * invalidated if there are no more pfx-peers.
+ * After removing a pfx-peer, the provided iterator will **not** be
+ * advanced. This allows removal of pfx-peers while iterating.
  *
  * If the pfx-peer is currently active, it will be deactivated prior to
  * removal.
  *
  * If this is the last pfx-peer for the current pfx, the pfx will also be
  * removed.
+ *
  */
 int
 bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter);
@@ -966,6 +971,16 @@ bgpview_iter_pfx_peer_get_origin_seg(bgpview_iter_t *iter);
 bgpstream_as_path_store_path_t *
 bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter);
 
+/** Get the AS Path Store ID of the AS Path for the current pfx-peer structure
+ * pointed to by the given iterator
+ *
+ * @param iter          Pointer to an iterator structure
+ * @return ID of the current AS path
+ *
+ */
+bgpstream_as_path_store_path_id_t
+bgpview_iter_pfx_peer_get_as_path_store_path_id(bgpview_iter_t *iter);
+
 /** Reset the AS Path Segment iterator for the current pfx-peer
  *
  * @param iter          Pointer to an iterator structure
@@ -1120,22 +1135,6 @@ bgpview_iter_pfx_activate_peer(bgpview_iter_t *iter);
 int
 bgpview_iter_pfx_deactivate_peer(bgpview_iter_t *iter);
 
-/** Create a new BGP View, which is a clone of the desired view
- * The cloned view use the same peer map and as path store than the first view.
- *
- *
- * A BGP View holds a snapshot of the aggregated prefix information.
- * Basically, it maps from prefix -> peers -> prefix info
- *
- * @param view     pointer to a peersigns table that the view should use
- *
- * @return a pointer to the view if successful, NULL otherwise
- */
-
-int bgpview_clone_view(bgpview_t* view,bgpview_t** cloned_view);
-
-bgpstream_as_path_store_path_id_t
-bgpview_iter_pfx_peer_get_as_path_id(bgpview_iter_t *iter);
-
+/** @} */
 
 #endif /* __BGPVIEW_H */

@@ -477,7 +477,7 @@ static void peerid_pfxinfo_destroy(bgpview_t *view,
   (((iter)->version_ptr == BGPSTREAM_ADDR_VERSION_IPV4) ?       \
    (kh_val((iter)->view->v4pfxs, (iter)->pfx_it)) :             \
    ((iter)->version_ptr == BGPSTREAM_ADDR_VERSION_IPV6) ?       \
-   (kh_val(iter->view->v6pfxs, iter->pfx_it)) : NULL)
+   (kh_val((iter)->view->v6pfxs, (iter)->pfx_it)) : NULL)
 
 static int add_v4pfx(bgpview_iter_t *iter,
                      bgpstream_ipv4_pfx_t *pfx)
@@ -777,6 +777,15 @@ bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter)
   return __iter_pfx_peer_get_as_path_store_path(iter);
 }
 
+#define __iter_pfx_peer_get_as_path_store_path_id(iter)               \
+  (BWV_PFX_GET_PEER_EXT(__pfx_peerinfos(iter), iter->pfx_peer_it).as_path_id)
+
+bgpstream_as_path_store_path_id_t
+bgpview_iter_pfx_peer_get_as_path_store_path_id(bgpview_iter_t *iter)
+{
+  return __iter_pfx_peer_get_as_path_store_path_id(iter);
+}
+
 #define __iter_pfx_peer_get_as_path(iter)                               \
   (bgpstream_as_path_store_path_get_path(                               \
                                          __iter_pfx_peer_get_as_path_store_path(iter), \
@@ -865,17 +874,6 @@ bgpview_iter_pfx_peer_get_user(bgpview_iter_t *iter)
   ASSERT_BWV_PFX_PEERINFO_EXT(iter->view);
   return __iter_pfx_peer_get_user(iter);
 }
-
-
-#define __iter_pfx_peer_get_as_path_id(iter)               \
-  (BWV_PFX_GET_PEER_EXT(__pfx_peerinfos(iter), iter->pfx_peer_it).as_path_id)
-
-bgpstream_as_path_store_path_id_t
-bgpview_iter_pfx_peer_get_as_path_id(bgpview_iter_t *iter)
-{
-  return __iter_pfx_peer_get_as_path_id(iter);
-}
-
 
 int
 bgpview_iter_pfx_peer_set_user(bgpview_iter_t *iter, void *user)
@@ -1459,9 +1457,6 @@ bgpview_iter_remove_peer(bgpview_iter_t *iter)
   peerinfo_reset(&kh_value(iter->view->peerinfo, iter->peer_it));
   iter->view->peerinfo_cnt[BGPVIEW_FIELD_INACTIVE]--;
 
-  /* and now advance the iterator */
-  //__iter_next_peer(iter);
-
   return 0;
 }
 
@@ -1537,6 +1532,7 @@ int
 bgpview_iter_remove_pfx(bgpview_iter_t *iter)
 {
   bwv_peerid_pfxinfo_t *pfxinfo = __pfx_peerinfos(iter);
+  bgpview_iter_t ti;
 
   /* if the pfx is active, then we deactivate it first */
   if(bgpview_iter_pfx_get_state(iter) ==
@@ -1552,12 +1548,13 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter)
   /* if there are any active or inactive pfx-peers, we remove them now */
   if(bgpview_iter_pfx_get_peer_cnt(iter, BGPVIEW_FIELD_ALL_VALID) > 0)
     {
+      ti = *iter;
       /* iterate over all pfx-peers for this pfx */
-      __iter_pfx_first_peer(iter, BGPVIEW_FIELD_ALL_VALID);
-      while(bgpview_iter_pfx_has_more_peer(iter))
+      __iter_pfx_first_peer(&ti, BGPVIEW_FIELD_ALL_VALID);
+      while(bgpview_iter_pfx_has_more_peer(&ti))
         {
-          bgpview_iter_pfx_remove_peer(iter);
-          __iter_pfx_next_peer(iter);
+          bgpview_iter_pfx_remove_peer(&ti);
+          __iter_pfx_next_peer(&ti);
         }
     }
 
@@ -1579,8 +1576,6 @@ bgpview_iter_remove_pfx(bgpview_iter_t *iter)
     default:
       return -1;
     }
-
-  __iter_next_pfx(iter);
 
   return 0;
 }
@@ -1641,16 +1636,12 @@ bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
 int
 bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter)
 {
-
-
-  bgpview_iter_t lit;
   bwv_peerid_pfxinfo_t *pfxinfo = __pfx_peerinfos(iter);
 
   /* if the pfx-peer is active, then we deactivate it first */
   if(__iter_pfx_peer_get_state(iter) == BGPVIEW_FIELD_ACTIVE)
     {
-      lit = *iter;
-      bgpview_iter_pfx_deactivate_peer(&lit);
+      bgpview_iter_pfx_deactivate_peer(iter);
     }
 
   assert(BWV_PFX_GET_PEER_STATE(pfxinfo, iter->pfx_peer_it) ==
@@ -1683,12 +1674,8 @@ bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter)
      pfxinfo->peers_cnt[BGPVIEW_FIELD_INACTIVE] == 0 &&
      pfxinfo->peers_cnt[BGPVIEW_FIELD_ACTIVE] == 0)
     {
-      /* it will update the iterator */
       return bgpview_iter_remove_pfx(iter);
     }
-
-  /* and now advance the iterator */
-  //__iter_pfx_next_peer(iter);
 
   return 0;
 }
@@ -1805,6 +1792,7 @@ int
 bgpview_iter_deactivate_pfx(bgpview_iter_t *iter)
 {
   bwv_peerid_pfxinfo_t *pfxinfo = __pfx_peerinfos(iter);
+  bgpview_iter_t ti = *iter;
 
   assert(pfxinfo->state > 0);
   if(pfxinfo->state != BGPVIEW_FIELD_ACTIVE)
@@ -1816,11 +1804,11 @@ bgpview_iter_deactivate_pfx(bgpview_iter_t *iter)
   pfxinfo->state = BGPVIEW_FIELD_INACTIVE;
 
   /* deactivate all pfx-peers for this prefix */
-  __iter_pfx_first_peer(iter, BGPVIEW_FIELD_ACTIVE);
-  while(__iter_pfx_has_more_peer(iter))
+  __iter_pfx_first_peer(&ti, BGPVIEW_FIELD_ACTIVE);
+  while(__iter_pfx_has_more_peer(&ti))
     {
-      bgpview_iter_pfx_deactivate_peer(iter);
-      __iter_pfx_next_peer(iter);
+      bgpview_iter_pfx_deactivate_peer(&ti);
+      __iter_pfx_next_peer(&ti);
     }
 
   /* now update the counters */
@@ -1891,7 +1879,6 @@ bgpview_iter_pfx_activate_peer(bgpview_iter_t *iter)
 int
 bgpview_iter_pfx_deactivate_peer(bgpview_iter_t *iter)
 {
-  bgpview_iter_t lit;
   bwv_peerid_pfxinfo_t *pfxinfo = __pfx_peerinfos(iter);
 
   assert(__iter_pfx_has_more_peer(iter));
@@ -1911,8 +1898,7 @@ bgpview_iter_pfx_deactivate_peer(bgpview_iter_t *iter)
   DEACTIVATE_FIELD_CNT(pfxinfo->peers_cnt);
   if(pfxinfo->peers_cnt[BGPVIEW_FIELD_ACTIVE] == 0)
     {
-      lit = *iter;
-      bgpview_iter_deactivate_pfx(&lit);
+      bgpview_iter_deactivate_pfx(iter);
     }
 
   // decrement the number of pfxs observed by the peer
@@ -2186,6 +2172,107 @@ bgpview_gc(bgpview_t *view)
     }
 }
 
+int bgpview_copy(bgpview_t *dst, bgpview_t* src){
+  bgpview_iter_t *src_iter;
+  bgpview_iter_t *dst_iter;
+
+  bgpstream_peer_sig_t *ps;
+  bgpstream_peer_id_t src_id, dst_id;
+  bgpstream_peer_id_t dstids[UINT16_MAX];
+
+  int first;
+  bgpstream_pfx_t *pfx;
+  bgpstream_as_path_store_path_id_t pathid;
+  bgpstream_as_path_t *path;
+
+  /* first, clear the destination */
+  bgpview_clear(dst);
+
+  if(((src_iter = bgpview_iter_create(src)) == NULL) ||
+     ((dst_iter = bgpview_iter_create(dst)) == NULL))
+    {
+      goto err;
+    }
+
+  for(bgpview_iter_first_peer(src_iter, BGPVIEW_FIELD_ACTIVE);
+      bgpview_iter_has_more_peer(src_iter);
+      bgpview_iter_next_peer(src_iter))
+    {
+      ps = bgpview_iter_peer_get_sig(src_iter);
+      src_id = bgpview_iter_peer_get_peer_id(src_iter);
+      if((dst_id = bgpview_iter_add_peer(dst_iter, ps->collector_str,
+                                         (bgpstream_ip_addr_t*)&ps->peer_ip_addr,
+                                         ps->peer_asnumber)) == 0)
+        {
+          goto err;
+        }
+      dstids[src_id] = dst_id;
+      bgpview_iter_activate_peer(dst_iter);
+    }
+
+  for(bgpview_iter_first_pfx(src_iter, 0, BGPVIEW_FIELD_ACTIVE);
+      bgpview_iter_has_more_pfx(src_iter);
+      bgpview_iter_next_pfx(src_iter))
+    {
+      first = 1;
+      pfx = bgpview_iter_pfx_get_pfx(src_iter);
+      for(bgpview_iter_pfx_first_peer(src_iter, BGPVIEW_FIELD_ACTIVE);
+          bgpview_iter_pfx_has_more_peer(src_iter);
+          bgpview_iter_pfx_next_peer(src_iter))
+        {
+          src_id = bgpview_iter_peer_get_peer_id(src_iter);
+          dst_id = dstids[src_id];
+          pathid = bgpview_iter_pfx_peer_get_as_path_store_path_id(src_iter);
+
+          /* if they share tables, be more efficient */
+          if (dst->pathstore == src->pathstore)
+            {
+              if (first != 0)
+                {
+                  /* this is the first pfx-peer for this prefix */
+                  if(bgpview_iter_add_pfx_peer_by_id(dst_iter, pfx,
+                                                     dst_id, pathid) != 0)
+                    {
+                      goto err;
+                    }
+                  first = 0;
+                }
+              else
+                {
+                  if(bgpview_iter_pfx_add_peer_by_id(dst_iter,
+                                                     dst_id, pathid) != 0)
+                    {
+                      goto err;
+                    }
+                }
+            }
+          else
+            {
+              /* inefficiently copy */
+              path = bgpview_iter_pfx_peer_get_as_path(src_iter);
+
+              if (bgpview_iter_add_pfx_peer(dst_iter, pfx,
+                                            dst_id, path) != 0)
+                {
+                  goto err;
+                }
+            }
+          bgpview_iter_pfx_activate_peer(dst_iter);
+        }
+    }
+
+  bgpview_iter_destroy(src_iter);
+  bgpview_iter_destroy(dst_iter);
+
+  return 0;
+
+ err:
+  bgpview_iter_destroy(src_iter);
+  bgpview_iter_destroy(dst_iter);
+  return -1;
+}
+
+
 void bgpview_disable_user_data(bgpview_t *view)
 {
   /* the user can't be wanting to destroy pfx-peer user data... */
@@ -2305,89 +2392,4 @@ bgpstream_as_path_store_t *
 bgpview_get_as_path_store(bgpview_t *view)
 {
   return view->pathstore;
-}
-
-
-static bgpstream_peer_sig_map_t *bgpview_get_peer_sig_map(bgpview_t* view)
-{
-	return view->peersigns;
-}
-
-int bgpview_clone_view(bgpview_t* view, bgpview_t** clone_view){
-
-	bgpstream_peer_sig_map_t *peersigns=bgpview_get_peer_sig_map(view);
-	bgpstream_as_path_store_t *pathstore=bgpview_get_as_path_store(view);
-	bgpview_iter_t *clone_it = NULL, *it = NULL;
-
-	if(*clone_view==NULL){
-			if((*clone_view=bgpview_create_shared(peersigns,pathstore, NULL, NULL, NULL, NULL)) == NULL)
-			{
-			  goto err;
-			}
-	}
-	bgpview_clear(*clone_view);
-	if(((clone_it = bgpview_iter_create(*clone_view)) == NULL) || ((it = bgpview_iter_create(view)) == NULL))
-	{
-		goto err;
-	}
-
-	  bgpstream_peer_id_t old_id, new_id;
-
-	  bgpstream_peer_sig_t *ps;
-
-	for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-		  bgpview_iter_has_more_peer(it);
-		  bgpview_iter_next_peer(it))
-	{
-
-	  ps=bgpview_iter_peer_get_sig(it);
-
-
-	  /* add peer to signatures' map */
-	  if((old_id = bgpstream_peer_sig_map_get_id(view->peersigns,
-			  	  	  	  	  	  	  	  	  ps->collector_str,
-											  (bgpstream_ip_addr_t*)&ps->peer_ip_addr,
-											  ps->peer_asnumber)) == 0)
-	    {
-	      fprintf(stderr, "Could not add peer to peersigns\n");
-	      fprintf(stderr,
-	              "Consider making bgpstream_peer_sig_map_set more robust\n");
-	      goto err;
-	    }
-
-	  if((new_id=bgpview_iter_add_peer(clone_it,ps->collector_str,
-							 (bgpstream_ip_addr_t*)&ps->peer_ip_addr,
-							 ps->peer_asnumber))==0){
-		  fprintf(stderr,"ERROR: Impossible to instert new peer in the view\n");
-		  goto err;
-	  }
-	}
-
-	bgpstream_pfx_t *pfx;
-	bgpstream_peer_id_t peerid;
-	bgpstream_as_path_store_path_id_t id;
-
-	for(bgpview_iter_first_pfx_peer(it, 0,BGPVIEW_FIELD_ACTIVE,BGPVIEW_FIELD_ACTIVE);
-			bgpview_iter_has_more_pfx_peer(it);
-			bgpview_iter_next_pfx_peer(it))
-	{
-		pfx = bgpview_iter_pfx_get_pfx(it);
-		peerid = bgpview_iter_peer_get_peer_id(it);
-
-		id=bgpview_iter_pfx_peer_get_as_path_id(it);
-		if(bgpview_iter_add_pfx_peer_by_id(clone_it,pfx,peerid,id)<0){
-			fprintf(stderr, "ERROR: Could not add prefix peer by id\n");
-			goto err;
-		}
-		bgpview_iter_activate_peer(clone_it);
-		bgpview_iter_pfx_activate_peer(clone_it);
-
-
-	}
-
-
-	return 0;
-
-	err:
-	return -1;
 }

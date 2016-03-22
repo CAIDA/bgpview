@@ -361,8 +361,8 @@ static int diff_paths(bgpview_t *viewH, bgpview_iter_t *itH,bgpview_iter_t *itC)
 
 
 
-	bgpstream_as_path_store_path_id_t idxH = bgpview_iter_pfx_peer_get_as_path_id(itH);
-	bgpstream_as_path_store_path_id_t idxC = bgpview_iter_pfx_peer_get_as_path_id(itC);
+	bgpstream_as_path_store_path_id_t idxH = bgpview_iter_pfx_peer_get_as_path_store_path_id(itH);
+	bgpstream_as_path_store_path_id_t idxC = bgpview_iter_pfx_peer_get_as_path_store_path_id(itC);
 
 	/*
 	 * bgpstream_as_path_store_t *store=bgpview_get_as_path_store(viewH);
@@ -1484,7 +1484,7 @@ int bgpview_io_kafka_send(kafka_data_t dest, kafka_view_data_t *view_data, bgpvi
 	metrics->arrival_time=(int)time(NULL);
 
 	if(view_data->viewH==NULL || view_data->num_diffs==dest.view_frequency){
-		if(send_sync_view(dest,view_data,metrics,view,cb)==-1){
+          if(send_sync_view(dest,view_data,metrics,view,cb)==-1){
 			goto err;
 		}
 	}
@@ -1508,7 +1508,7 @@ int bgpview_io_kafka_send(kafka_data_t dest, kafka_view_data_t *view_data, bgpvi
 
 	fprintf(stderr,"#####START CLONING view at: %s", asctime(timeinfo));
 
-	if(bgpview_clone_view(view,&view_data->viewH)==-1){
+	if(bgpview_copy(view_data->viewH, view)==-1){
 		fprintf(stderr,"error cloning the view\n");
 		goto err;
 	}
