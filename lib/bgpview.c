@@ -2251,11 +2251,25 @@ int bgpview_copy(bgpview_t *dst, bgpview_t* src){
               /* inefficiently copy */
               path = bgpview_iter_pfx_peer_get_as_path(src_iter);
 
-              if (bgpview_iter_add_pfx_peer(dst_iter, pfx,
-                                            dst_id, path) != 0)
+              if (first != 0)
                 {
-                  goto err;
+                  if (bgpview_iter_add_pfx_peer(dst_iter, pfx,
+                                                dst_id, path) != 0)
+                    {
+                      goto err;
+                    }
+                  first = 0;
                 }
+              else
+                {
+                  if (bgpview_iter_pfx_add_peer(dst_iter,
+                                                dst_id, path) != 0)
+                    {
+                      goto err;
+                    }
+                }
+
+              bgpstream_as_path_destroy(path);
             }
           bgpview_iter_pfx_activate_peer(dst_iter);
         }
