@@ -147,10 +147,11 @@ typedef enum bvc_id
         announced by different ASNs */
     BVC_ID_SUBMOAS            = 9,
 
-    /** Writes information about prefixes that are reachable through new edges  */
+    /** Writes information about prefixes that are reachable through new
+        edges */
     BVC_ID_EDGES              = 10,
 
-    /** Writes information about prefixes that are reachable through  triplets */
+    /** Writes information about prefixes that are reachable through triplets */
     BVC_ID_TRIPLETS           = 11,
 
     /** Outputs the current origin ASns observed for each routed prefix */

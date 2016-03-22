@@ -73,6 +73,9 @@
 #include "bvc_routedspace.h"
 
 /* My View Process consumer */
+#include "bvc_myviewprocess.h"
+
+/* Kafka Sender consumer */
 #include "bvc_kafkasender.h"
 
 
