@@ -54,13 +54,15 @@
 /* Moas consumer */
 #include "bvc_moas.h"
 
+#ifdef WITH_BGPVIEW_IO_FILE
 /* Archiver consumer */
 #include "bvc_archiver.h"
+#endif
 
 /* Submoas consumer */
 #include "bvc_submoas.h"
 
-/* Archiver consumer */
+/* Edges consumer */
 #include "bvc_edges.h"
 
 /* Triplet consumer */
@@ -126,8 +128,12 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   /** Pointer to moas alloc function */
   bvc_moas_alloc,
 
+#ifdef WITH_BGPVIEW_IO_FILE
   /** Pointer to archiver alloc function */
   bvc_archiver_alloc,
+#else
+  NULL,
+#endif
 
   /** Pointer to submoas alloc function */
   bvc_submoas_alloc,

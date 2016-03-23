@@ -140,8 +140,10 @@ typedef enum bvc_id
      *  origin ASns, i.e. MOAS */
     BVC_ID_MOAS               = 7,
 
+#ifdef WITH_BGPVIEW_IO_FILE
     /** Writes views to files */
     BVC_ID_ARCHIVER           = 8,
+#endif
 
     /** Writes information about prefixes whose more specific prefixes are
         announced by different ASNs */

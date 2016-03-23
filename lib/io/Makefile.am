@@ -21,7 +21,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS = file kafka zmq
+SUBDIRS =
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
@@ -35,12 +35,28 @@ noinst_LTLIBRARIES = libbgpview_io.la
 include_HEADERS =
 
 libbgpview_io_la_SOURCES = 		\
+	bgpview_io.c			\
 	bgpview_io.h
 
-libbgpview_io_la_LIBADD = 						\
-	$(top_builddir)/bgpview/lib/io/file/libbgpview_io_file.la	\
-	$(top_builddir)/bgpview/lib/io/kafka/libbgpview_io_kafka.la	\
-	$(top_builddir)/bgpview/lib/io/zmq/libbgpview_io_zmq.la
+MOD_LIBS=
+
+if WITH_BGPVIEW_IO_FILE
+SUBDIRS+=file
+MOD_LIBS+=$(top_builddir)/bgpview/lib/io/file/libbgpview_io_file.la
+endif
+
+if WITH_BGPVIEW_IO_ZMQ
+SUBDIRS+=zmq
+MOD_LIBS+=$(top_builddir)/bgpview/lib/io/zmq/libbgpview_io_zmq.la
+endif
+
+if WITH_BGPVIEW_IO_KAFKA
+SUBDIRS+=kafka
+MOD_LIBS+=$(top_builddir)/bgpview/lib/io/kafka/libbgpview_io_kafka.la
+endif
+
+libbgpview_io_la_LIBADD = \
+	$(MOD_LIBS)
 
 
 ACLOCAL_AMFLAGS = -I m4

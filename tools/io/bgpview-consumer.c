@@ -362,7 +362,7 @@ static void usage(const char *name)
           BGPVIEW_METRIC_PREFIX_DEFAULT
           );
   fprintf(stderr,
-	  "       -c <consumer>         Consumer to active (can be used multiple times)\n");
+	  "       -c <consumer>         Consumer to activate (can be used multiple times)\n");
   consumer_usage();
   fprintf(stderr,
           "       -f <type:value>       Add a filter. Supported types are:\n");

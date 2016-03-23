@@ -26,55 +26,67 @@ AM_CPPFLAGS = -I$(top_srcdir) \
 	      -I$(top_srcdir)/lib \
 	      -I$(top_srcdir)/lib/utils \
 	      -I$(top_srcdir)/bgpview/lib \
-	      -I$(top_srcdir)/bgpview/lib/io \
-	      -I$(top_srcdir)/bgpview/lib/io/file \
-	      -I$(top_srcdir)/bgpview/lib/io/kafka \
-	      -I$(top_srcdir)/bgpview/lib/io/zmq \
-	      -I$(top_srcdir)/bgpview/lib/consumers
+	      -I$(top_srcdir)/bgpview/lib/io
 
 dist_bin_SCRIPTS =
 
-bin_PROGRAMS =	bgpview-server		\
-		bgpview-consumer	\
-		bgpview-producer	\
-		bgpview-test-producer   \
-		bgpview-consumer-kafka	\
-		bvcat
+bin_PROGRAMS =
+
+if WITH_BGPVIEW_IO_ZMQ
+AM_CPPFLAGS+=	-I$(top_srcdir)/bgpview/lib/io/zmq \
+		-I$(top_srcdir)/bgpview/lib/consumers
 
 # runs the bgpview server
+bin_PROGRAMS+=bgpview-server
 bgpview_server_SOURCES = \
 	bgpview-server.c
 bgpview_server_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
 		       $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
 # connects to the bgpview server and drives consumer plugins
+bin_PROGRAMS+=bgpview-consumer
 bgpview_consumer_SOURCES = \
 	bgpview-consumer.c
 bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
 		         $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
+if WITH_BGPVIEW_IO_FILE
 # deserializes BGPViews and sends them to the server
+AM_CPPFLAGS+=-I$(top_srcdir)/bgpview/lib/io/file
+bin_PROGRAMS+=bgpview-producer
 bgpview_producer_SOURCES = \
 	bgpview-producer.c
 bgpview_producer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
 		         $(top_builddir)/bgpview/lib/libbgpviewcaida.la
+endif
 
 # acts as a dummy producer for the bgpview server
+bin_PROGRAMS+=bgpview-test-producer
 bgpview_test_producer_SOURCES = \
 	bgpview-test-producer.c
 bgpview_test_producer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
 			      $(top_builddir)/bgpview/lib/libbgpviewcaida.la
+endif
 
+if WITH_BGPVIEW_IO_KAFKA
+AM_CPPFLAGS+=	-I$(top_srcdir)/bgpview/lib/io/kafka \
+		-I$(top_srcdir)/bgpview/lib/consumers
+bin_PROGRAMS+=bgpview-consumer-kafka
 bgpview_consumer_kafka_SOURCES = \
 	bgpview-consumer-kafka.c
 bgpview_consumer_kafka_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
 			      $(top_builddir)/bgpview/lib/libbgpviewcaida.la
+endif
 
 
+if WITH_BGPVIEW_IO_FILE
 # BGPView Cat
+AM_CPPFLAGS+=-I$(top_srcdir)/bgpview/lib/io/file
+bin_PROGRAMS+=bvcat
 bvcat_SOURCES = \
 	bvcat.c
 bvcat_LDADD = $(top_builddir)/bgpview/lib/libbgpviewcaida.la
+endif
 
 ACLOCAL_AMFLAGS = -I m4
 

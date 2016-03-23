@@ -98,4 +98,4 @@ typedef enum {
 #include "bgpview_io_zmq_server.h"
 #include "bgpview_io_zmq_client.h"
 
-#endif
+#endif /* __BGPVIEW_IO_ZMQ_H */

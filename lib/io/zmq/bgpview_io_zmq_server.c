@@ -580,7 +580,7 @@ static int handle_message(bgpview_io_zmq_server_t *server,
       break;
 
     default:
-      fprintf(stderr, "Invalid message type (%d) rx'd from client, ignoring",
+      fprintf(stderr, "Invalid message type (%d) rx'd from client, ignoring\n",
               msg_type);
       /* need to recv remainder of message */
       while(zsocket_rcvmore(server->client_socket) != 0)
@@ -643,7 +643,7 @@ static int run_server(bgpview_io_zmq_server_t *server)
 	  break;
 
 	default:
-	  fprintf(stderr, "Could not recv from client");
+	  fprintf(stderr, "Could not recv from client\n");
 	  goto err;
 	  break;
 	}
@@ -752,7 +752,7 @@ static int run_server(bgpview_io_zmq_server_t *server)
 
  interrupt:
   /* we were interrupted */
-  fprintf(stderr, "Caught SIGINT");
+  fprintf(stderr, "Caught SIGINT\n");
   return -1;
 }
 
@@ -846,7 +846,7 @@ int bgpview_io_zmq_server_start(bgpview_io_zmq_server_t *server)
   zsocket_set_rcvhwm(server->client_socket, 0);
   if(zsocket_bind(server->client_socket, "%s", server->client_uri) < 0)
     {
-      fprintf(stderr, "Could not bind to client socket");
+      fprintf(stderr, "Could not bind to client socket\n");
       return -1;
     }
 

@@ -78,10 +78,12 @@ CONSUMER_SRCS += \
 	bvc_moas.c \
 	bvc_moas.h
 
+if WITH_BGPVIEW_IO_FILE
 # Archiver consumer
 CONSUMER_SRCS += \
 	bvc_archiver.c \
 	bvc_archiver.h
+endif
 
 # Submoas consumer
 CONSUMER_SRCS += \
