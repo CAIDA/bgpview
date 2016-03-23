@@ -65,29 +65,29 @@ static bvc_t bvc_kafkasender = {
 /* our 'instance' */
 typedef struct bvc_kafkasender_state {
 
-	bgpview_io_kafka_t *client;
-	int cs;
+  bgpview_io_kafka_t *client;
+  int cs;
 
-	/** Timeseries Key Package */
-	timeseries_kp_t *kp;
+  /** Timeseries Key Package */
+  timeseries_kp_t *kp;
 
-	/** Metrics indices */
-	kafka_performance_t *metrics;
+  /** Metrics indices */
+  bgpview_io_kafka_stats_t metrics;
 
-	int send_time_idx;
-	int clone_time_idx;
-	int total_time_idx;
-	int arrival_time_idx;
-	int processed_time_idx;
+  int send_time_idx;
+  int clone_time_idx;
+  int total_time_idx;
+  int arrival_time_idx;
+  int processed_time_idx;
 
-	int add_idx;
-	int remove_idx;
-	int common_idx;
-	int change_idx;
-	int current_pfx_cnt_idx;
-	int historical_pfx_cnt_idx;
+  int add_idx;
+  int remove_idx;
+  int common_idx;
+  int change_idx;
+  int current_pfx_cnt_idx;
+  int historical_pfx_cnt_idx;
 
-	int sync_cnt_idx;
+  int sync_cnt_idx;
 
 } bvc_kafkasender_state_t;
 
@@ -216,14 +216,16 @@ static int create_ts_metrics(bvc_t *consumer)
 static void usage(bvc_t *consumer)
 {
   fprintf(stderr,
-	  "consumer usage: %s\n",
-	  consumer->name);
+	  "consumer usage: %s [options]\n"
+          "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n",
+	  consumer->name,
+          BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT);
 }
 
 /** Parse the arguments given to the consumer */
 static int parse_args(bvc_t *consumer, int argc, char **argv)
 {
-  int opt;
+  int opt, prevoptind;
 
   assert(argc > 0 && argv != NULL);
 
@@ -231,10 +233,23 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while((opt = getopt(argc, argv, ":?")) >= 0)
+  while(prevoptind = optind,
+        (opt = getopt(argc, argv, ":k:?")) >= 0)
     {
+      if (optind == prevoptind + 2 && optarg && *optarg == '-' ) {
+        opt = ':';
+        -- optind;
+      }
       switch(opt)
 	{
+        case 'k':
+          if(bgpview_io_kafka_set_broker_addresses(STATE->client,
+                                                   optarg) != 0) {
+            fprintf(stderr, "ERROR: Could not set broker addresses\n");
+            return -1;
+          }
+          break;
+
 	case '?':
 	case ':':
 	default:
@@ -263,12 +278,9 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
       return -1;
     }
 
-  if((state->metrics = malloc_zero(sizeof(kafka_performance_t))) == NULL)
-    {
-      return -1;
-    }
-
   BVC_SET_STATE(consumer, state);
+
+  state->client=bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_PRODUCER);
 
   /* parse the command line args */
   if(parse_args(consumer, argc, argv) != 0)
@@ -276,7 +288,6 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
       goto err;
     }
 
-  state->client=bgpview_io_kafka_init();
   state->cs=0;
 
   if((state->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) == NULL)
@@ -309,8 +320,8 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
   /* deallocate dynamic memory HERE */
 
   timeseries_kp_free(&state->kp);
-  bgpview_io_kafka_free(state->client);
-  free(state->metrics);
+  bgpview_io_kafka_destroy(state->client);
+  state->client = NULL;
 
   free(state);
 
@@ -320,82 +331,82 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
 
 int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
 {
-	bvc_kafkasender_state_t *state = STATE;
-	uint32_t current_view_ts = bgpview_get_time(view);
+  bvc_kafkasender_state_t *state = STATE;
+  uint32_t current_view_ts = bgpview_get_time(view);
 
-	//bgpview_io_kafka_t *client=bgpview_io_kafka_init();
+  //bgpview_io_kafka_t *client=bgpview_io_kafka_init();
 
-	//TODO: CONFIGURE
-
-
-	if(state->cs==0)
-		bgpview_io_kafka_start_producer(state->client);
-	state->cs=1;
+  //TODO: CONFIGURE
 
 
-	time_t rawtime;
-	time(&rawtime);
-
-    time_t start, end;
-
-    time(&start);
-
-	bgpview_io_kafka_send_view(state->client,view,state->metrics,NULL);
-
-	time(&rawtime);
-	time(&end);
+  if(state->cs==0)
+    bgpview_io_kafka_start(state->client);
+  state->cs=1;
 
 
-	// set remaining timeseries metrics
+  time_t rawtime;
+  time(&rawtime);
 
-	timeseries_kp_set(state->kp, state->arrival_time_idx,
-					state->metrics->arrival_time);
+  time_t start, end;
 
-	timeseries_kp_set(state->kp, state->processed_time_idx,
-			state->metrics->processed_time);
+  time(&start);
 
+  bgpview_io_kafka_send_view(state->client, &state->metrics, view, NULL);
 
-	timeseries_kp_set(state->kp, state->total_time_idx,
-				state->metrics->total_time);
-
-	timeseries_kp_set(state->kp, state->send_time_idx,
-				state->metrics->send_time);
+  time(&rawtime);
+  time(&end);
 
 
+  // set remaining timeseries metrics
 
-	timeseries_kp_set(state->kp, state->clone_time_idx,
-						state->metrics->clone_time);
+  timeseries_kp_set(state->kp, state->arrival_time_idx,
+                    state->metrics.arrival_time);
 
-
-	timeseries_kp_set(state->kp, state->add_idx,
-			state->metrics->add);
-
-	timeseries_kp_set(state->kp, state->remove_idx,
-			state->metrics->remove);
-	timeseries_kp_set(state->kp, state->common_idx,
-			state->metrics->common);
-
-	timeseries_kp_set(state->kp, state->change_idx,
-			state->metrics->change);
+  timeseries_kp_set(state->kp, state->processed_time_idx,
+                    state->metrics.processed_time);
 
 
-	timeseries_kp_set(state->kp, state->current_pfx_cnt_idx,
-			state->metrics->current_pfx_cnt);
+  timeseries_kp_set(state->kp, state->total_time_idx,
+                    state->metrics.total_time);
 
-	timeseries_kp_set(state->kp, state->historical_pfx_cnt_idx,
-			state->metrics->historical_pfx_cnt);
-
-	timeseries_kp_set(state->kp, state->sync_cnt_idx,
-			state->metrics->sync_cnt);
-
-	// flush
-	if(timeseries_kp_flush(STATE->kp, current_view_ts) != 0)
-	{
-	  fprintf(stderr, "Warning: could not flush %s %"PRIu32"\n",
-			  NAME, bgpview_get_time(view));
-	}
+  timeseries_kp_set(state->kp, state->send_time_idx,
+                    state->metrics.send_time);
 
 
 
-	return 0;
+  timeseries_kp_set(state->kp, state->clone_time_idx,
+                    state->metrics.clone_time);
+
+
+  timeseries_kp_set(state->kp, state->add_idx,
+                    state->metrics.add);
+
+  timeseries_kp_set(state->kp, state->remove_idx,
+                    state->metrics.remove);
+  timeseries_kp_set(state->kp, state->common_idx,
+                    state->metrics.common);
+
+  timeseries_kp_set(state->kp, state->change_idx,
+                    state->metrics.change);
+
+
+  timeseries_kp_set(state->kp, state->current_pfx_cnt_idx,
+                    state->metrics.current_pfx_cnt);
+
+  timeseries_kp_set(state->kp, state->historical_pfx_cnt_idx,
+                    state->metrics.historical_pfx_cnt);
+
+  timeseries_kp_set(state->kp, state->sync_cnt_idx,
+                    state->metrics.sync_cnt);
+
+  // flush
+  if(timeseries_kp_flush(STATE->kp, current_view_ts) != 0)
+    {
+      fprintf(stderr, "Warning: could not flush %s %"PRIu32"\n",
+              NAME, bgpview_get_time(view));
+    }
+
+
+
+  return 0;
 }

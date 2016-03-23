@@ -50,10 +50,9 @@ int initialize_consumer_connection(rd_kafka_t **rk,
  * @param cb            callback function to use to filter peers (may be NULL)
  * @return 0 if the view was sent successfully, -1 otherwise
  */
-int bgpview_io_kafka_send(kafka_data_t dest,
-                          kafka_view_data_t *view_data,
+int bgpview_io_kafka_send(bgpview_io_kafka_t *client,
+                          bgpview_io_kafka_stats_t *stats,
                           bgpview_t *view,
-                          kafka_performance_t *metrics,
                           bgpview_io_filter_cb_t *cb);
 
 /** Receive a view from the given socket
@@ -62,8 +61,7 @@ int bgpview_io_kafka_send(kafka_data_t dest,
  * @param view          pointer to the clear/new view to receive into
  * @return pointer to the view instance received, NULL if an error occurred.
  */
-int bgpview_io_kafka_recv(kafka_data_t *src,
-                          kafka_view_data_t *view_data,
+int bgpview_io_kafka_recv(bgpview_io_kafka_t *client,
                           bgpview_t *view,
                           bgpview_io_filter_peer_cb_t *peer_cb,
                           bgpview_io_filter_pfx_cb_t *pfx_cb,

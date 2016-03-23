@@ -173,8 +173,6 @@ bgpview_create_shared(bgpstream_peer_sig_map_t *peersigns,
                       bgpview_destroy_user_t *bwv_pfx_user_destructor,
                       bgpview_destroy_user_t *bwv_pfx_peer_user_destructor);
 
-/** @todo create a nice high-level api for accessing information in the view */
-
 /** Destroy the given BGPView
  *
  * @param view          pointer to the view to destroy
@@ -216,6 +214,17 @@ bgpview_gc(bgpview_t *view);
  */
 int
 bgpview_copy(bgpview_t* dst, bgpview_t *src);
+
+/** Duplicate the given view into a new view
+ *
+ * @param src           pointer to the view to duplicate
+ * @return pointer to the new view if successful, NULL otherwise
+ *
+ * This function effectively creates a new view that shares the peer sig and
+ * path store of the src view, and then executes bgpview_copy.
+ */
+bgpview_t *
+bgpview_dup(bgpview_t *src);
 
 /** Disable user data for a view
  *

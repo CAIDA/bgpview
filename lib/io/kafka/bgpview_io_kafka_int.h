@@ -30,7 +30,15 @@
 
 #define KAFKA_PEER_MAP_SIZE 2048
 
-typedef struct kafka_data {
+/**
+ * @name Protected Data Structures
+ *
+ * @{ */
+
+struct bgpview_io_kafka {
+
+  /** Is this a producer or a consumer? */
+  bgpview_io_kafka_mode_t mode;
 
   /*
    * The broker address/es. It is possible to use
@@ -45,7 +53,7 @@ typedef struct kafka_data {
    * @metadata_topic: default metadata
    *
    */
-  char *pfxs_paths_topic;
+  char *pfxs_topic;
   char *peers_topic;
   char *metadata_topic;
 
@@ -57,7 +65,7 @@ typedef struct kafka_data {
    *  as the program crawl the topic to get the view offset
    *
    */
-  int pfxs_paths_partition;
+  int pfxs_partition;
   int peers_partition;
   int metadata_partition;
 
@@ -69,58 +77,39 @@ typedef struct kafka_data {
    * to get the view offset
    *
    */
-  long int pfxs_paths_offset;
+  long int pfxs_offset;
   long int peers_offset;
   long int metadata_offset;
 
-  rd_kafka_t *pfxs_paths_rk;
+  rd_kafka_t *pfxs_rk;
   rd_kafka_t *peers_rk;
   rd_kafka_t *metadata_rk;
 
-  rd_kafka_topic_t *pfxs_paths_rkt;
+  rd_kafka_topic_t *pfxs_rkt;
   rd_kafka_topic_t *peers_rkt;
   rd_kafka_topic_t *metadata_rkt;
 
 
   int view_frequency;
 
-} kafka_data_t;
-
-typedef struct kafka_view_data{
-
   bgpstream_peer_id_t peerid_map[KAFKA_PEER_MAP_SIZE];
   uint32_t sync_view_id;
-  bgpview_t *viewH;
 
-  long int current_pfxs_paths_offset;
+  long int current_pfxs_offset;
   long int current_peers_offset;
 
-  int pfxs_paths_sync_partition;
-  long int pfxs_paths_sync_offset;
+  int pfxs_sync_partition;
+  long int pfxs_sync_offset;
   long int peers_sync_offset;
 
-  int pfxs_paths_diffs_partition[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
+  int pfxs_diffs_partition[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
 
-  long int pfxs_paths_diffs_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
-  long int peers_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
+  long int pfxs_diffs_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
+  long int peers_diffs_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
 
   int num_diffs;
 
   //int distance_sync; //producer
-
-
-} kafka_view_data_t;
-
-/**
- * @name Protected Data Structures
- *
- * @{ */
-
-struct bgpview_io_kafka {
-
-  kafka_data_t kafka_config;
-
-  kafka_view_data_t view_data;
 
   /* Historical View*/
   bgpview_t *viewH;
@@ -150,10 +139,9 @@ int initialize_consumer_connection(rd_kafka_t **rk,
  * @param cb            callback function to use to filter peers (may be NULL)
  * @return 0 if the view was sent successfully, -1 otherwise
  */
-int bgpview_io_kafka_send(kafka_data_t dest,
-                          kafka_view_data_t *view_data,
+int bgpview_io_kafka_send(bgpview_io_kafka_t *client,
+                          bgpview_io_kafka_stats_t *stats,
                           bgpview_t *view,
-                          kafka_performance_t *metrics,
                           bgpview_io_filter_cb_t *cb);
 
 /** Receive a view from the given socket
@@ -162,8 +150,7 @@ int bgpview_io_kafka_send(kafka_data_t dest,
  * @param view          pointer to the clear/new view to receive into
  * @return pointer to the view instance received, NULL if an error occurred.
  */
-int bgpview_io_kafka_recv(kafka_data_t *src,
-                          kafka_view_data_t *view_data,
+int bgpview_io_kafka_recv(bgpview_io_kafka_t *client,
                           bgpview_t *view,
                           bgpview_io_filter_peer_cb_t *peer_cb,
                           bgpview_io_filter_pfx_cb_t *pfx_cb,

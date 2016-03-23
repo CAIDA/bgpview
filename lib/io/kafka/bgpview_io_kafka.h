@@ -75,7 +75,7 @@ typedef struct bgpview_io_kafka bgpview_io_kafka_t;
  *
  * @{ */
 
-typedef struct kafka_performance{
+typedef struct bgpview_io_kafka_stats {
 
   int send_time;
   int clone_time;
@@ -92,7 +92,7 @@ typedef struct kafka_performance{
 
   int sync_cnt;
 
-} kafka_performance_t;
+} bgpview_io_kafka_stats_t;
 
 /** @} */
 
@@ -101,31 +101,122 @@ typedef struct kafka_performance{
  *
  * @{ */
 
+/** The mode that the client will operate in */
+typedef enum {
+
+  /** This instance will consume data from Kafka */
+  BGPVIEW_IO_KAFKA_MODE_CONSUMER = 0,
+
+  /** This instance will produce data into Kafka */
+  BGPVIEW_IO_KAFKA_MODE_PRODUCER = 1,
+
+} bgpview_io_kafka_mode_t;
+
 /** @} */
 
-/** Initialize a new BGPView Client instance
+/** Initialize a new BGPView Kafka IO client
  *
- * @return a pointer to a bgpview kafka client instance if successful, NULL if an
+ * @param mode          whether to act as a producer or a consumer
+ * @return a pointer to a BGPView Kafka IO instance if successful, NULL if an
  * error occurred.
  */
-bgpview_io_kafka_t *bgpview_io_kafka_init();
+bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode);
 
-/** Queue the given View for transmission to the server
+/** Destroy the given BGPView Kafka IO client
+ *
+ * @param client       pointer to the bgpview kafka client instance to free
+ */
+void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client);
+
+/** Start the given bgpview kafka client
+ *
+ * @param client       pointer to a kafka client instance to start
+ * @return 0 if the client started successfully, -1 otherwise.
+ */
+int bgpview_io_kafka_start(bgpview_io_kafka_t *client);
+
+
+/** Set the broker addresses (comma separated) of the Kafka server
+ *
+ * @param client        pointer to a bgpview kafka client instance to update
+ * @param uri           pointer to a uri string
+ * @return 0 if successful, -1 otherwise
+ */
+int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
+                                          const char *addresses);
+
+/** @todo move me to the consumer */
+void bgpview_io_kafka_set_diff_frequency(bgpview_io_kafka_t *client,
+                                         int frequency);
+
+/** Set the topic that prefix information will be written into/read from
  *
  * @param client        pointer to a bgpview kafka client instance
+ * @param topic         pointer to the topic name
+ * @return 0 if successful, -1 otherwise
+ */
+int bgpview_io_kafka_set_pfxs_topic(bgpview_io_kafka_t *client,
+                                    const char *topic);
+
+/** Set the topic that peer information will be written into/read from
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param topic         pointer to the topic name
+ * @return 0 if successful, -1 otherwise
+ */
+int bgpview_io_kafka_set_peers_topic(bgpview_io_kafka_t *client,
+                                     const char *topic);
+
+/** Set the topic that metadata information will be written into/read from
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param topic         pointer to the topic name
+ * @return 0 if successful, -1 otherwise
+ */
+int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
+                                        const char *topic);
+
+/** Set the partition that prefixes information will be written into/read from
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param partition     partition to use
+ * @return 0 if successful, -1 otherwise
+ */
+void bgpview_io_kafka_set_pfxs_partition(bgpview_io_kafka_t *client,
+                                         int partition);
+
+/** Set the partition that peers information will be written into/read from
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param partition     partition to use
+ * @return 0 if successful, -1 otherwise
+ */
+void bgpview_io_kafka_set_peers_partition(bgpview_io_kafka_t *client,
+                                          int partition);
+
+/** Set the partition that metadata information will be written into/read from
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param partition     partition to use
+ * @return 0 if successful, -1 otherwise
+ */
+void bgpview_io_kafka_set_metadata_partition(bgpview_io_kafka_t *client,
+                                             int partition);
+
+/** Queue the given View for transmission to Kafka
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param stats         pointer to a bgpview kafka stats structure to fill
  * @param view          pointer to the view to transmit
  * @param cb            callback function to use to filter entries (may be NULL)
  * @return 0 if the view was transmitted successfully, -1 otherwise
  *
  * This function only sends 'active' fields. Any fields that are 'inactive' in
- * the view **will not** be present in the view received by the server.
- *
- * @note The actual transmission may happen asynchronously, so a return from
- * this function simply means that the view was queued for transmission.
+ * the view **will not** be present in the view received by Kafka.
  */
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
+                               bgpview_io_kafka_stats_t *stats,
                                bgpview_t *view,
-                               kafka_performance_t *metrics,
                                bgpview_io_filter_cb_t *cb);
 
 
@@ -133,68 +224,23 @@ int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
  *
  * @param client        pointer to the client instance to receive from
  * @param view          pointer to the view to fill
- * @param cb            callback functions to use to filter entries (may be NULL)
+ * @param peer_cb       callback function to use to filter peer entries
+ *                      (may be NULL)
+ * @param pfx_cb        callback function to use to filter prefix entries
+ *                      (may be NULL)
+ * @param pfx_peer_cb   callback function to use to filter prefix-peer entries
+ *                      (may be NULL)
  * @return 0 or -1 if an error occurred.
  *
  * The view provided to this function must have been created using
- * bgpview_create, and if it is being re-used, it *must* have been
- * cleared using bgpview_clear.
+ * bgpview_create, and if diffs are not in use, it *must* have been cleared
+ * using bgpview_clear. If diffs are in use, it *must* not have been cleared,
+ * and instead *must* contain information about the previously received view.
  */
 int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client,
                                bgpview_t *view,
                                bgpview_io_filter_peer_cb_t *peer_cb,
                                bgpview_io_filter_pfx_cb_t *pfx_cb,
                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
-
-
-
-/** Free the given bgpview client instance
- *
- * @param client       pointer to the bgpview kafka client instance to free
- */
-void bgpview_io_kafka_free(bgpview_io_kafka_t *client);
-
-
-/** Set the URI for the client to connect to the kakfa server on
- *
- * @param client        pointer to a bgpview kafka client instance to update
- * @param uri           pointer to a uri string
- * @return 0 if successful, -1 otherwise
- */
-
-
-/** Start the given bgpview kafka client to be a producer instance
- *
- * @param client       pointer to a bgpview client instance to start
- * @return 0 if the client started successfully, -1 otherwise.
- */
-int bgpview_io_kafka_start_producer(bgpview_io_kafka_t *client);
-
-/** Start the given bgpview client to be a consumer instance
- *
- * @param client       pointer to a bgpview kafka client instance to start
- * @return 0 if the client started successfully, -1 otherwise.
- */
-int bgpview_io_kafka_start_consumer(bgpview_io_kafka_t *client);
-
-void bgpview_io_kafka_set_diff_frequency(bgpview_io_kafka_t *client,
-                                         int frequency);
-
-int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
-                                          const char *addresses);
-
-int bgpview_io_kafka_set_pfxs_paths_topic(bgpview_io_kafka_t *client,
-                                          const char *topic);
-int bgpview_io_kafka_set_peers_topic(bgpview_io_kafka_t *client,
-                                     const char *topic);
-int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
-                                        const char *topic);
-
-void bgpview_io_kafka_set_pfxs_paths_partition(bgpview_io_kafka_t *client,
-                                               int partition);
-void bgpview_io_kafka_set_peers_partition(bgpview_io_kafka_t *client,
-                                          int partition);
-void bgpview_io_kafka_set_metadata_partition(bgpview_io_kafka_t *client,
-                                             int partition);
 
 #endif /* __BGPVIEW_IO_KAFKA_H */

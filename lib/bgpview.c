@@ -2286,6 +2286,30 @@ int bgpview_copy(bgpview_t *dst, bgpview_t* src){
   return -1;
 }
 
+bgpview_t *
+bgpview_dup(bgpview_t *src)
+{
+  bgpview_t *dst = NULL;
+
+  if((dst = bgpview_create_shared(src->peersigns, src->pathstore,
+                                  src->user_destructor,
+                                  src->peer_user_destructor,
+                                  src->pfx_user_destructor,
+                                  src->pfx_peer_user_destructor)) == NULL)
+    {
+      return NULL;
+    }
+
+  if(bgpview_copy(dst, src) != 0) {
+    goto err;
+  }
+
+  return dst;
+
+ err:
+  bgpview_destroy(dst);
+  return NULL;
+}
 
 void bgpview_disable_user_data(bgpview_t *view)
 {

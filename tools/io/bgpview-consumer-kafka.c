@@ -365,8 +365,8 @@ static void usage(const char *name)
           "       -f <type:value>       Add a filter. Supported types are:\n");
   filter_usage();
   fprintf(stderr,
-	  "       -n <identity>         Globally unique client name (default: random)\n"
-	  "       -s <server-uri>       0MQ-style URI to connect to server on\n");
+	  "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n",
+          BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT);
 
   //BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT,
 }
@@ -389,7 +389,7 @@ int main(int argc, char **argv)
   char *backend_arg_ptr = NULL;
   timeseries_backend_t *backend = NULL;
 
-  const char *server_uri = NULL;
+  const char *brokers = NULL;
 
   bgpview_io_kafka_t *client = NULL;
 
@@ -417,7 +417,7 @@ int main(int argc, char **argv)
     }
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":f:m:N:b:c:n:s:v?")) >= 0)
+	(opt = getopt(argc, argv, ":f:m:N:b:c:n:k:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -462,8 +462,8 @@ int main(int argc, char **argv)
 	  consumer_cmds[consumer_cmds_cnt++] = optarg;
 	  break;
 
-	case 's':
-	  server_uri = optarg;
+	case 'k':
+	  brokers = optarg;
 	  break;
 
 	case '?':
@@ -558,7 +558,7 @@ int main(int argc, char **argv)
     }
 
   if((client =
-      bgpview_io_kafka_init()) == NULL)
+      bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_CONSUMER)) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize bgpview client\n");
       usage(argv[0]);
@@ -566,8 +566,8 @@ int main(int argc, char **argv)
     }
 
 
-  if(server_uri != NULL &&
-		  bgpview_io_kafka_set_broker_addresses(client, server_uri) != 0)
+  if(brokers != NULL &&
+     bgpview_io_kafka_set_broker_addresses(client, brokers) != 0)
     {
       goto err;
     }
@@ -575,7 +575,7 @@ int main(int argc, char **argv)
 
 
 
-  bgpview_io_kafka_start_consumer(client);
+  bgpview_io_kafka_start(client);
 
   if((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL)
     {
@@ -614,7 +614,7 @@ int main(int argc, char **argv)
 
   /* cleanup */
   filters_destroy();
-  bgpview_io_kafka_free(client);
+  bgpview_io_kafka_destroy(client);
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
@@ -630,7 +630,7 @@ int main(int argc, char **argv)
  err:
   filters_destroy();
   if(client != NULL) {
-    bgpview_io_kafka_free(client);
+    bgpview_io_kafka_destroy(client);
   }
   if(metric_prefix !=NULL)
     {
