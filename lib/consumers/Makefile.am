@@ -115,11 +115,12 @@ CONSUMER_SRCS += \
 	bvc_myviewprocess.c \
 	bvc_myviewprocess.h
 
+if WITH_BGPVIEW_IO_KAFKA
 # kafka sender
 CONSUMER_SRCS += \
 	bvc_kafkasender.c  \
 	bvc_kafkasender.h
-
+endif
 
 # -- sample how to add conditional consumer
 #if WITH_<NAME>

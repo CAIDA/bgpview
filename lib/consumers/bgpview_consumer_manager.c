@@ -77,8 +77,10 @@
 /* My View Process consumer */
 #include "bvc_myviewprocess.h"
 
+#ifdef WITH_BGPVIEW_IO_KAFKA
 /* Kafka Sender consumer */
 #include "bvc_kafkasender.h"
+#endif
 
 
 
@@ -153,8 +155,15 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   /** Pointer to myviewprocess alloc function */
   bvc_myviewprocess_alloc,
 
+#ifdef WITH_BGPVIEW_IO_KAFKA
   /** Pointer to kafkasender alloc function */
   bvc_kafkasender_alloc,
+#else
+  NULL,
+#endif
+
+  /** Pointer to myviewprocess alloc function */
+  bvc_myviewprocess_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */

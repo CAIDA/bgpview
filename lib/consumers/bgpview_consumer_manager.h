@@ -170,7 +170,10 @@ typedef enum bvc_id
     /** It can be used as a template, it writes generic information about the
      *  number of view processed and the number of elements in the current
      *  view */
+#ifdef WITH_BGPVIEW_IO_KAFKA
+    /** Sends views to Kafka */
     BVC_ID_KAFKASENDER        = 15,
+#endif
 
     /** @todo add more consumers here */
 
@@ -179,7 +182,6 @@ typedef enum bvc_id
 
     /** Highest numbered bgpview consumer ID */
     BVC_ID_LAST       = BVC_ID_KAFKASENDER,
-
 
   } bvc_id_t;
 
