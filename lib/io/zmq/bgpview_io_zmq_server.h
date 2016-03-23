@@ -82,10 +82,7 @@ typedef struct bgpview_io_zmq_server_client_info {
   /** Client name */
   char *name;
 
-  /** Consumer Interests (bgpview_consumer_interest_t flags) */
-  uint8_t interests;
-
-  /** Producer Intents (bgpview_consumer_interest_t flags) */
+ /** Producer Intents (bgpview_consumer_intent_t flags) */
   uint8_t intents;
 
 } bgpview_io_zmq_server_client_info_t;

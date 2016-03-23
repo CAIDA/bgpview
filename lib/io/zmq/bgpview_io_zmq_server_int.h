@@ -148,15 +148,13 @@ struct bgpview_io_zmq_server {
  *
  * @{ */
 
-/** Publish the given BGP View to any interested consumers
+/** Publish the given BGP View to any subscribed consumers
  *
  * @param server        pointer to the bgpview server instance
  * @param table         pointer to a bgp view to publish
- * @param interests     flags indicating which interests this table satisfies
  */
 int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
-                                       bgpview_t *view,
-                                       int interests);
+                                       bgpview_t *view);
 
 /** @} */
 

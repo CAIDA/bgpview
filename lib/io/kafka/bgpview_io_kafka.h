@@ -167,14 +167,13 @@ int bgpview_io_kafka_send(kafka_data_t dest,
  *
  * @param src           information about broker to find metadata about views
  * @param view          pointer to the clear/new view to receive into
- * @param interest      timestamp of the view
  * @return pointer to the view instance received, NULL if an error occurred.
  */
 int bgpview_io_kafka_recv(kafka_data_t *src,
-		kafka_view_data_t *view_data,
-				bgpview_t *view,
-        		bgpview_io_filter_peer_cb_t *peer_cb,
-                  bgpview_io_filter_pfx_cb_t *pfx_cb,
-                  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+                          kafka_view_data_t *view_data,
+                          bgpview_t *view,
+                          bgpview_io_filter_peer_cb_t *peer_cb,
+                          bgpview_io_filter_pfx_cb_t *pfx_cb,
+                          bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 #endif /* __BGPVIEW_IO_KAFKA_H */

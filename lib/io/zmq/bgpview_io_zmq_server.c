@@ -459,22 +459,7 @@ static int handle_ready_message(bgpview_io_zmq_server_t *server,
   fprintf(stderr, "DEBUG: Creating new client %s\n", client->id);
 #endif
 
-  uint8_t new_interests;
   uint8_t new_intents;
-
-  /* first frame is their interests */
-  if(zsocket_rcvmore(server->client_socket) == 0)
-    {
-      fprintf(stderr, "Message missing interests\n");
-      goto err;
-    }
-  if(zmq_recv(server->client_socket, &new_interests,
-	      sizeof(new_interests), 0)
-     != sizeof(new_interests))
-    {
-      fprintf(stderr, "Could not extract client interests\n");
-      goto err;
-    }
 
  /* next is the intents */
   if(zsocket_rcvmore(server->client_socket) == 0)
@@ -491,13 +476,11 @@ static int handle_ready_message(bgpview_io_zmq_server_t *server,
     }
 
   /* we already knew about this client, don't re-add */
-  if(client->info.interests == new_interests &&
-     client->info.intents == new_intents)
+  if( client->info.intents == new_intents)
     {
       return 0;
     }
 
-  client->info.interests = new_interests;
   client->info.intents = new_intents;
 
   /* call the "client connect" callback */
@@ -530,7 +513,7 @@ static int handle_message(bgpview_io_zmq_server_t *server,
     case BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW:
       begin_time = zclock_time();
 
-      /* every data now begins with interests and intents */
+      /* every data now begins with intents */
       if(handle_ready_message(server, client) != 0)
         {
           goto err;
@@ -970,12 +953,8 @@ void bgpview_io_zmq_server_set_heartbeat_liveness(bgpview_io_zmq_server_t *serve
 /* ========== PUBLISH FUNCTIONS ========== */
 
 int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
-                                   bgpview_t *view,
-                                   int interests)
+                                   bgpview_t *view)
 {
-  const char *pub = NULL;
-  size_t pub_len = 0;
-
   uint32_t time = bgpview_get_time(view);
 
 #ifdef DEBUG
@@ -985,25 +964,6 @@ int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
       bgpview_io_zmq_dump(view);
     }
 #endif
-
-  /* get the publication message prefix */
-  if((pub = bgpview_io_zmq_consumer_interest_pub(interests)) == NULL)
-    {
-      fprintf(stderr, "Failed to publish view (Invalid interests)\n");
-      goto err;
-    }
-  pub_len = strlen(pub);
-
-  DUMP_METRIC(server->metric_prefix,
-              (uint64_t)interests,
-              time,
-              "%s", "publication.interests");
-
-  if(zmq_send(server->client_pub_socket, pub, pub_len, ZMQ_SNDMORE) != pub_len)
-    {
-      fprintf(stderr, "Failed to send publication string\n");
-      goto err;
-    }
 
   /* NULL -> no peer filtering */
   if(bgpview_io_zmq_send(server->client_pub_socket, view, NULL) != 0)
@@ -1017,7 +977,4 @@ int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
               "%s", "publication.delay");
 
   return 0;
-
- err:
-  return -1;
 }

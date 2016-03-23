@@ -542,7 +542,7 @@ void insert_update_triplet(bvc_t *consumer,char *triplet,bgpstream_pfx_t *pfx)
 }
 
 
-int bvc_triplets_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
+int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_triplets_state_t *state = STATE;
   bgpview_iter_t *it;

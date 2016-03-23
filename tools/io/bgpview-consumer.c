@@ -370,8 +370,6 @@ static void usage(const char *name)
   fprintf(stderr,
 	  "       -i <interval-ms>      Time in ms between heartbeats to server\n"
 	  "                               (default: %d)\n"
-          "       -I <interest>         Advertise the given interest. May be used multiple times\n"
-          "                               One of: first-full, full, partial\n"
 	  "       -l <beats>            Number of heartbeats that can go by before the\n"
 	  "                               server is declared dead (default: %d)\n"
 	  "       -n <identity>         Globally unique client name (default: random)\n"
@@ -419,11 +417,9 @@ int main(int argc, char **argv)
   uint64_t reconnect_interval_min = BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN;
   uint64_t reconnect_interval_max = BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX;
 
-  uint8_t interests = 0;
   uint8_t intents = 0;
   bgpview_io_zmq_client_t *client = NULL;
 
-  int rx_interests;
   bgpview_t *view = NULL;
   int processed_view_limit = -1;
   int processed_view = 0;
@@ -496,30 +492,6 @@ int main(int argc, char **argv)
 	case 'i':
 	  heartbeat_interval = atoi(optarg);
 	  break;
-
-        case 'I':
-          if(strcmp(optarg, "first-full") == 0)
-            {
-              interests |= BGPVIEW_CONSUMER_INTEREST_FIRSTFULL;
-            }
-          else if(strcmp(optarg, "full") == 0)
-            {
-              interests |= BGPVIEW_CONSUMER_INTEREST_FULL;
-            }
-          else if(strcmp(optarg, "partial") == 0)
-            {
-              interests |= BGPVIEW_CONSUMER_INTEREST_PARTIAL;
-            }
-          else
-            {
-              fprintf(stderr,
-                      "ERROR: Invalid interest (%s)."
-                      "Interest must be one of "
-                      "'first-full', 'full', or 'partial'\n", optarg);
-              usage(argv[0]);
-              return -1;
-            }
-          break;
 
 	case 'l':
 	  heartbeat_liveness = atoi(optarg);
@@ -636,15 +608,8 @@ int main(int argc, char **argv)
         }
     }
 
-  if(interests == 0)
-    {
-      fprintf(stderr, "WARN: Defaulting to FIRST-FULL interest\n");
-      fprintf(stderr, "WARN: Specify interests using -p <interest>\n");
-      interests = BGPVIEW_CONSUMER_INTEREST_FIRSTFULL;
-    }
-
   if((client =
-      bgpview_io_zmq_client_init(interests, intents)) == NULL)
+      bgpview_io_zmq_client_init(intents)) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize bgpview client\n");
       usage(argv[0]);
@@ -692,16 +657,15 @@ int main(int argc, char **argv)
   /* disable per-pfx-per-peer user pointer */
   bgpview_disable_user_data(view);
 
-  while((rx_interests =
-         bgpview_io_zmq_client_recv_view(client,
-                                     BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_BLOCK,
-                                     view,
-                                     (peer_filters_cnt != 0) ? filter_peer : NULL,
-                                     (pfx_filters_cnt != 0) ? filter_pfx : NULL,
-                                     (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
-                                     )) > 0)
+  while(bgpview_io_zmq_client_recv_view(client,
+                                        BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_BLOCK,
+                                        view,
+                                        (peer_filters_cnt != 0) ? filter_peer : NULL,
+                                        (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+                                        (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
+                                        ) == 0)
     {
-      if(bgpview_consumer_manager_process_view(manager, rx_interests, view) != 0)
+      if(bgpview_consumer_manager_process_view(manager, view) != 0)
 	{
 	  fprintf(stderr, "ERROR: Failed to process view at %d\n",
 		  bgpview_get_time(view));

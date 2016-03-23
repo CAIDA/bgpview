@@ -1506,7 +1506,7 @@ static void rem_patricia(bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_
 
 /* Main drivier function
    Processes views, computes submoas information and generates output files and metrics */
-int bvc_submoas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
+int bvc_submoas_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_submoas_state_t *state = STATE;
   state->time_now=bgpview_get_time(view) ;

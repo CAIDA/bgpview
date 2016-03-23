@@ -827,8 +827,7 @@ void bvc_pergeovisibility_destroy(bvc_t *consumer)
 }
 
 
-int bvc_pergeovisibility_process_view(bvc_t *consumer, uint8_t interests,
-                                      bgpview_t *view)
+int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_pergeovisibility_state_t *state = STATE;
 

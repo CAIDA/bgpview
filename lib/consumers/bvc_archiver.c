@@ -390,8 +390,7 @@ void bvc_archiver_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-int bvc_archiver_process_view(bvc_t *consumer, uint8_t interests,
-				 bgpview_t *view)
+int bvc_archiver_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_archiver_state_t *state = STATE;
   uint32_t time_begin = zclock_time()/1000;

@@ -597,8 +597,7 @@ void bvc_perasvisibility_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-int bvc_perasvisibility_process_view(bvc_t *consumer, uint8_t interests,
-				     bgpview_t *view)
+int bvc_perasvisibility_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_perasvisibility_state_t *state = STATE;
 

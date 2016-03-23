@@ -109,20 +109,13 @@ static void reset_heartbeat_liveness(bgpview_io_zmq_client_broker_t *broker)
 
 static int server_subscribe(bgpview_io_zmq_client_broker_t *broker)
 {
-  /* if we have no interests, don't bother connecting */
-  if(CFG->interests == 0)
-    {
-      return 0;
-    }
-
   if((broker->server_sub_socket = zsocket_new(CFG->ctx, ZMQ_SUB)) == NULL)
     {
       fprintf(stderr, "Failed to create server SUB connection\n");
       return -1;
     }
   zsocket_set_rcvhwm(broker->server_sub_socket, 3);
-  zsocket_set_subscribe(broker->server_sub_socket,
-			bgpview_io_zmq_consumer_interest_sub(CFG->interests));
+  zsocket_set_subscribe(broker->server_sub_socket, "");
 
   if(zsocket_connect(broker->server_sub_socket, "%s", CFG->server_sub_uri) < 0)
     {
@@ -141,16 +134,9 @@ static int server_subscribe(bgpview_io_zmq_client_broker_t *broker)
   return 0;
 }
 
-static int server_send_interests_intents(bgpview_io_zmq_client_broker_t *broker,
-                                         int sndmore)
+static int server_send_intents(bgpview_io_zmq_client_broker_t *broker,
+                               int sndmore)
 {
-  /* send our interests */
-  if(zmq_send(broker->server_socket, &CFG->interests, 1, ZMQ_SNDMORE) == -1)
-    {
-      fprintf(stderr, "Could not send ready msg to server\n");
-      return -1;
-    }
-
   /* send our intents */
   if(zmq_send(broker->server_socket, &CFG->intents, 1, sndmore) == -1)
     {
@@ -200,7 +186,7 @@ static int server_connect(bgpview_io_zmq_client_broker_t *broker)
       return -1;
     }
 
-  if(server_send_interests_intents(broker, 0) != 0)
+  if(server_send_intents(broker, 0) != 0)
     {
       return -1;
     }
@@ -230,7 +216,7 @@ static void server_disconnect(bgpview_io_zmq_client_broker_t *broker)
   zsocket_destroy(CFG->ctx, broker->server_socket);
 
   /* if we are a consumer, then remove the sub socket too */
-  if(CFG->interests != 0)
+  if(broker->server_sub_socket != NULL)
     {
       /* remove the server sub reader from the reactor */
       zloop_reader_end(broker->loop, broker->server_sub_socket);
@@ -319,8 +305,8 @@ static int send_request(bgpview_io_zmq_client_broker_t *broker,
       return -1;
     }
 
-  /* send our interests/intents in case the server gave up on us */
-  if(server_send_interests_intents(broker, ZMQ_SNDMORE) != 0)
+  /* send our intents in case the server gave up on us */
+  if(server_send_intents(broker, ZMQ_SNDMORE) != 0)
     {
       return -1;
     }
@@ -584,30 +570,24 @@ static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
   bgpview_io_zmq_client_broker_t *broker = (bgpview_io_zmq_client_broker_t*)arg;
 
-  uint8_t interests;
-
   zmq_msg_t msg;
   int flags;
+  int first_frame = 1;
 
-  /* convert the prefix to flags */
-  if((interests =
-      bgpview_io_zmq_consumer_interest_recv(broker->server_sub_socket)) == 0)
+  /* send empty start-of-view message to master (this is a leftover from when we
+     used to prefix the view with interests) */
+  if(zmq_send(broker->master_zocket, "", 0, ZMQ_SNDMORE) == -1)
     {
-      fprintf(stderr, "Invalid interest specification received\n");
-      goto err;
-    }
-
-  /* send interests to master */
-  if(zmq_send(broker->master_zocket,
-	      &interests, sizeof(uint8_t), ZMQ_SNDMORE) == -1)
-    {
-      fprintf(stderr, "Could not send interests to master\n");
+      fprintf(stderr, "Could not send start-of-view to master\n");
       return -1;
     }
 
-  /* now relay the rest of the message to master */
-  while(zsocket_rcvmore(broker->server_sub_socket) != 0)
+  /* now relay the view to master */
+  /* for some ridiculous reason, rcvmore is false for the first frame... */
+  while(first_frame != 0 || zsocket_rcvmore(broker->server_sub_socket) != 0)
     {
+      first_frame = 0;
+
       /* suck the next message from the server */
       if(zmq_msg_init(&msg) == -1)
 	{

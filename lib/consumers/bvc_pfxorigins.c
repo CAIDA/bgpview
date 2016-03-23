@@ -584,8 +584,7 @@ void bvc_pfxorigins_destroy(bvc_t *consumer)
 }
 
 
-int bvc_pfxorigins_process_view(bvc_t *consumer, uint8_t interests,
-                                bgpview_t *view)
+int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_pfxorigins_state_t *state = STATE;
 

@@ -64,8 +64,7 @@
   bvc_t * bvc_##consname##_alloc();					\
   int bvc_##consname##_init(bvc_t *ds, int argc, char **argv);		\
   void bvc_##consname##_destroy(bvc_t *ds);				\
-  int bvc_##consname##_process_view(bvc_t *ds, uint8_t interests,	\
-				    bgpview_t *view);
+  int bvc_##consname##_process_view(bvc_t *ds, bgpview_t *view);
 
 /** Convenience macro that defines all the function pointers for the timeseries
  * consumer API
@@ -134,8 +133,7 @@ struct bvc
    *
    * This is the core of the consumer API
    */
-  int (*process_view)(struct bvc *consumer, uint8_t interests,
-		      bgpview_t *view);
+  int (*process_view)(struct bvc *consumer, bgpview_t *view);
 
   /** }@ */
 

@@ -112,31 +112,7 @@ typedef enum {
  */
 bgpview_io_zmq_msg_type_t bgpview_io_zmq_recv_type(void *src, int flags);
 
-
-/* ========== INTERESTS/VIEWS ========== */
-
-/** Given a set of interests that are satisfied by a view, find the most
- *  specific and return the publication string
- *
- * @param interests     set of interests
- * @return most-specific publication string that satisfies the interests
- */
-const char *bgpview_io_zmq_consumer_interest_pub(int interests);
-
-/** Given a set of interests, find the least specific return the subscription
- * string
- *
- * @param interests     set of interests
- * @return least-specific subscription string that satisfies the interests
- */
-const char *bgpview_io_zmq_consumer_interest_sub(int interests);
-
-/** Receive an interest publication prefix and convert to an interests set
- *
- * @param src           socket to receive on
- * @return set of interest flags if successful, 0 otherwise
- */
-uint8_t bgpview_io_zmq_consumer_interest_recv(void *src);
+/* ========== VIEW IO ========== */
 
 /** Send the given view to the given socket
  *

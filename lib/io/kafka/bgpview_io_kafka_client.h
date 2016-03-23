@@ -95,9 +95,6 @@ typedef struct bgpview_io_kafka_client bgpview_io_kafka_client_t;
  *
  * @return a pointer to a bgpview kafka client instance if successful, NULL if an
  * error occurred.
- *
- * @note calling a producer function or registering a consumer callback for an
- * intent/interest not registered will trigger an assert.
  */
 bgpview_io_kafka_client_t *bgpview_io_kafka_client_init();
 
@@ -123,26 +120,19 @@ int bgpview_io_kafka_client_send_view(bgpview_io_kafka_client_t *client,
 /** Attempt to receive an BGP View from the bgpview server
  *
  * @param client        pointer to the client instance to receive from
- * @param interest_view	ID in form of timestamp of the view to receive
  * @param view          pointer to the view to fill
  * @param cb            callback functions to use to filter entries (may be NULL)
  * @return 0 or -1 if an error occurred.
- *
- * @note this function will only receive messages for which an interest was set
- * when initializing the client, but a view may satisfy *more* interests than
- * were explicitly asked for. For example, when subscribing to PARTIAL tables, a
- * table that is marked as PARTIAL could also be marked as FIRSTFULL (if it also
- * satisfies that interest).
  *
  * The view provided to this function must have been created using
  * bgpview_create, and if it is being re-used, it *must* have been
  * cleared using bgpview_clear.
  */
 int bgpview_io_kafka_client_recv_view(bgpview_io_kafka_client_t *client,
-									bgpview_t *view,
-									bgpview_io_filter_peer_cb_t *peer_cb,
-									bgpview_io_filter_pfx_cb_t *pfx_cb,
-									bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+                                      bgpview_t *view,
+                                      bgpview_io_filter_peer_cb_t *peer_cb,
+                                      bgpview_io_filter_pfx_cb_t *pfx_cb,
+                                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 
 

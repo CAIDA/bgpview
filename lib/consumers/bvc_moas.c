@@ -864,7 +864,7 @@ void bvc_moas_destroy(bvc_t *consumer)
 
 
 
-int bvc_moas_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
+int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
 {
 
   bvc_moas_state_t *state = STATE;

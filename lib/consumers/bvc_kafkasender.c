@@ -323,7 +323,7 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
 }
 
 
-int bvc_kafkasender_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
+int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
 {
 	bvc_kafkasender_state_t *state = STATE;
 	uint32_t current_view_ts = bgpview_get_time(view);

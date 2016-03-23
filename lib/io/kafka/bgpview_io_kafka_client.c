@@ -377,8 +377,6 @@ int bgpview_io_kafka_client_recv_view(bgpview_io_kafka_client_t *client,
 									bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 
 {
-  uint8_t interests = 1;
-
   assert(view != NULL);
 
   if(bgpview_io_kafka_recv(&client->kafka_config,&client->view_data,view,
@@ -388,5 +386,5 @@ int bgpview_io_kafka_client_recv_view(bgpview_io_kafka_client_t *client,
       return -1;
     }
 
-  return interests;
+  return 0;
 }

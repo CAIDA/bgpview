@@ -878,7 +878,7 @@ static void clear_newrec_edges(newrec_edges_t *newrec_edges){
 }
 
 
-int bvc_edges_process_view(bvc_t *consumer, uint8_t interests, bgpview_t *view)
+int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_edges_state_t *state = STATE;
   bgpview_iter_t *it;

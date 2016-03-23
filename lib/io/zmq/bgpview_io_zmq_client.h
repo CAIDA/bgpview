@@ -89,16 +89,15 @@ typedef enum {
 
 /** Initialize a new BGPView Client instance
  *
- * @param interests     set of bgpview_consumer_interest_t flags
  * @param intents       set of bgpview_producer_intent_t flags
  * @return a pointer to a bgpview client instance if successful, NULL if an
  * error occurred.
  *
  * @note calling a producer function or registering a consumer callback for an
- * intent/interest not registered will trigger an assert.
+ * intent not registered will trigger an assert.
  */
 bgpview_io_zmq_client_t *
-bgpview_io_zmq_client_init(uint8_t interests, uint8_t intents);
+bgpview_io_zmq_client_init(uint8_t intents);
 
 /** Set the user data that will provided to each callback function */
 void
@@ -135,16 +134,9 @@ bgpview_io_zmq_client_send_view(bgpview_io_zmq_client_t *client,
  *
  * @param client        pointer to the client instance to receive from
  * @param mode          receive mode (blocking/non-blocking)
- * @param[out] interests  set to all the interests the view satisfies
  * @param view          pointer to the view to fill
  * @param cb            callback function to use to filter entries (may be NULL)
- * @return all the interests the view satisfies, -1 if an error occurred.
- *
- * @note this function will only receive messages for which an interest was set
- * when initializing the client, but a view may satisfy *more* interests than
- * were explicitly asked for. For example, when subscribing to PARTIAL tables, a
- * table that is marked as PARTIAL could also be marked as FIRSTFULL (if it also
- * satisfies that interest).
+ * @return 0 if a view was received successfully, -1 otherwise
  *
  * The view provided to this function must have been created using
  * bgpview_create, and if it is being re-used, it *must* have been

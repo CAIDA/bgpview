@@ -111,9 +111,6 @@ typedef struct bgpview_io_zmq_client_broker_req {
 /** Config for the broker. Populated by the client */
 typedef struct bgpview_io_zmq_client_broker_config {
 
-  /** set of bgpview_consumer_interest_t flags */
-  uint8_t interests;
-
   /** set of bgpview_producer_intent_t flags */
   uint8_t intents;
 

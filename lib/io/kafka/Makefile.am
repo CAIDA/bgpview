@@ -28,8 +28,7 @@ AM_CPPFLAGS = 	-I$(top_srcdir) \
                 -I$(top_srcdir)/lib \
                 -I$(top_srcdir)/lib/utils \
                 -I$(top_srcdir)/bgpview/lib \
-                -I$(top_srcdir)/bgpview/lib/io \
-                -I$(top_srcdir)/bgpview/lib/consumers
+                -I$(top_srcdir)/bgpview/lib/io
 
 noinst_LTLIBRARIES = libbgpview_io_kafka.la
 

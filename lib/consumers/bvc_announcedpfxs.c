@@ -344,8 +344,7 @@ void bvc_announcedpfxs_destroy(bvc_t *consumer)
 }
 
 
-int bvc_announcedpfxs_process_view(bvc_t *consumer, uint8_t interests,
-				     bgpview_t *view)
+int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_announcedpfxs_state_t *state = STATE;
   

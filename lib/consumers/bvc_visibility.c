@@ -408,8 +408,7 @@ void bvc_visibility_destroy(bvc_t *consumer)
 
 
 
-int bvc_visibility_process_view(bvc_t *consumer, uint8_t interests,
-                                bgpview_t *view)
+int bvc_visibility_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bgpview_iter_t *it;
   int i;

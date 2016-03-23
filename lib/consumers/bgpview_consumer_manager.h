@@ -183,31 +183,6 @@ typedef enum bvc_id
 
   } bvc_id_t;
 
-/** Consumer interests
- *
- * A consumer has interests: it interested in being sent notifications about
- * something. E.g. a new prefix table being available.
- */
-typedef enum {
-  BGPVIEW_CONSUMER_INTEREST_FIRSTFULL    = 0b001,
-  BGPVIEW_CONSUMER_INTEREST_FULL         = 0b010,
-  BGPVIEW_CONSUMER_INTEREST_PARTIAL      = 0b100,
-} bgpview_consumer_interest_t;
-
-/* Consumer subscription strings.
- *
- * 0MQ subscriptions are simply a prefix match on the first message part. We can
- * leverage this to get hierarchical subscriptions (i.e. the most general
- * subscription should be the shortest, and all others should contain the
- * subscription of their parent. Clear as mud?
- */
-#define BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL "P"
-
-#define BGPVIEW_CONSUMER_INTEREST_SUB_FULL    \
-  BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL"F"
-
-#define BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL \
-  BGPVIEW_CONSUMER_INTEREST_SUB_FULL"1"
 
 /** @} */
 
@@ -258,7 +233,7 @@ void bgpview_consumer_manager_destroy(bgpview_consumer_manager_t **mgr_p);
  * consumer, and the remainder of the string is taken to be the options.
  */
 int bgpview_consumer_manager_enable_consumer(bvc_t *consumer,
-					const char *options);
+                                             const char *options);
 
 /** Attempt to enable a consumer based on the given command string
  *
@@ -272,7 +247,7 @@ int bgpview_consumer_manager_enable_consumer(bvc_t *consumer,
  * consumer and will pass `-a all` as options.
  */
 bvc_t *bgpview_consumer_manager_enable_consumer_from_str(bgpview_consumer_manager_t *mgr,
-						    const char *cmd);
+                                                         const char *cmd);
 
 /** Retrieve the consumer object for the given consumer ID
  *
@@ -281,7 +256,7 @@ bvc_t *bgpview_consumer_manager_enable_consumer_from_str(bgpview_consumer_manage
  * @return the consumer object for the given ID, NULL if there are no matches
  */
 bvc_t *bgpview_consumer_manager_get_consumer_by_id(bgpview_consumer_manager_t *mgr,
-					      bvc_id_t id);
+                                                   bvc_id_t id);
 
 
 /** Retrieve the consumer object for the given consumer name
@@ -291,7 +266,7 @@ bvc_t *bgpview_consumer_manager_get_consumer_by_id(bgpview_consumer_manager_t *m
  * @return the consumer object for the given name, NULL if there are no matches
  */
 bvc_t *bgpview_consumer_manager_get_consumer_by_name(bgpview_consumer_manager_t *mgr,
-						const char *name);
+                                                     const char *name);
 
 /** Get an array of available consumers
  *
@@ -308,14 +283,11 @@ bvc_t **bgpview_consumer_manager_get_all_consumers(bgpview_consumer_manager_t *m
 /** Process the given view using each enabled consumer
  *
  * @param mgr           The manager object
- * @param interests     Bit-array of bgpview_consumer_interest_t flags
- *                        indicating which interests the given view satisfies
  * @param view          Borrowed reference to the BGPView to process
  * @param return 0 if the view was processed successfully, -1 otherwise
  */
 int bgpview_consumer_manager_process_view(bgpview_consumer_manager_t *mgr,
-				     uint8_t interests,
-				     bgpview_t *view);
+                                          bgpview_t *view);
 
 /** Check if the given consumer is enabled already
  *
@@ -337,36 +309,5 @@ bvc_id_t bvc_get_id(bvc_t *consumer);
  * @return the name of the consumer, NULL if an invalid consumer was provided
  */
 const char *bvc_get_name(bvc_t *consumer);
-
-/* ========== INTERESTS/VIEWS ========== */
-
-/** Given a set of interests that are satisfied by a view, find the most
- *  specific and return the publication string
- *
- * @param interests     set of interests
- * @return most-specific publication string that satisfies the interests
- */
-const char *bgpview_consumer_interest_pub(int interests);
-
-/** Given a set of interests, find the least specific return the subscription
- * string
- *
- * @param interests     set of interests
- * @return least-specific subscription string that satisfies the interests
- */
-const char *bgpview_consumer_interest_sub(int interests);
-
-/** Receive an interest publication prefix and convert to an interests set
- *
- * @param src           socket to receive on
- * @return set of interest flags if successful, 0 otherwise
- */
-uint8_t bgpview_consumer_interest_recv(void *src);
-
-/** Dump the given interests to stdout in a human-readable format
- *
- * @param interests     set of interests
- */
-void bgpview_consumer_interest_dump(int interests);
 
 #endif /* __BGPVIEW_CONSUMER_H */

@@ -149,14 +149,9 @@ void bvc_test_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-int bvc_test_process_view(bvc_t *consumer, uint8_t interests,
-			  bgpview_t *view)
+int bvc_test_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_test_state_t *state = STATE;
-
-  fprintf(stdout, "BVC-TEST: Interests: ");
-  bgpview_consumer_interest_dump(interests);
-  fprintf(stdout, "\n");
 
   /* only dump 'small' views, otherwise it is just obnoxious */
   if(bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE)

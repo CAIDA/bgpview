@@ -199,7 +199,6 @@ int main(int argc, char **argv)
   uint64_t request_timeout = BGPVIEW_IO_ZMQ_CLIENT_REQUEST_TIMEOUT_DEFAULT;
   int request_retries = BGPVIEW_IO_ZMQ_CLIENT_REQUEST_RETRIES_DEFAULT;
 
-  uint8_t interests = 0;
   uint8_t intents = 0;
   bgpview_io_zmq_client_t *client = NULL;
 
@@ -319,11 +318,10 @@ int main(int argc, char **argv)
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
-  interests = 0;
   intents = BGPVIEW_PRODUCER_INTENT_PREFIX;
 
   if((client =
-      bgpview_io_zmq_client_init(interests, intents)) == NULL)
+      bgpview_io_zmq_client_init(intents)) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize bgpview client\n");
       usage(argv[0]);

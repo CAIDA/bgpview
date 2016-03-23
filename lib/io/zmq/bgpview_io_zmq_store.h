@@ -65,7 +65,6 @@ void bgpview_io_zmq_store_destroy(bgpview_io_zmq_store_t *store);
  *
  * @param store         pointer to a store instance
  * @param name          string name of the client
- * @param interests     client interests
  * @param intents       client intents
  * @return 0 if successful, -1 otherwise
  */

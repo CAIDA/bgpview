@@ -168,8 +168,7 @@ void bvc_myviewprocess_destroy(bvc_t *consumer)
 }
 
 
-int bvc_myviewprocess_process_view(bvc_t *consumer, uint8_t interests,
-                                    bgpview_t *view)
+int bvc_myviewprocess_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_myviewprocess_state_t *state = STATE;
   bgpview_iter_t *it;

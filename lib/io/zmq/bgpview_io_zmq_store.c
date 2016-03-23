@@ -24,7 +24,6 @@
 #include "bgpview_io_zmq_store.h"
 #include "bgpview_io_zmq_server_int.h"
 #include "bgpview_io_zmq_int.h"
-#include "bgpview_consumer_manager.h"
 #include "bgpview.h"
 #include "bgpstream_utils_str_set.h"
 #include "bgpstream_utils_id_set.h"
@@ -324,28 +323,16 @@ static int dispatcher_run(bgpview_io_zmq_store_t *store,
                           store_view_t *sview,
                           completion_trigger_t trigger)
 {
-#if 0
-  bgpstream_peer_id_t valid_peers[BGPVIEW_IO_ZMQ_STORE_MAX_PEERS_CNT];
-  int valid_peers_cnt;
-#endif
-  int dispatch_interests = 0;
+  int dispatch = 0; /* should we dispatch this view? */
   int i;
   int states_cnt[STORE_VIEW_STATE_MAX+1];
 
-  /* interests are hierarchical, so we check the most specific first */
+  /* @todo this logic could be simplified now that we don't have interests
+     anymore */
   if(sview->state == STORE_VIEW_FULL &&
      sview->dis_status[STORE_VIEW_FULL].modified != 0)
     {
-      if(sview->dis_status[STORE_VIEW_FULL].sent == 0)
-        {
-          /* send to FIRST-FULL customers */
-          dispatch_interests = BGPVIEW_CONSUMER_INTEREST_FIRSTFULL;
-        }
-      else
-        {
-          /* send to FULL customers */
-          dispatch_interests = BGPVIEW_CONSUMER_INTEREST_FULL;
-        }
+      dispatch = 1;
       sview->dis_status[STORE_VIEW_FULL].modified = 0;
       sview->dis_status[STORE_VIEW_FULL].sent = 1;
     }
@@ -353,21 +340,13 @@ static int dispatcher_run(bgpview_io_zmq_store_t *store,
           sview->dis_status[STORE_VIEW_PARTIAL].modified != 0)
     {
       /* send to PARTIAL customers */
-      dispatch_interests = BGPVIEW_CONSUMER_INTEREST_PARTIAL;
+      dispatch = 1;
       sview->dis_status[STORE_VIEW_PARTIAL].modified = 0;
       sview->dis_status[STORE_VIEW_PARTIAL].sent = 1;
     }
 
-#if 0
   /* nothing to dispatch */
-  if(dispatch_interests == 0)
-    {
-      return 0;
-    }
-#endif
-
-  /* hax: we can't handle publishing partial tables */
-  if(dispatch_interests != BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
+  if(dispatch == 0)
     {
       return 0;
     }
@@ -459,8 +438,7 @@ static int dispatcher_run(bgpview_io_zmq_store_t *store,
               "views.%d.%s", sview->id, "time_created");
 
   /* now publish the view */
-  if(bgpview_io_zmq_server_publish_view(store->server, sview->view,
-                                        dispatch_interests) != 0)
+  if(bgpview_io_zmq_server_publish_view(store->server, sview->view) != 0)
     {
       return -1;
     }
@@ -1043,7 +1021,8 @@ int bgpview_io_zmq_store_ts_completed_handler(bgpview_io_zmq_store_t *store, uin
     }
   bgpview_t *bgp_view = kh_value(store->bgp_timeseries,k);
 
-  int ret = bgpview_io_zmq_store_interests_dispatcher_run(store->active_clients, bgp_view, ts);
+  int ret = bgpview_io_zmq_store_dispatcher_run(store->active_clients,
+                                                bgp_view, ts);
 
   // TODO: decide whether to destroy the bgp_view or not
 

@@ -23,7 +23,6 @@
 
 #include "config.h"
 #include "bgpview_io_zmq_int.h"
-#include "bgpview_consumer_manager.h"
 #include <stdio.h>
 #include <czmq.h>
 
@@ -1044,6 +1043,7 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
 /* ========== PROTECTED FUNCTIONS ========== */
 
+#if 0
 static char *recv_str(void *src)
 {
   zmq_msg_t llm;
@@ -1069,6 +1069,7 @@ static char *recv_str(void *src)
   free(str);
   return NULL;
 }
+#endif
 
 /* ========== PROTECTED FUNCTIONS BELOW HERE ========== */
 
@@ -1087,89 +1088,6 @@ bgpview_io_zmq_msg_type_t bgpview_io_zmq_recv_type(void *src, int flags)
 
   return type;
 }
-
-
-/* ========== INTERESTS/VIEWS ========== */
-
-const char *bgpview_io_zmq_consumer_interest_pub(int interests)
-{
-  /* start with the most specific and work backward */
-  /* NOTE: a view CANNOT satisfy FIRSTFULL and NOT satisfy FULL/PARTIAL */
-  if(interests & BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
-    {
-      return BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL;
-    }
-  else if(interests & BGPVIEW_CONSUMER_INTEREST_FULL)
-    {
-      return BGPVIEW_CONSUMER_INTEREST_SUB_FULL;
-    }
-  else if(interests & BGPVIEW_CONSUMER_INTEREST_PARTIAL)
-    {
-      return BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL;
-    }
-
-  return NULL;
-}
-
-const char *bgpview_io_zmq_consumer_interest_sub(int interests)
-{
-  /* start with the least specific and work backward */
-  if(interests & BGPVIEW_CONSUMER_INTEREST_PARTIAL)
-    {
-      return BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL;
-    }
-  else if(interests & BGPVIEW_CONSUMER_INTEREST_FULL)
-    {
-      return BGPVIEW_CONSUMER_INTEREST_SUB_FULL;
-    }
-  else if(interests & BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
-    {
-      return BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL;
-    }
-
-  return NULL;
-}
-
-uint8_t bgpview_io_zmq_consumer_interest_recv(void *src)
-{
-  char *pub_str = NULL;
-  uint8_t interests = 0;
-
-  /* grab the subscription frame and convert to interests */
-  if((pub_str = recv_str(src)) == NULL)
-    {
-      goto err;
-    }
-
-  /** @todo make all this stuff less hard-coded and extensible */
-  if(strcmp(pub_str, BGPVIEW_CONSUMER_INTEREST_SUB_FIRSTFULL) == 0)
-    {
-      interests |= BGPVIEW_CONSUMER_INTEREST_PARTIAL;
-      interests |= BGPVIEW_CONSUMER_INTEREST_FULL;
-      interests |= BGPVIEW_CONSUMER_INTEREST_FIRSTFULL;
-    }
-  else if(strcmp(pub_str, BGPVIEW_CONSUMER_INTEREST_SUB_FULL) == 0)
-    {
-      interests |= BGPVIEW_CONSUMER_INTEREST_PARTIAL;
-      interests |= BGPVIEW_CONSUMER_INTEREST_FULL;
-    }
-  else if(strcmp(pub_str, BGPVIEW_CONSUMER_INTEREST_SUB_PARTIAL) == 0)
-    {
-      interests |= BGPVIEW_CONSUMER_INTEREST_PARTIAL;
-    }
-  else
-    {
-      goto err;
-    }
-
-  free(pub_str);
-  return interests;
-
- err:
-  free(pub_str);
-  return 0;
-}
-
 
 int bgpview_io_zmq_send(void *dest, bgpview_t *view,
                         bgpview_io_filter_cb_t *cb)

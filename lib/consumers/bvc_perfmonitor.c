@@ -173,8 +173,7 @@ void bvc_perfmonitor_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-int bvc_perfmonitor_process_view(bvc_t *consumer, uint8_t interests,
-				 bgpview_t *view)
+int bvc_perfmonitor_process_view(bvc_t *consumer, bgpview_t *view)
 {
   // view arrival delay, i.e. now - table ts
   uint32_t time_begin = zclock_time()/1000;

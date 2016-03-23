@@ -28,7 +28,6 @@
 #include "utils.h"
 #include <stdint.h>
 
-#define ERR (&client->err)
 #define BCFG (client->broker_config)
 #define TBL (client->pfx_table)
 
@@ -84,7 +83,7 @@ int send_view_hdrs(bgpview_io_zmq_client_t *client, bgpview_t *view)
 
 /* ========== PUBLIC FUNCS BELOW HERE ========== */
 
-bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t interests, uint8_t intents)
+bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t intents)
 {
   bgpview_io_zmq_client_t *client;
   if((client = malloc_zero(sizeof(bgpview_io_zmq_client_t))) == NULL)
@@ -98,7 +97,6 @@ bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t interests, uint8_t i
 
   BCFG.master = client;
 
-  BCFG.interests = interests;
   BCFG.intents = intents;
 
   /* init czmq */
@@ -231,16 +229,14 @@ int bgpview_io_zmq_client_recv_view(bgpview_io_zmq_client_t *client,
                                     bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 
 {
-  uint8_t interests = 0;
-
   assert(view != NULL);
 
-  /* attempt to get the set of interests */
+  /* attempt to get the empty prefix message */
   if(zmq_recv(client->broker_zocket,
-	      &interests, sizeof(interests),
+	      NULL, 0,
 	      (blocking == BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_NONBLOCK) ?
               ZMQ_DONTWAIT : 0
-	      ) != sizeof(interests))
+	      ) != 0)
     {
       /* likely this means that we have shut the broker down */
       return -1;
@@ -253,7 +249,7 @@ int bgpview_io_zmq_client_recv_view(bgpview_io_zmq_client_t *client,
       return -1;
     }
 
-  return interests;
+  return 0;
 }
 
 void bgpview_io_zmq_client_stop(bgpview_io_zmq_client_t *client)

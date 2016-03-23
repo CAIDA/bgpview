@@ -392,13 +392,11 @@ int main(int argc, char **argv)
 
   const char *server_uri = NULL;
 
-  uint8_t interests = 0;
   bgpview_io_kafka_client_t *client = NULL;
 
   bgpview_t *view = NULL;
   int processed_view_limit = -1;
   int processed_view = 0;
-  int rx_interests=1;
 
   if(filters_init() != 0)
     {
@@ -560,12 +558,6 @@ int main(int argc, char **argv)
         }
     }
 
-  if(interests == 0)
-    {
-      fprintf(stderr, "WARN: Defaulting to FIRST-FULL interest\n");
-      interests = BGPVIEW_CONSUMER_INTEREST_FIRSTFULL;
-    }
-
   if((client =
       bgpview_io_kafka_client_init()) == NULL)
     {
@@ -595,14 +587,14 @@ int main(int argc, char **argv)
   // disable per-pfx-per-peer user pointer 
   bgpview_disable_user_data(view);
 
-  while((rx_interests =bgpview_io_kafka_client_recv_view(client,
-							      view,
-                                  (peer_filters_cnt != 0) ? filter_peer : NULL,
-                                  (pfx_filters_cnt != 0) ? filter_pfx : NULL,
-                                  (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
-  	  	  	  	  	  	  	  	  )) > 0)
+  while(bgpview_io_kafka_client_recv_view(client,
+                            view,
+                            (peer_filters_cnt != 0) ? filter_peer : NULL,
+                            (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+                            (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
+  	  	  	  	  	  	  	  	  ) == 0)
   {
-	if(bgpview_consumer_manager_process_view(manager, rx_interests, view) != 0)
+	if(bgpview_consumer_manager_process_view(manager, view) != 0)
 	  {
 	  fprintf(stderr, "ERROR: Failed to process view at %d\n",
 		  bgpview_get_time(view));

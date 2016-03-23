@@ -276,25 +276,6 @@ destroy_bvc_chain_state(bgpview_consumer_manager_t *mgr)
 }
 
 
-
-/* ========== INTERESTS/VIEWS ========== */
-
-void bgpview_consumer_interest_dump(int interests)
-{
-  if(interests & BGPVIEW_CONSUMER_INTEREST_FIRSTFULL)
-    {
-      fprintf(stdout, "first-full ");
-    }
-  if(interests & BGPVIEW_CONSUMER_INTEREST_FULL)
-    {
-      fprintf(stdout, "full ");
-    }
-  if(interests & BGPVIEW_CONSUMER_INTEREST_PARTIAL)
-    {
-      fprintf(stdout, "partial");
-    }
-}
-
 /* ==================== PUBLIC MANAGER FUNCTIONS ==================== */
 
 bgpview_consumer_manager_t *bgpview_consumer_manager_create(timeseries_t *timeseries)
@@ -471,8 +452,7 @@ bvc_t **bgpview_consumer_manager_get_all_consumers(bgpview_consumer_manager_t *m
 }
 
 int bgpview_consumer_manager_process_view(bgpview_consumer_manager_t *mgr,
-				     uint8_t interests,
-				     bgpview_t *view)
+                                          bgpview_t *view)
 {
   int id;
   bvc_t *consumer;
@@ -485,7 +465,7 @@ int bgpview_consumer_manager_process_view(bgpview_consumer_manager_t *mgr,
       {
 	continue;
       }
-    if(consumer->process_view(consumer, interests, view) != 0)
+    if(consumer->process_view(consumer, view) != 0)
       {
 	return -1;
       }
