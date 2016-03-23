@@ -2173,8 +2173,8 @@ bgpview_gc(bgpview_t *view)
 }
 
 int bgpview_copy(bgpview_t *dst, bgpview_t* src){
-  bgpview_iter_t *src_iter;
-  bgpview_iter_t *dst_iter;
+  bgpview_iter_t *src_iter = NULL;
+  bgpview_iter_t *dst_iter = NULL;
 
   bgpstream_peer_sig_t *ps;
   bgpstream_peer_id_t src_id, dst_id;
