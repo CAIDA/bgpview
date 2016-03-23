@@ -22,10 +22,9 @@
  */
 
 #include "config.h"
-#include "bgpview_io_kafka_client.h"
+#include "bgpview_io_kafka.h"
 #include "bgpview.h"
 #include "bgpview_consumer_manager.h"
-#include "config.h"
 #include "utils.h"
 #include <assert.h>
 #include <stdio.h>
@@ -392,7 +391,7 @@ int main(int argc, char **argv)
 
   const char *server_uri = NULL;
 
-  bgpview_io_kafka_client_t *client = NULL;
+  bgpview_io_kafka_t *client = NULL;
 
   bgpview_t *view = NULL;
   int processed_view_limit = -1;
@@ -559,7 +558,7 @@ int main(int argc, char **argv)
     }
 
   if((client =
-      bgpview_io_kafka_client_init()) == NULL)
+      bgpview_io_kafka_init()) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize bgpview client\n");
       usage(argv[0]);
@@ -568,7 +567,7 @@ int main(int argc, char **argv)
 
 
   if(server_uri != NULL &&
-		  bgpview_io_kafka_client_set_broker_addresses(client, server_uri) != 0)
+		  bgpview_io_kafka_set_broker_addresses(client, server_uri) != 0)
     {
       goto err;
     }
@@ -576,7 +575,7 @@ int main(int argc, char **argv)
 
 
 
-  bgpview_io_kafka_client_start_consumer(client);
+  bgpview_io_kafka_start_consumer(client);
 
   if((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL)
     {
@@ -587,7 +586,7 @@ int main(int argc, char **argv)
   // disable per-pfx-per-peer user pointer 
   bgpview_disable_user_data(view);
 
-  while(bgpview_io_kafka_client_recv_view(client,
+  while(bgpview_io_kafka_recv_view(client,
                             view,
                             (peer_filters_cnt != 0) ? filter_peer : NULL,
                             (pfx_filters_cnt != 0) ? filter_pfx : NULL,
@@ -615,7 +614,7 @@ int main(int argc, char **argv)
 
   /* cleanup */
   filters_destroy();
-  bgpview_io_kafka_client_free(client);
+  bgpview_io_kafka_free(client);
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
@@ -631,7 +630,7 @@ int main(int argc, char **argv)
  err:
   filters_destroy();
   if(client != NULL) {
-    bgpview_io_kafka_client_free(client);
+    bgpview_io_kafka_free(client);
   }
   if(metric_prefix !=NULL)
     {

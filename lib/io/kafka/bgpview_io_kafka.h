@@ -24,156 +24,177 @@
 #ifndef __BGPVIEW_IO_KAFKA_H
 #define __BGPVIEW_IO_KAFKA_H
 
-#include <wandio.h>
-
-#include "bgpview_io.h"
 #include "bgpview.h"
-#include <librdkafka/rdkafka.h>
+#include "bgpview_io.h"
 
+/** @file
+ *
+ * @brief Header file that exposes the public interface of the bgpview kafka
+ * client
+ *
+ * @author Danilo Giordano
+ *
+ */
 
-#define KAFKA_CLIENT_DIFF_FREQUENCY 11
-#define KAFKA_PEER_MAP_SIZE 2048
+/**
+ * @name Public Constants
+ *
+ * @{ */
 
+#define BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT "127.0.0.1:9092"
 
+#define BGPVIEW_IO_KAFKA_PFXS_TOPIC_DEFAULT "bgpview-pfxs"
+
+#define BGPVIEW_IO_KAFKA_PEERS_TOPIC_DEFAULT "bgpview-peers"
+
+#define BGPVIEW_IO_KAFKA_METADATA_TOPIC_DEFAULT "bgpview-metadata"
+
+#define BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT 0
+
+#define BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT 0
+
+#define BGPVIEW_IO_KAFKA_PEERS_OFFSET_DEFAULT 0
+
+#define BGPVIEW_IO_KAFKA_METADATA_OFFSET_DEFAULT 0
+
+#define BGPVIEW_IO_KAFKA_DIFF_FREQUENCY 11
+
+/** @} */
+
+/**
+ * @name Public Opaque Data Structures
+ *
+ * @{ */
+
+typedef struct bgpview_io_kafka bgpview_io_kafka_t;
+
+/** @} */
+
+/**
+ * @name Public Data Structures
+ *
+ * @{ */
 
 typedef struct kafka_performance{
 
-	int send_time;
-	int clone_time;
-	int total_time;
-	int arrival_time;
-	int processed_time;
+  int send_time;
+  int clone_time;
+  int total_time;
+  int arrival_time;
+  int processed_time;
 
-	int add;
-	int remove;
-	int common;
-	int change;
-	int current_pfx_cnt;
-	int historical_pfx_cnt;
+  int add;
+  int remove;
+  int common;
+  int change;
+  int current_pfx_cnt;
+  int historical_pfx_cnt;
 
-	int sync_cnt;
+  int sync_cnt;
 
 } kafka_performance_t;
 
-typedef struct kafka_data{
+/** @} */
 
-	  /*
-	   * The broker address/es. It is possible to use
-	   * more than one broker by separating them with a ","
-	   */
-	  char *brokers;
-
-	  /**Name of the topic for:
-	   *
-	   * @pfxs_paths_topic: default views
-	   * @peers_topic: default peers
-	   * @metadata_topic: default metadata
-	   *
-	   */
-	  char *pfxs_paths_topic;
-	  char *peers_topic;
-	  char *metadata_topic;
-
-	  /** Information about which partition of the topic the user wants to read
-	   *
-	   * @pfxs_paths_partition should be set automatically by the metadata topic
-	   * @peers_partition should be always equal to 0 in case of a single partition
-	   * @metadata_partition should be always equal to 0 in case of a single partition
-	   *  as the program crawl the topic to get the view offset
-	   *
-	   */
-	  int pfxs_paths_partition;
-	  int peers_partition;
-	  int metadata_partition;
-
-	  /** Information about which offset of the topic the user wants to read
-	   *
-	   * @pfxs_paths_offset should be set automatically by the metadata topic
-	   * @peers_offset should be always equal to 0
-	   * @metadata_offset should be always equal to 0 as the program crawl the topic
-	   * to get the view offset
-	   *
-	   */
-	  long int pfxs_paths_offset;
-	  long int peers_offset;
-	  long int metadata_offset;
-
-	  rd_kafka_t *pfxs_paths_rk;
-	  rd_kafka_t *peers_rk;
-	  rd_kafka_t *metadata_rk;
-
-	  rd_kafka_topic_t *pfxs_paths_rkt;
-	  rd_kafka_topic_t *peers_rkt;
-	  rd_kafka_topic_t *metadata_rkt;
-
-
-	  int view_frequency;
-
-} kafka_data_t;
-
-typedef struct kafka_view_data{
-
-	bgpstream_peer_id_t peerid_map[KAFKA_PEER_MAP_SIZE];
-	uint32_t sync_view_id;
-	bgpview_t *viewH;
-
-	long int current_pfxs_paths_offset;
-	long int current_peers_offset;
-
-	int pfxs_paths_sync_partition;
-	long int pfxs_paths_sync_offset;
-	long int peers_sync_offset;
-
-	int pfxs_paths_diffs_partition[KAFKA_CLIENT_DIFF_FREQUENCY];
-
-	long int pfxs_paths_diffs_offset[KAFKA_CLIENT_DIFF_FREQUENCY];
-	long int peers_offset[KAFKA_CLIENT_DIFF_FREQUENCY];
-
-	int num_diffs;
-
-	//int distance_sync; //producer
-
-
-}kafka_view_data_t;
-
-
-
-int initialize_producer_connection( rd_kafka_t **rk,
-									rd_kafka_topic_t **rkt,
-								    char *brokers, char *topic);
-
-
-int initialize_consumer_connection(rd_kafka_t **rk,
-									rd_kafka_topic_t **rkt,
-									char *brokers,
-									char *topic);
-
-
-
-/** Send the given view to the given socket
+/**
+ * @name Public Enums
  *
- * @param dest          kafka broker and topic to send the view to
- * @param view          pointer to the view to send
- * @param cb            callback function to use to filter peers (may be NULL)
- * @return 0 if the view was sent successfully, -1 otherwise
- */
-int bgpview_io_kafka_send(kafka_data_t dest,
-						  kafka_view_data_t *view_data,
-						  bgpview_t *view,
-						  kafka_performance_t *metrics,
-						  bgpview_io_filter_cb_t *cb);
+ * @{ */
 
-/** Receive a view from the given socket
+/** @} */
+
+/** Initialize a new BGPView Client instance
  *
- * @param src           information about broker to find metadata about views
- * @param view          pointer to the clear/new view to receive into
- * @return pointer to the view instance received, NULL if an error occurred.
+ * @return a pointer to a bgpview kafka client instance if successful, NULL if an
+ * error occurred.
  */
-int bgpview_io_kafka_recv(kafka_data_t *src,
-                          kafka_view_data_t *view_data,
-                          bgpview_t *view,
-                          bgpview_io_filter_peer_cb_t *peer_cb,
-                          bgpview_io_filter_pfx_cb_t *pfx_cb,
-                          bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+bgpview_io_kafka_t *bgpview_io_kafka_init();
+
+/** Queue the given View for transmission to the server
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param view          pointer to the view to transmit
+ * @param cb            callback function to use to filter entries (may be NULL)
+ * @return 0 if the view was transmitted successfully, -1 otherwise
+ *
+ * This function only sends 'active' fields. Any fields that are 'inactive' in
+ * the view **will not** be present in the view received by the server.
+ *
+ * @note The actual transmission may happen asynchronously, so a return from
+ * this function simply means that the view was queued for transmission.
+ */
+int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
+                               bgpview_t *view,
+                               kafka_performance_t *metrics,
+                               bgpview_io_filter_cb_t *cb);
+
+
+/** Attempt to receive an BGP View from the bgpview server
+ *
+ * @param client        pointer to the client instance to receive from
+ * @param view          pointer to the view to fill
+ * @param cb            callback functions to use to filter entries (may be NULL)
+ * @return 0 or -1 if an error occurred.
+ *
+ * The view provided to this function must have been created using
+ * bgpview_create, and if it is being re-used, it *must* have been
+ * cleared using bgpview_clear.
+ */
+int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client,
+                               bgpview_t *view,
+                               bgpview_io_filter_peer_cb_t *peer_cb,
+                               bgpview_io_filter_pfx_cb_t *pfx_cb,
+                               bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+
+
+
+/** Free the given bgpview client instance
+ *
+ * @param client       pointer to the bgpview kafka client instance to free
+ */
+void bgpview_io_kafka_free(bgpview_io_kafka_t *client);
+
+
+/** Set the URI for the client to connect to the kakfa server on
+ *
+ * @param client        pointer to a bgpview kafka client instance to update
+ * @param uri           pointer to a uri string
+ * @return 0 if successful, -1 otherwise
+ */
+
+
+/** Start the given bgpview kafka client to be a producer instance
+ *
+ * @param client       pointer to a bgpview client instance to start
+ * @return 0 if the client started successfully, -1 otherwise.
+ */
+int bgpview_io_kafka_start_producer(bgpview_io_kafka_t *client);
+
+/** Start the given bgpview client to be a consumer instance
+ *
+ * @param client       pointer to a bgpview kafka client instance to start
+ * @return 0 if the client started successfully, -1 otherwise.
+ */
+int bgpview_io_kafka_start_consumer(bgpview_io_kafka_t *client);
+
+void bgpview_io_kafka_set_diff_frequency(bgpview_io_kafka_t *client,
+                                         int frequency);
+
+int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
+                                          const char *addresses);
+
+int bgpview_io_kafka_set_pfxs_paths_topic(bgpview_io_kafka_t *client,
+                                          const char *topic);
+int bgpview_io_kafka_set_peers_topic(bgpview_io_kafka_t *client,
+                                     const char *topic);
+int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
+                                        const char *topic);
+
+void bgpview_io_kafka_set_pfxs_paths_partition(bgpview_io_kafka_t *client,
+                                               int partition);
+void bgpview_io_kafka_set_peers_partition(bgpview_io_kafka_t *client,
+                                          int partition);
+void bgpview_io_kafka_set_metadata_partition(bgpview_io_kafka_t *client,
+                                             int partition);
 
 #endif /* __BGPVIEW_IO_KAFKA_H */

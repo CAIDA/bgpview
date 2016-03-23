@@ -37,13 +37,13 @@ include_HEADERS =
 libbgpview_io_kafka_la_SOURCES = 	\
 	bgpview_io_kafka.c		\
 	bgpview_io_kafka.h		\
+	bgpview_io_kafka_int.h		\
+	bgpview_io_kafka_codec.c	\
+	bgpview_io_kafka_codec.h	\
 	bgpview_io_kafka_peer.pb.c	\
 	bgpview_io_kafka_peer.pb.h	\
 	bgpview_io_kafka_row.pb.c	\
-	bgpview_io_kafka_row.pb.h	\
-	bgpview_io_kafka_client.h	\
-	bgpview_io_kafka_client.c	\
-	bgpview_io_kafka_client_int.h
+	bgpview_io_kafka_row.pb.h
 
 libbgpview_io_kafka_la_LIBADD =
 

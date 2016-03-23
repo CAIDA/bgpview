@@ -21,23 +21,18 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+#include "bvc_kafkasender.h"
+#include "bgpview_io_kafka.h"
+#include "utils.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <unistd.h>
 #include <string.h>
-#include <librdkafka/rdkafka.h>
 #include <errno.h>
 #include <time.h>
-
-#include "utils.h"
-#include "bgpview_io_kafka.h"
-
-#include "bgpview_io_kafka_peer.pb.h"
-#include "bgpview_io_kafka_client.h"
-#include "bgpview_consumer_interface.h"
-#include "bvc_kafkasender.h"
 
 #define NAME "kafka-sender"
 #define CONSUMER_METRIC_PREFIX       "view.consumer.kafka-sender"
@@ -70,7 +65,7 @@ static bvc_t bvc_kafkasender = {
 /* our 'instance' */
 typedef struct bvc_kafkasender_state {
 
-	bgpview_io_kafka_client_t *client;
+	bgpview_io_kafka_t *client;
 	int cs;
 
 	/** Timeseries Key Package */
@@ -281,7 +276,7 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
       goto err;
     }
 
-  state->client=bgpview_io_kafka_client_init();
+  state->client=bgpview_io_kafka_init();
   state->cs=0;
 
   if((state->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) == NULL)
@@ -314,7 +309,7 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
   /* deallocate dynamic memory HERE */
 
   timeseries_kp_free(&state->kp);
-  bgpview_io_kafka_client_free(state->client);
+  bgpview_io_kafka_free(state->client);
   free(state->metrics);
 
   free(state);
@@ -328,13 +323,13 @@ int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
 	bvc_kafkasender_state_t *state = STATE;
 	uint32_t current_view_ts = bgpview_get_time(view);
 
-	//bgpview_io_kafka_client_t *client=bgpview_io_kafka_client_init();
+	//bgpview_io_kafka_t *client=bgpview_io_kafka_init();
 
 	//TODO: CONFIGURE
 
 
 	if(state->cs==0)
-		bgpview_io_kafka_client_start_producer(state->client);
+		bgpview_io_kafka_start_producer(state->client);
 	state->cs=1;
 
 
@@ -345,7 +340,7 @@ int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
 
     time(&start);
 
-	bgpview_io_kafka_client_send_view(state->client,view,state->metrics,NULL);
+	bgpview_io_kafka_send_view(state->client,view,state->metrics,NULL);
 
 	time(&rawtime);
 	time(&end);
