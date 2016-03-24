@@ -571,9 +571,6 @@ int main(int argc, char **argv)
     {
       goto err;
     }
-  fprintf(stderr, "done\n");
-
-
 
   bgpview_io_kafka_start(client);
 

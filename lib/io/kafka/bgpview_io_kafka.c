@@ -150,6 +150,9 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
       client->metadata_rk = NULL;
     }
 
+  free(client->peerid_map);
+  client->peerid_map = NULL;
+  client->peerid_map_alloc_cnt = 0;
 
   bgpview_destroy(client->viewH);
   client->viewH = NULL;

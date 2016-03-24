@@ -92,7 +92,9 @@ struct bgpview_io_kafka {
 
   int view_frequency;
 
-  bgpstream_peer_id_t peerid_map[KAFKA_PEER_MAP_SIZE];
+  bgpstream_peer_id_t *peerid_map;
+  int peerid_map_alloc_cnt;
+
   uint32_t sync_view_id;
 
   long int current_pfxs_offset;

@@ -29,13 +29,6 @@
 #define BUFFER_LEN 16384
 #define BUFFER_1M  1048576
 
-/* because the values of AF_INET* vary from system to system we need to use
-   our own encoding for the version */
-#define BW_INTERNAL_AF_INET  4
-#define BW_INTERNAL_AF_INET6 6
-
-#define END_OF_PEERS 0xffff
-
 #define ASSERT_MORE				\
   if(zsocket_rcvmore(src) == 0)			\
     {						\
@@ -45,6 +38,7 @@
 
 /* ========== UTILITIES ========== */
 
+#if 0
 static int send_ip(void *dest, bgpstream_ip_addr_t *ip, int flags)
 {
   switch(ip->version)
@@ -113,175 +107,23 @@ static int recv_ip(void *src, bgpstream_addr_storage_t *ip)
   zmq_msg_close(&llm);
   return -1;
 }
-
-static int serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip)
-{
-  size_t written = 0;
-
-  /* now serialize the actual address */
-  switch(ip->version)
-    {
-    case BGPSTREAM_ADDR_VERSION_IPV4:
-      /* serialize the version */
-      assert(len >= 1);
-      *buf = BW_INTERNAL_AF_INET;
-      buf++;
-      written++;
-
-      assert((len-written) >= sizeof(uint32_t));
-      memcpy(buf, &((bgpstream_ipv4_addr_t *)ip)->ipv4.s_addr,
-             sizeof(uint32_t));
-      return written + sizeof(uint32_t);
-      break;
-
-    case BGPSTREAM_ADDR_VERSION_IPV6:
-      /* serialize the version */
-      assert(len >= 1);
-      *buf = BW_INTERNAL_AF_INET6;
-      buf++;
-      written++;
-
-      assert((len-written) >= (sizeof(uint8_t)*16));
-      memcpy(buf, &((bgpstream_ipv6_addr_t *)ip)->ipv6.s6_addr,
-             sizeof(uint8_t)*16);
-      return written + sizeof(uint8_t)*16;
-      break;
-
-    case BGPSTREAM_ADDR_VERSION_UNKNOWN:
-      return -1;
-    }
-
-  return -1;
-}
-
-static int deserialize_ip(uint8_t *buf, size_t len,
-                          bgpstream_addr_storage_t *ip)
-{
-  size_t read = 0;
-
-  assert(len >= 1);
-
-  /* switch on the internal version */
-  switch(*buf)
-    {
-    case BW_INTERNAL_AF_INET:
-      ip->version = BGPSTREAM_ADDR_VERSION_IPV4;
-      buf++;
-      read++;
-
-      assert((len-read) >= sizeof(uint32_t));
-      memcpy(&ip->ipv4.s_addr, buf, sizeof(uint32_t));
-      return read + sizeof(uint32_t);
-      break;
-
-    case BW_INTERNAL_AF_INET6:
-      ip->version = BGPSTREAM_ADDR_VERSION_IPV6;
-      buf++;
-      read++;
-
-      assert((len-read) >= (sizeof(uint8_t)*16));
-      memcpy(&ip->ipv6.s6_addr, buf, sizeof(uint8_t)*16);
-      return read + (sizeof(uint8_t) * 16);
-      break;
-
-    case BGPSTREAM_ADDR_VERSION_UNKNOWN:
-      return -1;
-    }
-
-  return -1;
-}
-
-#define SERIALIZE_VAL(from)				\
-  do {							\
-    assert((len-written) >= sizeof(from));		\
-    memcpy(ptr, &from, sizeof(from));			\
-    s = sizeof(from);					\
-    written += s;					\
-    ptr += s;						\
-  } while(0)
-
-static int send_pfx_peers(uint8_t *buf, size_t len,
-                          bgpview_iter_t *it,
-                          int *peers_cnt,
-                          bgpview_io_filter_cb_t *cb)
-{
-  uint16_t peerid;
-
-  bgpstream_as_path_store_path_t *spath;
-  uint32_t idx;
-
-  uint8_t *ptr = buf;
-  size_t written = 0;
-  size_t s;
-
-  int filter;
-
-  assert(peers_cnt != NULL);
-  *peers_cnt = 0;
-
-  for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_pfx_has_more_peer(it);
-      bgpview_iter_pfx_next_peer(it))
-    {
-      if(cb != NULL)
-        {
-          /* ask the caller if they want this pfx-peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER)) < 0)
-            {
-              return -1;
-            }
-          if(filter == 0)
-            {
-              continue;
-            }
-        }
-
-      peerid = bgpview_iter_peer_get_peer_id(it);
-
-      /** @todo do we still need to filter based on path? */
-#if 0
-      if(orig_asn >= BGPVIEW_ASN_NOEXPORT_START)
-        {
-          continue;
-        }
 #endif
-
-      /* peer id */
-      assert(peerid > 0);
-      assert(peerid < END_OF_PEERS);
-      peerid = htons(peerid);
-      SERIALIZE_VAL(peerid);
-
-      /* AS Path Index */
-      spath = bgpview_iter_pfx_peer_get_as_path_store_path(it);
-      idx = bgpstream_as_path_store_path_get_idx(spath);
-      SERIALIZE_VAL(idx);
-
-      (*peers_cnt)++;
-    }
-
-  return written;
-}
 
 static int send_pfxs(void *dest, bgpview_iter_t *it,
                      bgpview_io_filter_cb_t *cb)
 {
   int filter;
 
-  uint16_t u16;
   uint32_t u32;
 
   size_t len = BUFFER_LEN;
   uint8_t buf[BUFFER_LEN];
   uint8_t *ptr = buf;
   size_t written = 0;
-  size_t s = 0;
+  ssize_t s = 0;
 
   /* the number of pfxs we actually sent */
   int pfx_cnt = 0;
-
-  bgpstream_pfx_t *pfx;
-  int peers_cnt = 0;
 
   for(bgpview_iter_first_pfx(it,
                              0, /* all pfx versions */
@@ -308,44 +150,17 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
       written = 0;
       s = 0;
 
-      pfx = bgpview_iter_pfx_get_pfx(it);
-      assert(pfx != NULL);
-
-      /* pfx address */
-      if((s = serialize_ip(ptr, (len-written),
-                              (bgpstream_ip_addr_t *) (&pfx->address))) == -1)
-	{
-	  goto err;
-	}
-      written += s;
-      ptr += s;
-
-      /* pfx len */
-      SERIALIZE_VAL(pfx->mask_len);
-
-      /* send the peers */
-      peers_cnt = 0;
-      if((s = send_pfx_peers(ptr, (len-written), it, &peers_cnt, cb)) == -1)
-	{
-	  goto err;
-	}
-      written += s;
-      ptr += s;
-
-      /* for a pfx to be sent it must have active peers */
-      if(peers_cnt == 0)
+      // serialize the pfx row using only path IDs
+      if((s = bgpview_io_serialize_pfx_row(ptr, len, it, cb, 1)) == -1)
+        {
+          goto err;
+        }
+      if(s == 0) /* prefix has no peers so skip it */
         {
           continue;
         }
-
-      /* send a magic peerid to indicate end of peers */
-      u16 = END_OF_PEERS;
-      SERIALIZE_VAL(u16);
-
-      /* peer cnt for cross validation */
-      assert(peers_cnt > 0);
-      u16 = htons(peers_cnt);
-      SERIALIZE_VAL(u16);
+      written += s;
+      ptr += s;
 
       /* send the buffer */
       if(zmq_send(dest, buf, written, ZMQ_SNDMORE) != written)
@@ -374,17 +189,7 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
   return -1;
 }
 
-
-#define DESERIALIZE_VAL(to)				\
-  do {							\
-    assert((len-read) >= sizeof(to));			\
-    memcpy(&to, buf, sizeof(to));			\
-    s = sizeof(to);					\
-    read += s;						\
-    buf += s;						\
-  } while(0)
-
-static int recv_pfxs(void *src, bgpview_iter_t *iter,
+static int recv_pfxs(void *src, bgpview_iter_t *it,
                      bgpview_io_filter_pfx_cb_t *pfx_cb,
                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
                      bgpstream_peer_id_t *peerid_map,
@@ -393,35 +198,14 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
                      int pathid_map_cnt)
 {
   uint32_t pfx_cnt;
-  uint16_t peer_cnt;
-  int i, j;
-
-  bgpstream_pfx_storage_t pfx;
-  bgpstream_peer_id_t peerid;
-
-  uint32_t pathidx;
+  int i;
 
   zmq_msg_t msg;
   uint8_t *buf;
   size_t len;
-  size_t read = 0;
-  size_t s = 0;
-  int pfx_peers_added = 0;
+  int read;
 
   int pfx_rx = 0;
-  int pfx_peer_rx = 0;
-
-  int skip_pfx = 0;
-  int filter;
-
-  bgpview_t *view = NULL;
-  bgpstream_as_path_store_t *store = NULL;
-  bgpstream_as_path_store_path_t *store_path = NULL;
-  if(iter != NULL)
-    {
-      view = bgpview_iter_get_view(iter);
-      store = bgpview_get_as_path_store(view);
-    }
 
   ASSERT_MORE;
 
@@ -436,9 +220,6 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
 	}
       buf = zmq_msg_data(&msg);
       len = zmq_msg_size(&msg);
-      read = 0;
-      s = 0;
-      skip_pfx = 0;
 
       if(len == 0)
         {
@@ -447,115 +228,16 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
         }
       pfx_rx++;
 
-      /* pfx_ip */
-      if((s = deserialize_ip(buf, (len-read), &pfx.address)) == -1)
-	{
-          fprintf(stderr, "Could not deserialize pfx ip\n");
-	  goto err;
-	}
-      read += s;
-      buf += s;
-
-      /* pfx len */
-      DESERIALIZE_VAL(pfx.mask_len);
-      ASSERT_MORE;
-
-      if(pfx_cb != NULL)
+      if ((read =
+           bgpview_io_deserialize_pfx_row(buf, len, it,
+                                          pfx_cb, pfx_peer_cb,
+                                          peerid_map,
+                                          peerid_map_cnt,
+                                          pathid_map,
+                                          pathid_map_cnt)) == -1)
         {
-          /* ask the caller if they want this pfx */
-          if((filter = pfx_cb((bgpstream_pfx_t*)&pfx)) < 0)
-            {
-              goto err;
-            }
-          if(filter == 0)
-            {
-              skip_pfx = 1;
-            }
+          goto err;
         }
-
-      pfx_peers_added = 0;
-      pfx_peer_rx = 0;
-
-      for(j=0; j<UINT16_MAX; j++)
-	{
-	  /* peer id */
-	  DESERIALIZE_VAL(peerid);
-	  peerid = ntohs(peerid);
-
-          if(peerid == 0xffff)
-            {
-              /* end of peers */
-              break;
-            }
-
-          pfx_peer_rx++;
-
-          /* AS Path Index */
-	  DESERIALIZE_VAL(pathidx);
-
-          if(iter == NULL || skip_pfx != 0)
-            {
-              continue;
-            }
-          /* all code below here has a valid iter */
-
-          assert(peerid < peerid_map_cnt);
-
-          if(pfx_peer_cb != NULL)
-            {
-              /* get the store path using the id */
-              store_path =
-                bgpstream_as_path_store_get_store_path(store,
-                                                       pathid_map[pathidx]);
-              /* ask the caller if they want this pfx-peer */
-              if((filter = pfx_peer_cb(store_path)) < 0)
-                {
-                  goto err;
-                }
-              if(filter == 0)
-                {
-                  continue;
-                }
-            }
-
-          if(pfx_peers_added == 0)
-            {
-              /* we have to use add_pfx_peer */
-              if(bgpview_iter_add_pfx_peer_by_id(iter,
-                                                 (bgpstream_pfx_t *)&pfx,
-                                                 peerid_map[peerid],
-                                                 pathid_map[pathidx]) != 0)
-                {
-                  fprintf(stderr, "Could not add prefix\n");
-                  goto err;
-                }
-            }
-          else
-            {
-              /* we can use pfx_add_peer for efficiency */
-              if(bgpview_iter_pfx_add_peer_by_id(iter,
-                                                 peerid_map[peerid],
-                                                 pathid_map[pathidx]) != 0)
-                {
-                  fprintf(stderr, "Could not add prefix\n");
-                  goto err;
-                }
-            }
-
-          pfx_peers_added++;
-
-          /* now we have to activate it */
-          if(bgpview_iter_pfx_activate_peer(iter) < 0)
-            {
-              fprintf(stderr, "Could not activate prefix\n");
-              goto err;
-            }
-	}
-
-      /* peer cnt */
-      DESERIALIZE_VAL(peer_cnt);
-      peer_cnt = ntohs(peer_cnt);
-      assert(peer_cnt == pfx_peer_rx);
 
       assert(read == len);
       zmq_msg_close(&msg);
@@ -568,7 +250,7 @@ static int recv_pfxs(void *src, bgpview_iter_t *iter,
     }
   pfx_cnt = ntohl(pfx_cnt);
   assert(pfx_rx == pfx_cnt);
-  ASSERT_MORE;
+  ASSERT_MORE; /* there will be an empty frame for end-of-pfxs */
 
   return 0;
 
@@ -580,10 +262,9 @@ static int send_peers(void *dest, bgpview_iter_t *it,
                       bgpview_io_filter_cb_t *cb)
 {
   uint16_t u16;
-  uint32_t u32;
 
-  bgpstream_peer_sig_t *ps;
-  size_t len;
+  uint8_t buf[BUFFER_LEN];
+  ssize_t written;
 
   int peers_tx = 0;
 
@@ -614,33 +295,15 @@ static int send_peers(void *dest, bgpview_iter_t *it,
       /* past here means this peer is being sent */
       peers_tx++;
 
-      /* peer id */
-      u16 = bgpview_iter_peer_get_peer_id(it);
-      u16 = htons(u16);
-      if(zmq_send(dest, &u16, sizeof(u16), ZMQ_SNDMORE) != sizeof(u16))
-	{
-	  goto err;
-	}
+      if ((written =
+           bgpview_io_serialize_peer(buf, BUFFER_LEN,
+                                     bgpview_iter_peer_get_peer_id(it),
+                                     bgpview_iter_peer_get_sig(it))) < 0)
+        {
+          goto err;
+        }
 
-      ps = bgpview_iter_peer_get_sig(it);
-      assert(ps);
-      len = strlen(ps->collector_str);
-      if(zmq_send(dest, &ps->collector_str, len, ZMQ_SNDMORE) != len)
-	{
-	  goto err;
-	}
-
-      /* peer IP address */
-      if(send_ip(dest, (bgpstream_ip_addr_t *)(&ps->peer_ip_addr),
-                    ZMQ_SNDMORE) != 0)
-	{
-	  goto err;
-	}
-
-      /* peer AS number */
-      u32 = ps->peer_asnumber;
-      u32 = htonl(u32);
-      if(zmq_send(dest, &u32, sizeof(u32), ZMQ_SNDMORE) != sizeof(u32))
+      if(zmq_send(dest, buf, written, ZMQ_SNDMORE) != written)
 	{
 	  goto err;
 	}
@@ -673,16 +336,19 @@ static int recv_peers(void *src, bgpview_iter_t *iter,
   uint16_t pc;
   int i, j;
 
+  zmq_msg_t msg;
+  uint8_t *buf;
+  size_t len;
+  ssize_t read;
+
   bgpstream_peer_id_t peerid_orig;
   bgpstream_peer_id_t peerid_new;
 
   bgpstream_peer_sig_t ps;
-  int len;
 
   bgpstream_peer_id_t *idmap = NULL;
   int idmap_cnt = 0;
 
-  int rx_bytes = 0;
   int peers_rx = 0;
 
   int filter = 0;
@@ -694,54 +360,28 @@ static int recv_peers(void *src, bgpview_iter_t *iter,
   for(i=0; i<UINT16_MAX; i++)
     {
       /* peerid (or end-of-peers)*/
-      if((rx_bytes = zmq_recv(src, &peerid_orig, sizeof(peerid_orig), 0))
-         == -1)
+      /* first receive the message */
+      if(zmq_msg_init(&msg) == -1 || zmq_msg_recv(&msg, src, 0) == -1)
 	{
-          fprintf(stderr, "Could not receive peer id\n");
+          fprintf(stderr, "Could not receive peer message\n");
 	  goto err;
 	}
-      if(rx_bytes == 0)
+      buf = zmq_msg_data(&msg);
+      len = zmq_msg_size(&msg);
+
+      if(len == 0)
         {
           /* end of peers */
           break;
         }
-      if(rx_bytes != sizeof(peerid_orig))
+
+      if ((read = bgpview_io_deserialize_peer(buf, len, &peerid_orig, &ps)) < 0)
         {
-          fprintf(stderr, "Invalid peer ID\n");
-	  goto err;
+          goto err;
         }
-      peerid_orig = ntohs(peerid_orig);
-      ASSERT_MORE;
 
-      /* by here we have a valid peer to receive */
+      /* by here we have a valid peer */
       peers_rx++;
-
-      /* collector name */
-      if((len = zmq_recv(src, ps.collector_str,
-                         BGPSTREAM_UTILS_STR_NAME_LEN, 0)) <= 0)
-	{
-          fprintf(stderr, "Could not receive collector name\n");
-	  goto err;
-	}
-      ps.collector_str[len] = '\0';
-      ASSERT_MORE;
-
-      /* peer ip */
-      if(recv_ip(src, &ps.peer_ip_addr) != 0)
-	{
-          fprintf(stderr, "Could not receive peer ip\n");
-	  goto err;
-	}
-      ASSERT_MORE;
-
-      /* peer asn */
-      if(zmq_recv(src, &ps.peer_asnumber, sizeof(ps.peer_asnumber), 0)
-         != sizeof(ps.peer_asnumber))
-	{
-          fprintf(stderr, "Could not receive peer AS number\n");
-	  goto err;
-	}
-      ps.peer_asnumber = ntohl(ps.peer_asnumber);
 
       if(iter == NULL)
         {
@@ -821,12 +461,7 @@ static int send_paths(void *dest, bgpview_iter_t *it)
   size_t s = 0;
 
   bgpstream_as_path_store_path_t *spath;
-  bgpstream_as_path_t *path;
   uint32_t idx;
-
-  uint8_t *path_data;
-  uint8_t is_core;
-  uint16_t path_len;
 
   int paths_tx = 0;
   uint32_t u32;
@@ -848,17 +483,9 @@ static int send_paths(void *dest, bgpview_iter_t *it)
       spath = bgpstream_as_path_store_iter_get_path(ps);
       assert(spath != NULL);
 
-      idx = bgpstream_as_path_store_path_get_idx(spath);
-
-      is_core = bgpstream_as_path_store_path_is_core(spath);
-
-      path = bgpstream_as_path_store_path_get_int_path(spath);
-      assert(path != NULL);
-      path_len = bgpstream_as_path_get_data(path, &path_data);
-
-      /* do we need to send the buffer now? */
+      /* do we need to send the buffer first? */
       if((len-written) <
-         (sizeof(idx)+sizeof(is_core)+sizeof(path_len)+path_len))
+         sizeof(idx) + bgpstream_as_path_store_path_get_size(spath))
         {
           if(zmq_send(dest, buf, written, ZMQ_SNDMORE) != written)
             {
@@ -869,18 +496,14 @@ static int send_paths(void *dest, bgpview_iter_t *it)
         }
 
       /* add the path index */
-      SERIALIZE_VAL(idx);
+      idx = bgpstream_as_path_store_path_get_idx(spath);
+      BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, idx);
 
-      /* is this a core path? */
-      SERIALIZE_VAL(is_core);
-
-      /* add the path len */
-      SERIALIZE_VAL(path_len);
-
-      /** @todo make platform independent (paths are in host byte order) */
-      assert((len-written) >= path_len);
-      memcpy(ptr, path_data, path_len);
-      s = path_len;
+      if ((s = bgpview_io_serialize_as_path_store_path(ptr, (len-written),
+                                                       spath)) == -1)
+        {
+          goto err;
+        }
       written += s;
       ptr += s;
     }
@@ -923,8 +546,6 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
   uint32_t pc;
 
   uint32_t pathidx;
-  uint16_t pathlen;
-  uint8_t is_core;
 
   zmq_msg_t msg;
   uint8_t *buf;
@@ -967,15 +588,7 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
       paths_rx++;
 
       /* path idx */
-      DESERIALIZE_VAL(pathidx);
-      ASSERT_MORE;
-
-      /* is core */
-      DESERIALIZE_VAL(is_core);
-      ASSERT_MORE;
-
-      /* path len */
-      DESERIALIZE_VAL(pathlen);
+      BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, pathidx);
       ASSERT_MORE;
 
       if(iter != NULL)
@@ -995,16 +608,16 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
 
               /* WARN: ids are garbage */
             }
-
-          /* now add this path to the store */
-          if(bgpstream_as_path_store_insert_path(store, buf, pathlen,
-                                                 is_core, &idmap[pathidx]) != 0)
-            {
-              goto err;
-            }
         }
 
-      s = pathlen;
+      if ((s =
+           bgpview_io_deserialize_as_path_store_path(buf, (len-read),
+                                                     store,
+                                                     (store == NULL) ? NULL :
+                                                     &idmap[pathidx])) == -1)
+        {
+          goto err;
+        }
       read += s;
       buf += s;
 
