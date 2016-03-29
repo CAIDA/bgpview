@@ -503,7 +503,10 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
         {
           /* AS Path Index */
           BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, pathidx);
-          pathid = pathid_map[pathidx];
+          if (view != NULL)
+            {
+              pathid = pathid_map[pathidx];
+            }
         }
       else
         {

@@ -154,7 +154,7 @@ static int match_pfx(bgpstream_pfx_t *pfx)
 static int match_pfx_exact(bgpstream_pfx_t *pfx)
 {
   return bgpstream_pfx_storage_set_exists(pfx_set,
-                                           (bgpstream_pfx_storage_t*)pfx);
+                                          (bgpstream_pfx_storage_t*)pfx);
 }
 
 static bgpview_io_filter_pfx_cb_t *filter_pfx_matchers[] = {
@@ -550,7 +550,7 @@ int main(int argc, char **argv)
     {
       assert(consumer_cmds[i] != NULL);
       if(bgpview_consumer_manager_enable_consumer_from_str(manager,
-						      consumer_cmds[i]) == NULL)
+                                                           consumer_cmds[i]) == NULL)
         {
           usage(argv[0]);
           goto err;
@@ -584,14 +584,14 @@ int main(int argc, char **argv)
   bgpview_disable_user_data(view);
 
   while(bgpview_io_kafka_recv_view(client,
-                            view,
-                            (peer_filters_cnt != 0) ? filter_peer : NULL,
-                            (pfx_filters_cnt != 0) ? filter_pfx : NULL,
-                            (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
-  	  	  	  	  	  	  	  	  ) == 0)
-  {
-	if(bgpview_consumer_manager_process_view(manager, view) != 0)
-	  {
+                                    view,
+                                    (peer_filters_cnt != 0) ? filter_peer : NULL,
+                                    (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+                                    (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
+                                   ) == 0)
+    {
+      if(bgpview_consumer_manager_process_view(manager, view) != 0)
+        {
 	  fprintf(stderr, "ERROR: Failed to process view at %d\n",
 		  bgpview_get_time(view));
 	  goto err;

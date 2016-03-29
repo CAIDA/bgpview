@@ -65,9 +65,9 @@ struct bgpview_io_kafka {
    *  as the program crawl the topic to get the view offset
    *
    */
-  int pfxs_partition;
-  int peers_partition;
-  int metadata_partition;
+  int32_t pfxs_partition;
+  int32_t peers_partition;
+  int32_t metadata_partition;
 
   /** Information about which offset of the topic the user wants to read
    *
@@ -77,9 +77,9 @@ struct bgpview_io_kafka {
    * to get the view offset
    *
    */
-  long int pfxs_offset;
-  long int peers_offset;
-  long int metadata_offset;
+  int64_t pfxs_offset;
+  int64_t peers_offset;
+  int64_t metadata_offset;
 
   rd_kafka_t *pfxs_rk;
   rd_kafka_t *peers_rk;
@@ -89,33 +89,30 @@ struct bgpview_io_kafka {
   rd_kafka_topic_t *peers_rkt;
   rd_kafka_topic_t *metadata_rkt;
 
-
   int view_frequency;
 
   bgpstream_peer_id_t *peerid_map;
   int peerid_map_alloc_cnt;
 
-  uint32_t sync_view_id;
+  uint32_t sync_view_time;
 
-  long int current_pfxs_offset;
-  long int current_peers_offset;
+  int64_t current_pfxs_offset;
+  int64_t current_peers_offset;
 
-  int pfxs_sync_partition;
-  long int pfxs_sync_offset;
-  long int peers_sync_offset;
+  int32_t pfxs_sync_partition;
+  int64_t pfxs_sync_offset;
+  int64_t peers_sync_offset;
 
-  int pfxs_diffs_partition[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
+  int32_t pfxs_diffs_partition[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
 
-  long int pfxs_diffs_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
-  long int peers_diffs_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
+  int64_t pfxs_diffs_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
+  int64_t peers_diffs_offset[BGPVIEW_IO_KAFKA_DIFF_FREQUENCY];
 
   int num_diffs;
 
-  //int distance_sync; //producer
-
   /* Historical View*/
   bgpview_t *viewH;
-
+  bgpview_iter_t *itH;
 };
 
 /** @} */
