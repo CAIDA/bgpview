@@ -22,7 +22,7 @@
  */
 
 #include "config.h"
-#include "bgpview_io.h"
+#include "bgpview_io_file.h"
 #include "bgpview.h"
 #include "utils.h"
 #include <stdio.h>
@@ -40,8 +40,8 @@ int cat_file(char *file)
     goto err;
   }
 
-  while ((ret = bgpview_io_read(infile, view, NULL, NULL, NULL)) > 0) {
-    if (bgpview_io_print(wstdout, view) != 0) {
+  while ((ret = bgpview_io_file_read(infile, view, NULL, NULL, NULL)) > 0) {
+    if (bgpview_io_file_print(wstdout, view) != 0) {
       goto err;
     }
     bgpview_clear(view);
