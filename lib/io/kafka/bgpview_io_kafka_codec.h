@@ -29,19 +29,21 @@
 
 /** @} */
 
+/** Create a producer connection to Kafka */
+int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client);
 
+/** Create a consumer connection to Kafka */
+int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client);
 
-int initialize_producer_connection(rd_kafka_t **rk,
-                                   rd_kafka_topic_t **rkt,
-                                   char *brokers, char *topic);
+/** Create a connection to the given topic */
+int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
+                                            rd_kafka_topic_t **rkt,
+                                            char *topic);
 
-
-int initialize_consumer_connection(rd_kafka_t **rk,
-                                   rd_kafka_topic_t **rkt,
-                                   char *brokers,
-                                   char *topic);
-
-
+/** Create a connection to the given topic and start consuming */
+int bgpview_io_kafka_consumer_topic_connect(bgpview_io_kafka_t *client,
+                                            rd_kafka_topic_t **rkt,
+                                            char *topic);
 
 /** Send the given view to the given socket
  *

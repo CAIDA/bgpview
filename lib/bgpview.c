@@ -777,8 +777,8 @@ bgpview_iter_pfx_peer_get_as_path_store_path(bgpview_iter_t *iter)
   return __iter_pfx_peer_get_as_path_store_path(iter);
 }
 
-#define __iter_pfx_peer_get_as_path_store_path_id(iter)               \
-  (BWV_PFX_GET_PEER_EXT(__pfx_peerinfos(iter), iter->pfx_peer_it).as_path_id)
+#define __iter_pfx_peer_get_as_path_store_path_id(iter) \
+  (__pfx_peer_field(iter, as_path_id))
 
 bgpstream_as_path_store_path_id_t
 bgpview_iter_pfx_peer_get_as_path_store_path_id(bgpview_iter_t *iter)
@@ -2188,6 +2188,8 @@ int bgpview_copy(bgpview_t *dst, bgpview_t* src){
   /* first, clear the destination */
   bgpview_clear(dst);
 
+  dst->time = src->time;
+
   if(((src_iter = bgpview_iter_create(src)) == NULL) ||
      ((dst_iter = bgpview_iter_create(dst)) == NULL))
     {
@@ -2299,6 +2301,8 @@ bgpview_dup(bgpview_t *src)
     {
       return NULL;
     }
+
+  dst->disable_extended = src->disable_extended;
 
   if(bgpview_copy(dst, src) != 0) {
     goto err;

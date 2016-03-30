@@ -57,7 +57,8 @@
 
 #define BGPVIEW_IO_KAFKA_METADATA_OFFSET_DEFAULT 0
 
-#define BGPVIEW_IO_KAFKA_DIFF_FREQUENCY 11
+/** A Sync frame will be sent once per N views */
+#define BGPVIEW_IO_KAFKA_SYNC_FREQUENCY 12
 
 /** @} */
 
@@ -145,8 +146,14 @@ int bgpview_io_kafka_start(bgpview_io_kafka_t *client);
 int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
                                           const char *addresses);
 
-/** @todo move me to the consumer */
-void bgpview_io_kafka_set_diff_frequency(bgpview_io_kafka_t *client,
+/** How often should a Sync frame be sent
+ *
+ * @param client        pointer to a bgpview kafka client instance
+ * @param frequency     how often a sync frame should be sent
+ *
+ * A Sync view will be sent every N views (i.e. after N-1 diffs)
+ */
+void bgpview_io_kafka_set_sync_frequency(bgpview_io_kafka_t *client,
                                          int frequency);
 
 /** Set the topic that prefix information will be written into/read from

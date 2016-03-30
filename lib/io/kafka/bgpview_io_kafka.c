@@ -85,8 +85,8 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode)
   client->metadata_partition =
     BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT;
 
-  client->view_frequency =
-    BGPVIEW_IO_KAFKA_DIFF_FREQUENCY;
+  client->max_diffs =
+    BGPVIEW_IO_KAFKA_SYNC_FREQUENCY-1;
 
   return client;
 
@@ -120,22 +120,10 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
       client->peers_rkt = NULL;
     }
 
-  if(client->peers_rk != NULL)
-    {
-      rd_kafka_destroy(client->peers_rk);
-      client->peers_rk = NULL;
-    }
-
   if(client->pfxs_rkt != NULL)
     {
       rd_kafka_topic_destroy(client->pfxs_rkt);
       client->pfxs_rkt = NULL;
-    }
-
-  if(client->pfxs_rk != NULL)
-    {
-      rd_kafka_destroy(client->pfxs_rk);
-      client->pfxs_rk = NULL;
     }
 
   if(client->metadata_rkt != NULL)
@@ -144,21 +132,21 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
       client->metadata_rkt = NULL;
     }
 
-  if(client->metadata_rk != NULL)
+  if(client->rdk_conn != NULL)
     {
-      rd_kafka_destroy(client->metadata_rk);
-      client->metadata_rk = NULL;
+      rd_kafka_destroy(client->rdk_conn);
+      client->rdk_conn = NULL;
     }
 
   free(client->peerid_map);
   client->peerid_map = NULL;
   client->peerid_map_alloc_cnt = 0;
 
-  bgpview_iter_destroy(client->itH);
-  client->itH = NULL;
+  bgpview_iter_destroy(client->parent_view_it);
+  client->parent_view_it = NULL;
 
-  bgpview_destroy(client->viewH);
-  client->viewH = NULL;
+  bgpview_destroy(client->parent_view);
+  client->parent_view = NULL;
 
   free(client);
   return;
@@ -169,36 +157,26 @@ int bgpview_io_kafka_start(bgpview_io_kafka_t *client)
   switch(client->mode)
     {
     case BGPVIEW_IO_KAFKA_MODE_PRODUCER:
-      if(initialize_producer_connection(&client->metadata_rk,
-                                        &client->metadata_rkt,
-                                        client->brokers,
-                                        client->metadata_topic) != 0 ||
-         initialize_producer_connection(&client->peers_rk,
-                                        &client->peers_rkt,
-                                        client->brokers,
-                                        client->peers_topic) != 0 ||
-         initialize_producer_connection(&client->pfxs_rk,
-                                        &client->pfxs_rkt,
-                                        client->brokers,
-                                        client->pfxs_topic) != 0)
+      if(bgpview_io_kafka_producer_connect(client) != 0 ||
+         bgpview_io_kafka_producer_topic_connect(client, &client->metadata_rkt,
+                                                 client->metadata_topic) != 0 ||
+         bgpview_io_kafka_producer_topic_connect(client, &client->peers_rkt,
+                                                 client->peers_topic) != 0 ||
+         bgpview_io_kafka_producer_topic_connect(client, &client->pfxs_rkt,
+                                                 client->pfxs_topic) != 0)
         {
           goto err;
         }
       break;
 
     case BGPVIEW_IO_KAFKA_MODE_CONSUMER:
-      if(initialize_consumer_connection(&client->metadata_rk,
-                                        &client->metadata_rkt,
-                                        client->brokers,
-                                        client->metadata_topic) != 0 ||
-         initialize_consumer_connection(&client->peers_rk,
-                                        &client->peers_rkt,
-                                        client->brokers,
-                                        client->peers_topic) != 0 ||
-         initialize_consumer_connection(&client->pfxs_rk,
-                                        &client->pfxs_rkt,
-                                        client->brokers,
-                                        client->pfxs_topic) != 0)
+      if(bgpview_io_kafka_consumer_connect(client) != 0 ||
+         bgpview_io_kafka_consumer_topic_connect(client, &client->metadata_rkt,
+                                                 client->metadata_topic) != 0 ||
+         bgpview_io_kafka_consumer_topic_connect(client, &client->peers_rkt,
+                                                 client->peers_topic) != 0 ||
+         bgpview_io_kafka_consumer_topic_connect(client, &client->pfxs_rkt,
+                                                 client->pfxs_topic) != 0)
         {
           goto err;
         }
@@ -229,10 +207,10 @@ int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
   return 0;
 }
 
-void bgpview_io_kafka_set_diff_frequency(bgpview_io_kafka_t *client,
+void bgpview_io_kafka_set_sync_frequency(bgpview_io_kafka_t *client,
                                          int frequency)
 {
-  client->view_frequency = frequency;
+  client->max_diffs = frequency-1;
 }
 
 int bgpview_io_kafka_set_pfxs_topic(bgpview_io_kafka_t *client,
