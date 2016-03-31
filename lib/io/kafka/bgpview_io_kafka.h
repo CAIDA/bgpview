@@ -158,7 +158,6 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client);
  */
 int bgpview_io_kafka_start(bgpview_io_kafka_t *client);
 
-
 /** Set the broker addresses (comma separated) of the Kafka server
  *
  * @param client        pointer to a bgpview kafka client instance to update
@@ -217,10 +216,8 @@ int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
  * the view **will not** be present in the view received by Kafka.
  */
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
-                               bgpview_io_kafka_stats_t *stats,
-                               bgpview_t *view,
+                               bgpview_io_kafka_stats_t *stats, bgpview_t *view,
                                bgpview_io_filter_cb_t *cb);
-
 
 /** Attempt to receive an BGP View from the bgpview server
  *
@@ -239,8 +236,7 @@ int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
  * using bgpview_clear. If diffs are in use, it *must* not have been cleared,
  * and instead *must* contain information about the previously received view.
  */
-int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client,
-                               bgpview_t *view,
+int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client, bgpview_t *view,
                                bgpview_io_filter_peer_cb_t *peer_cb,
                                bgpview_io_filter_pfx_cb_t *pfx_cb,
                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);

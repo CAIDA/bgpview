@@ -72,7 +72,6 @@ struct bgpview_io_kafka {
   /** Length of the peerid_map array */
   int peerid_map_alloc_cnt;
 
-
   /** The following fields are only used by the producer. */
 
   /** The maximum number of diffs that can be sent before a sync frame must be
@@ -133,9 +132,7 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
  */
 int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
                                    bgpview_io_kafka_stats_t *stats,
-                                   bgpview_t *view,
-                                   bgpview_io_filter_cb_t *cb);
-
+                                   bgpview_t *view, bgpview_io_filter_cb_t *cb);
 
 /* CONSUMER FUNCTIONS */
 
@@ -153,10 +150,9 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client);
  * @param view          pointer to the clear/new view to receive into
  * @return pointer to the view instance received, NULL if an error occurred.
  */
-int bgpview_io_kafka_consumer_recv(bgpview_io_kafka_t *client,
-                                   bgpview_t *view,
-                                   bgpview_io_filter_peer_cb_t *peer_cb,
-                                   bgpview_io_filter_pfx_cb_t *pfx_cb,
-                                   bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+int bgpview_io_kafka_consumer_recv(
+  bgpview_io_kafka_t *client, bgpview_t *view,
+  bgpview_io_filter_peer_cb_t *peer_cb, bgpview_io_filter_pfx_cb_t *pfx_cb,
+  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 #endif /* __BGPVIEW_IO_KAFKA_INT_H */
