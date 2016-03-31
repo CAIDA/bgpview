@@ -38,8 +38,8 @@ libbgpview_io_kafka_la_SOURCES = 	\
 	bgpview_io_kafka.c		\
 	bgpview_io_kafka.h		\
 	bgpview_io_kafka_int.h		\
-	bgpview_io_kafka_codec.c	\
-	bgpview_io_kafka_codec.h
+	bgpview_io_kafka_producer.c	\
+	bgpview_io_kafka_consumer.c
 
 libbgpview_io_kafka_la_LIBADD =
 

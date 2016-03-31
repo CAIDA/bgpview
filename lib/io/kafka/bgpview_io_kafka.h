@@ -41,21 +41,26 @@
  *
  * @{ */
 
+/** Default Kafaka broker(s) */
 #define BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT "127.0.0.1:9092"
 
+/** Default topic for prefixes */
 #define BGPVIEW_IO_KAFKA_PFXS_TOPIC_DEFAULT "bgpview-pfxs"
 
+/** Default topic for peers */
 #define BGPVIEW_IO_KAFKA_PEERS_TOPIC_DEFAULT "bgpview-peers"
 
+/** Default topic for metadata */
 #define BGPVIEW_IO_KAFKA_METADATA_TOPIC_DEFAULT "bgpview-metadata"
 
+/** Default partition for prefixes */
+#define BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT 0
+
+/** Default partition for peers */
 #define BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT 0
 
+/** Default partition for metadata */
 #define BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT 0
-
-#define BGPVIEW_IO_KAFKA_PEERS_OFFSET_DEFAULT 0
-
-#define BGPVIEW_IO_KAFKA_METADATA_OFFSET_DEFAULT 0
 
 /** A Sync frame will be sent once per N views */
 #define BGPVIEW_IO_KAFKA_SYNC_FREQUENCY 12
@@ -67,6 +72,7 @@
  *
  * @{ */
 
+/** Opaque structure representing a BGPView Kafka IO instance */
 typedef struct bgpview_io_kafka bgpview_io_kafka_t;
 
 /** @} */
@@ -78,20 +84,36 @@ typedef struct bgpview_io_kafka bgpview_io_kafka_t;
 
 typedef struct bgpview_io_kafka_stats {
 
+  /** The number of seconds that it took to send the view (including computing
+      the diff if necessary) */
   int send_time;
-  int clone_time;
-  int total_time;
-  int arrival_time;
-  int processed_time;
 
-  int add;
-  int remove;
-  int common;
-  int change;
-  int current_pfx_cnt;
-  int historical_pfx_cnt;
+  /** The number of seconds that it took to copy the view into the parent view
+      structure */
+  int copy_time;
 
-  int sync_cnt;
+  /** The number of prefixes in common between this view and the previous view
+      (only set when sending a diff */
+  int common_pfxs_cnt;
+
+  /** The number of prefixes that were added wrt the previous view (only set
+      when sending a diff) */
+  int added_pfxs_cnt;
+
+  /** The number of prefixes that were removed wrt the previous view (only set
+      when sending a diff) */
+  int removed_pfxs_cnt;
+
+  /** The number of prefixes that were changed wrt the previous view (only set
+      when sending a diff) */
+  int changed_pfxs_cnt;
+
+  /** The number of prefixes sent in the current view (added + changed in the
+      case of a diff) */
+  int pfx_cnt;
+
+  /** The number of prefixes sent as part of a sync frame */
+  int sync_pfx_cnt;
 
 } bgpview_io_kafka_stats_t;
 
@@ -182,33 +204,6 @@ int bgpview_io_kafka_set_peers_topic(bgpview_io_kafka_t *client,
  */
 int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
                                         const char *topic);
-
-/** Set the partition that prefixes information will be written into/read from
- *
- * @param client        pointer to a bgpview kafka client instance
- * @param partition     partition to use
- * @return 0 if successful, -1 otherwise
- */
-void bgpview_io_kafka_set_pfxs_partition(bgpview_io_kafka_t *client,
-                                         int partition);
-
-/** Set the partition that peers information will be written into/read from
- *
- * @param client        pointer to a bgpview kafka client instance
- * @param partition     partition to use
- * @return 0 if successful, -1 otherwise
- */
-void bgpview_io_kafka_set_peers_partition(bgpview_io_kafka_t *client,
-                                          int partition);
-
-/** Set the partition that metadata information will be written into/read from
- *
- * @param client        pointer to a bgpview kafka client instance
- * @param partition     partition to use
- * @return 0 if successful, -1 otherwise
- */
-void bgpview_io_kafka_set_metadata_partition(bgpview_io_kafka_t *client,
-                                             int partition);
 
 /** Queue the given View for transmission to Kafka
  *

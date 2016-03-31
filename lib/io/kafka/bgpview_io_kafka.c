@@ -23,7 +23,6 @@
 
 #include "config.h"
 #include "bgpview_io_kafka_int.h"
-#include "bgpview_io_kafka_codec.h"
 #include "bgpview.h"
 #include "utils.h"
 #include <assert.h>
@@ -78,12 +77,6 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode)
       fprintf(stderr, "Failed to duplicate kafka metadata topic string\n");
       goto err;
     }
-
-
-  client->peers_partition =
-    BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT;
-  client->metadata_partition =
-    BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT;
 
   client->max_diffs =
     BGPVIEW_IO_KAFKA_SYNC_FREQUENCY-1;
@@ -260,32 +253,13 @@ int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
   return 0;
 }
 
-void bgpview_io_kafka_set_pfxs_partition(bgpview_io_kafka_t *client,
-                                         int partition)
-{
-  client->pfxs_partition = partition;
-}
-
-void bgpview_io_kafka_set_peers_partition(bgpview_io_kafka_t *client,
-                                          int partition)
-{
-  client->peers_partition = partition;
-}
-
-void bgpview_io_kafka_set_metadata_partition(bgpview_io_kafka_t *client,
-                                             int partition)
-{
-  client->metadata_partition = partition;
-}
-
-
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
                                bgpview_io_kafka_stats_t *stats,
                                bgpview_t *view,
                                bgpview_io_filter_cb_t *cb)
 {
 
-  return bgpview_io_kafka_send(client, stats, view, cb);
+  return bgpview_io_kafka_producer_send(client, stats, view, cb);
 }
 
 int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client,
@@ -295,5 +269,6 @@ int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client,
                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 
 {
-  return bgpview_io_kafka_recv(client, view, peer_cb, pfx_cb, pfx_peer_cb);
+  return bgpview_io_kafka_consumer_recv(client, view,
+                                        peer_cb, pfx_cb, pfx_peer_cb);
 }

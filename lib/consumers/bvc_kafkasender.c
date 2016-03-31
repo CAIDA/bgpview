@@ -75,25 +75,17 @@ typedef struct bvc_kafkasender_state {
   bgpview_io_kafka_stats_t metrics;
 
   int send_time_idx;
-  int clone_time_idx;
-  int total_time_idx;
-  int arrival_time_idx;
-  int processed_time_idx;
+  int copy_time_idx;
 
+  int common_idx;
   int add_idx;
   int remove_idx;
-  int common_idx;
   int change_idx;
-  int current_pfx_cnt_idx;
-  int historical_pfx_cnt_idx;
+  int pfx_cnt_idx;
 
   int sync_cnt_idx;
 
 } bvc_kafkasender_state_t;
-
-
-
-
 
 /** Create timeseries metrics */
 static int create_ts_metrics(bvc_t *consumer)
@@ -101,32 +93,6 @@ static int create_ts_metrics(bvc_t *consumer)
 
   char buffer[BUFFER_LEN];
   bvc_kafkasender_state_t *state = STATE;
-
-
-  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "arrival_time");
-  if((state->arrival_time_idx =
-      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-
-  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "processed_time");
-  if((state->processed_time_idx =
-      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "total_time");
-  if((state->total_time_idx =
-      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
-    {
-      return -1;
-    }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, "send_time");
@@ -137,24 +103,8 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "cloning_time");
-  if((state->clone_time_idx =
-      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "add.pfx_cnt");
-  if((state->add_idx =
-      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "remove.pfx_cnt");
-  if((state->remove_idx =
+           CHAIN_STATE->metric_prefix, "copy_time");
+  if((state->copy_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
@@ -162,14 +112,30 @@ static int create_ts_metrics(bvc_t *consumer)
 
   snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, "common.pfx_cnt");
-  if((state->common_idx =
+  if((state->add_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
     }
 
   snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "change.pfx_cnt");
+           CHAIN_STATE->metric_prefix, "added.pfx_cnt");
+  if((state->add_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "removed.pfx_cnt");
+  if((state->remove_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "changed.pfx_cnt");
   if((state->change_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -186,27 +152,12 @@ static int create_ts_metrics(bvc_t *consumer)
 
 
   snprintf(buffer, BUFFER_LEN, METRIC_LOCAL_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "historical_view.pfx_cnt");
-  if((state->historical_pfx_cnt_idx =
+           CHAIN_STATE->metric_prefix, "pfx_cnt");
+  if((state->pfx_cnt_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
     }
-
-
-  snprintf(buffer, BUFFER_LEN, METRIC_LOCAL_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "current_view.pfx_cnt");
-  if((state->current_pfx_cnt_idx =
-      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-
-
-
-
-
 
   return 0;
 }
@@ -359,45 +310,26 @@ int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
 
   // set remaining timeseries metrics
 
-  timeseries_kp_set(state->kp, state->arrival_time_idx,
-                    state->metrics.arrival_time);
-
-  timeseries_kp_set(state->kp, state->processed_time_idx,
-                    state->metrics.processed_time);
-
-
-  timeseries_kp_set(state->kp, state->total_time_idx,
-                    state->metrics.total_time);
-
   timeseries_kp_set(state->kp, state->send_time_idx,
                     state->metrics.send_time);
 
+  timeseries_kp_set(state->kp, state->copy_time_idx,
+                    state->metrics.copy_time);
 
-
-  timeseries_kp_set(state->kp, state->clone_time_idx,
-                    state->metrics.clone_time);
-
-
-  timeseries_kp_set(state->kp, state->add_idx,
-                    state->metrics.add);
-
-  timeseries_kp_set(state->kp, state->remove_idx,
-                    state->metrics.remove);
   timeseries_kp_set(state->kp, state->common_idx,
-                    state->metrics.common);
-
+                    state->metrics.common_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->add_idx,
+                    state->metrics.added_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->remove_idx,
+                    state->metrics.removed_pfxs_cnt);
   timeseries_kp_set(state->kp, state->change_idx,
-                    state->metrics.change);
+                    state->metrics.changed_pfxs_cnt);
 
-
-  timeseries_kp_set(state->kp, state->current_pfx_cnt_idx,
-                    state->metrics.current_pfx_cnt);
-
-  timeseries_kp_set(state->kp, state->historical_pfx_cnt_idx,
-                    state->metrics.historical_pfx_cnt);
+  timeseries_kp_set(state->kp, state->pfx_cnt_idx,
+                    state->metrics.pfx_cnt);
 
   timeseries_kp_set(state->kp, state->sync_cnt_idx,
-                    state->metrics.sync_cnt);
+                    state->metrics.sync_pfx_cnt);
 
   // flush
   if(timeseries_kp_flush(STATE->kp, current_view_ts) != 0)
