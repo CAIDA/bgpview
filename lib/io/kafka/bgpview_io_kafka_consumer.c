@@ -116,6 +116,12 @@ static int deserialize_metadata(bgpview_io_kafka_md_t *meta, uint8_t *buf,
   switch (meta->type) {
   case 'S':
     /* nothing extra for a sync frame */
+
+    /** This field is meaningless since this **is** a sync frame */
+    meta->sync_md_offset = RD_KAFKA_OFFSET_END;
+
+    /** Also meaningless as a sync frame has no parent */
+    meta->parent_time = meta->time;
     break;
 
   case 'D':
