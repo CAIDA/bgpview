@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <czmq.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -40,6 +41,8 @@
 #define BUFFER_LEN 1024
 #define META_METRIC_PREFIX_FORMAT  "%s."CONSUMER_METRIC_PREFIX".meta.%s"
 
+/** A Sync frame will be sent once per N views */
+#define SYNC_FREQUENCY 12
 
 /* macro to access the current consumer state */
 #define STATE					\
@@ -68,8 +71,19 @@ typedef struct bvc_kafkasender_state {
   /** Timeseries Key Package */
   timeseries_kp_t *kp;
 
+  /** Sync frequency */
+  int sync_freq;
+
+  /** Number of diffs sent */
+  int num_diffs;
+
+  /** Parent view */
+  bgpview_t *parent_view;
+
   int send_time_idx;
   int copy_time_idx;
+  int proc_time_idx;
+  int arr_delay_time_idx;
 
   int common_idx;
   int add_idx;
@@ -89,7 +103,7 @@ static int create_ts_metrics(bvc_t *consumer)
   bvc_kafkasender_state_t *state = STATE;
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "send_time");
+           CHAIN_STATE->metric_prefix, "timing.send_time");
   if((state->send_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -97,8 +111,24 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "copy_time");
+           CHAIN_STATE->metric_prefix, "timing.copy_time");
   if((state->copy_time_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "timing.processing_time");
+  if((state->proc_time_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "timing.arrival_delay");
+  if((state->arr_delay_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
@@ -161,9 +191,11 @@ static void usage(bvc_t *consumer)
 {
   fprintf(stderr,
 	  "consumer usage: %s [options]\n"
-          "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n",
+          "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
+          "       -s <sync-frequency>   Sync frame freq. in # views (default: %d)\n",
 	  consumer->name,
-          BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT);
+          BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT,
+          SYNC_FREQUENCY);
 }
 
 /** Parse the arguments given to the consumer */
@@ -178,7 +210,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 
   /* remember the argv strings DO NOT belong to us */
   while(prevoptind = optind,
-        (opt = getopt(argc, argv, ":k:?")) >= 0)
+        (opt = getopt(argc, argv, ":k:s:?")) >= 0)
     {
       if (optind == prevoptind + 2 && optarg && *optarg == '-' ) {
         opt = ':';
@@ -192,6 +224,10 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
             fprintf(stderr, "ERROR: Could not set broker addresses\n");
             return -1;
           }
+          break;
+
+        case 's':
+          STATE->sync_freq = atoi(optarg);
           break;
 
 	case '?':
@@ -225,6 +261,7 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
   BVC_SET_STATE(consumer, state);
 
   state->client=bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_PRODUCER);
+  state->sync_freq = SYNC_FREQUENCY;
 
   /* parse the command line args */
   if(parse_args(consumer, argc, argv) != 0)
@@ -270,6 +307,9 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
   bgpview_io_kafka_destroy(state->client);
   state->client = NULL;
 
+  bgpview_destroy(state->parent_view);
+  state->parent_view = NULL;
+
   free(state);
 
   BVC_SET_STATE(consumer, NULL);
@@ -280,34 +320,57 @@ int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_kafkasender_state_t *state = STATE;
 
-  if (bgpview_io_kafka_send_view(state->client, view, NULL) != 0)
+  bgpview_t *pvp = NULL;
+
+  uint64_t start_time = zclock_time()/1000;
+  uint64_t arrival_delay = zclock_time()/1000 - bgpview_get_time(view);
+
+  // are we sending a sync frame or a diff frame?
+  if (state->parent_view == NULL || state->num_diffs == state->sync_freq-1) {
+    state->num_diffs = 0;
+    pvp = NULL;
+  } else {
+    pvp = state->parent_view;
+    state->num_diffs++;
+  }
+
+  // send the view
+  if (bgpview_io_kafka_send_view(state->client, view, pvp, NULL) != 0)
     {
       return -1;
     }
 
+  uint64_t send_end = zclock_time()/1000;
+  uint64_t send_time = send_end - start_time;
+
+  // do the create/copy
+  if ((state->parent_view == NULL &&
+       (state->parent_view = bgpview_dup(view)) == NULL) ||
+      bgpview_copy(state->parent_view, view) != 0) {
+    fprintf(stderr, "ERROR: Could not copy view\n");
+    return -1;
+  }
+
+  uint64_t copy_end = zclock_time()/1000;
+  uint64_t copy_time = send_end - copy_end;
+  uint64_t proc_time = copy_end - start_time;
+
   // set timeseries metrics
   bgpview_io_kafka_stats_t *stats = bgpview_io_kafka_get_stats(state->client);
 
-  timeseries_kp_set(state->kp, state->send_time_idx,
-                    stats->send_time);
+  timeseries_kp_set(state->kp, state->send_time_idx, send_time);
+  timeseries_kp_set(state->kp, state->copy_time_idx, copy_time);
+  timeseries_kp_set(state->kp, state->proc_time_idx, proc_time);
+  timeseries_kp_set(state->kp, state->arr_delay_time_idx, arrival_delay);
 
-  timeseries_kp_set(state->kp, state->copy_time_idx,
-                    stats->copy_time);
+  timeseries_kp_set(state->kp, state->common_idx, stats->common_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->add_idx, stats->added_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->remove_idx, stats->removed_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->change_idx, stats->changed_pfxs_cnt);
 
-  timeseries_kp_set(state->kp, state->common_idx,
-                    stats->common_pfxs_cnt);
-  timeseries_kp_set(state->kp, state->add_idx,
-                    stats->added_pfxs_cnt);
-  timeseries_kp_set(state->kp, state->remove_idx,
-                    stats->removed_pfxs_cnt);
-  timeseries_kp_set(state->kp, state->change_idx,
-                    stats->changed_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->pfx_cnt_idx, stats->pfx_cnt);
 
-  timeseries_kp_set(state->kp, state->pfx_cnt_idx,
-                    stats->pfx_cnt);
-
-  timeseries_kp_set(state->kp, state->sync_cnt_idx,
-                    stats->sync_pfx_cnt);
+  timeseries_kp_set(state->kp, state->sync_cnt_idx, stats->sync_pfx_cnt);
 
   // flush
   if(timeseries_kp_flush(STATE->kp, bgpview_get_time(view)) != 0)

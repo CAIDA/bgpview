@@ -166,8 +166,6 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode)
     goto err;
   }
 
-  client->max_diffs = BGPVIEW_IO_KAFKA_SYNC_FREQUENCY - 1;
-
   return client;
 
 err:
@@ -225,12 +223,6 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
   free(client->peerid_map);
   client->peerid_map = NULL;
   client->peerid_map_alloc_cnt = 0;
-
-  bgpview_iter_destroy(client->parent_view_it);
-  client->parent_view_it = NULL;
-
-  bgpview_destroy(client->parent_view);
-  client->parent_view = NULL;
 
   free(client);
   return;
@@ -297,12 +289,6 @@ int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
   return 0;
 }
 
-void bgpview_io_kafka_set_sync_frequency(bgpview_io_kafka_t *client,
-                                         int frequency)
-{
-  client->max_diffs = frequency - 1;
-}
-
 int bgpview_io_kafka_set_pfxs_topic(bgpview_io_kafka_t *client,
                                     const char *topic)
 {
@@ -348,13 +334,14 @@ int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
 
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
                                bgpview_t *view,
+                               bgpview_t *parent_view,
                                bgpview_io_filter_cb_t *cb)
 {
   // first, ensure all topics are connected
   if (kafka_topic_connect(client) != 0) {
     return -1;
   }
-  return bgpview_io_kafka_producer_send(client, view, cb);
+  return bgpview_io_kafka_producer_send(client, view, parent_view, cb);
 }
 
 int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client, bgpview_t *view,

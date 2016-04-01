@@ -62,9 +62,6 @@
 /** Default partition for metadata */
 #define BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT 0
 
-/** A Sync frame will be sent once per N views */
-#define BGPVIEW_IO_KAFKA_SYNC_FREQUENCY 12
-
 /** Default number of times to retry a failed connection to Kafka */
 #define BGPVIEW_IO_KAFKA_CONNECT_MAX_RETRIES 8
 
@@ -86,14 +83,6 @@ typedef struct bgpview_io_kafka bgpview_io_kafka_t;
  * @{ */
 
 typedef struct bgpview_io_kafka_stats {
-
-  /** The number of seconds that it took to send the view (including computing
-      the diff if necessary) */
-  int send_time;
-
-  /** The number of seconds that it took to copy the view into the parent view
-      structure */
-  int copy_time;
 
   /** The number of prefixes in common between this view and the previous view
       (only set when sending a diff */
@@ -170,16 +159,6 @@ int bgpview_io_kafka_start(bgpview_io_kafka_t *client);
 int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
                                           const char *addresses);
 
-/** How often should a Sync frame be sent
- *
- * @param client        pointer to a bgpview kafka client instance
- * @param frequency     how often a sync frame should be sent
- *
- * A Sync view will be sent every N views (i.e. after N-1 diffs)
- */
-void bgpview_io_kafka_set_sync_frequency(bgpview_io_kafka_t *client,
-                                         int frequency);
-
 /** Set the topic that prefix information will be written into/read from
  *
  * @param client        pointer to a bgpview kafka client instance
@@ -211,14 +190,21 @@ int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
  *
  * @param client        pointer to a bgpview kafka client instance
  * @param view          pointer to the view to transmit
+ * @param parent_view   pointer to the parent view to diff agains (may be NULL)
  * @param cb            callback function to use to filter entries (may be NULL)
  * @return 0 if the view was transmitted successfully, -1 otherwise
  *
  * This function only sends 'active' fields. Any fields that are 'inactive' in
  * the view **will not** be present in the view received by Kafka.
+ *
+ * If the `parent_view` parameter is NULL, then a sync frame will be sent
+ * (i.e. the entire view will be transmitted), otherwise, `view` will be
+ * compared against `parent_view` and only prefixes and peers that have changed
+ * will be sent.
  */
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
                                bgpview_t *view,
+                               bgpview_t *parent_view,
                                bgpview_io_filter_cb_t *cb);
 
 /** Attempt to receive an BGP View from the bgpview server

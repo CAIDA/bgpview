@@ -83,17 +83,6 @@ struct bgpview_io_kafka {
 
   /** The following fields are only used by the producer. */
 
-  /** The maximum number of diffs that can be sent before a sync frame must be
-      sent */
-  int max_diffs;
-
-  /** The number of diffs that have been sent since the last sync frame */
-  int num_diffs;
-
-  /* Historical View*/
-  bgpview_t *parent_view;
-  bgpview_iter_t *parent_view_it;
-
   /** The metadata offset of the last sync view sent */
   int64_t last_sync_offset;
 };
@@ -140,11 +129,14 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
  *
  * @param dest          kafka broker and topic to send the view to
  * @param view          pointer to the view to send
+ * @param view          pointer to the parent view to send
  * @param cb            callback function to use to filter peers (may be NULL)
  * @return 0 if the view was sent successfully, -1 otherwise
  */
 int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
-                                   bgpview_t *view, bgpview_io_filter_cb_t *cb);
+                                   bgpview_t *view,
+                                   bgpview_t *parent_view,
+                                   bgpview_io_filter_cb_t *cb);
 
 /* CONSUMER FUNCTIONS */
 

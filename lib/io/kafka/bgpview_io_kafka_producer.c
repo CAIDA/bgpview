@@ -193,8 +193,11 @@ err:
   return -1;
 }
 
-static int send_peers(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
-                      bgpview_iter_t *it, bgpview_t *view,
+static int send_peers(bgpview_io_kafka_t *client,
+                      bgpview_io_kafka_md_t *meta,
+                      bgpview_t *view,
+                      bgpview_iter_t *it,
+                      bgpview_iter_t *parent_view_it,
                       bgpview_io_filter_cb_t *cb)
 {
   uint8_t buf[BUFFER_LEN];
@@ -220,7 +223,7 @@ static int send_peers(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
     /* if we are sending a diff, only send if this peer is not in our
        reference diff */
     if (meta->type == 'D' &&
-        bgpview_iter_seek_peer(client->parent_view_it,
+        bgpview_iter_seek_peer(parent_view_it,
                                bgpview_iter_peer_get_peer_id(it),
                                BGPVIEW_FIELD_ACTIVE) == 1) {
       continue;
@@ -294,8 +297,11 @@ err:
   return -1;
 }
 
-static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
+static int send_pfxs(bgpview_io_kafka_t *client,
+                     bgpview_io_kafka_md_t *meta,
                      bgpview_iter_t *it,
+                     bgpview_t *parent_view,
+                     bgpview_iter_t *parent_view_it,
                      bgpview_io_filter_cb_t *cb)
 {
   int filter;
@@ -325,7 +331,7 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
   }
 
   if (meta->type == 'D') {
-    pfxs_cnt_ref = bgpview_pfx_cnt(client->parent_view, BGPVIEW_FIELD_ACTIVE);
+    pfxs_cnt_ref = bgpview_pfx_cnt(parent_view, BGPVIEW_FIELD_ACTIVE);
     pfxs_cnt_cur = bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE);
   }
 
@@ -347,10 +353,10 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
 
     if (meta->type == 'D') {
       pfx = bgpview_iter_pfx_get_pfx(it);
-      if (bgpview_iter_seek_pfx(client->parent_view_it, pfx,
+      if (bgpview_iter_seek_pfx(parent_view_it, pfx,
                                 BGPVIEW_FIELD_ACTIVE) == 1) {
         STAT(common_pfxs_cnt)++;
-        if (diff_rows(client->parent_view_it, it) == 1) {
+        if (diff_rows(parent_view_it, it) == 1) {
           STAT(changed_pfxs_cnt)++;
           /* pfx has changed, send */
         } else {
@@ -401,21 +407,21 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
 
     if (STAT(removed_pfxs_cnt) > 0) {
       int remain = STAT(removed_pfxs_cnt);
-      for (bgpview_iter_first_pfx(client->parent_view_it, 0,
+      for (bgpview_iter_first_pfx(parent_view_it, 0,
                                   BGPVIEW_FIELD_ACTIVE);
-           bgpview_iter_has_more_pfx(client->parent_view_it);
-           bgpview_iter_next_pfx(client->parent_view_it)) {
+           bgpview_iter_has_more_pfx(parent_view_it);
+           bgpview_iter_next_pfx(parent_view_it)) {
         written = 0;
         ptr = buf;
 
-        pfx = bgpview_iter_pfx_get_pfx(client->parent_view_it);
+        pfx = bgpview_iter_pfx_get_pfx(parent_view_it);
 
         if (bgpview_iter_seek_pfx(it, pfx, BGPVIEW_FIELD_ACTIVE) != 0) {
           continue;
         }
 
         if ((s = pfx_row_serialize(ptr, (len - written), 'R',
-                                   client->parent_view_it, cb)) < 0) {
+                                   parent_view_it, cb)) < 0) {
           goto err;
         }
         written += s;
@@ -472,14 +478,6 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
     return -1;
   }
 
-  /* Every now and again we wait and allow rd kafka to do its thing */
-  /* @todo: is this necessary? */
-  if (client->num_diffs == 1) {
-    while (rd_kafka_outq_len(client->rdk_conn) > 0) {
-      rd_kafka_poll(client->rdk_conn, 100);
-    }
-  }
-
   return 0;
 
 err:
@@ -500,10 +498,10 @@ static int send_sync_view(bgpview_io_kafka_t *client,
   meta.time = bgpview_get_time(view);
   meta.type = 'S';
 
-  if (send_peers(client, &meta, it, view, cb) != 0) {
+  if (send_peers(client, &meta, view, it, NULL, cb) != 0) {
     goto err;
   }
-  if (send_pfxs(client, &meta, it, cb) != 0) {
+  if (send_pfxs(client, &meta, it, NULL, NULL, cb) != 0) {
     goto err;
   }
 
@@ -522,7 +520,6 @@ static int send_sync_view(bgpview_io_kafka_t *client,
 
   bgpview_iter_destroy(it);
 
-  client->num_diffs = 0;
   return 0;
 
 err:
@@ -531,28 +528,33 @@ err:
 
 static int send_diff_view(bgpview_io_kafka_t *client,
                           bgpview_t *view,
+                          bgpview_t *parent_view,
                           bgpview_io_filter_cb_t *cb)
 {
   bgpview_iter_t *it = NULL;
+  bgpview_iter_t *parent_view_it = NULL;
   bgpview_io_kafka_md_t meta;
 
   if ((it = bgpview_iter_create(view)) == NULL) {
     goto err;
   }
 
-  meta.time = bgpview_get_time(view);
-  meta.type = 'D';
-
-  assert(client->parent_view != NULL &&
-         bgpview_get_time(client->parent_view) != 0);
-  meta.parent_time = bgpview_get_time(client->parent_view);
-  meta.sync_md_offset = client->last_sync_offset;
-
-  if (send_peers(client, &meta, it, view, cb) == -1) {
+  if ((parent_view_it = bgpview_iter_create(parent_view)) == NULL) {
     goto err;
   }
 
-  if (send_pfxs(client, &meta, it, cb) == -1) {
+  meta.time = bgpview_get_time(view);
+  meta.type = 'D';
+
+  assert(parent_view != NULL && bgpview_get_time(parent_view) != 0);
+  meta.parent_time = bgpview_get_time(parent_view);
+  meta.sync_md_offset = client->last_sync_offset;
+
+  if (send_peers(client, &meta, view, it, parent_view_it, cb) == -1) {
+    goto err;
+  }
+
+  if (send_pfxs(client, &meta, it, parent_view, parent_view_it, cb) == -1) {
     goto err;
   }
 
@@ -561,14 +563,14 @@ static int send_diff_view(bgpview_io_kafka_t *client,
     goto err;
   }
 
-  client->num_diffs++;
-
   bgpview_iter_destroy(it);
+  bgpview_iter_destroy(parent_view_it);
 
   return 0;
 
 err:
   bgpview_iter_destroy(it);
+  bgpview_iter_destroy(parent_view_it);
   return -1;
 }
 
@@ -653,54 +655,26 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
 
 int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
                                    bgpview_t *view,
+                                   bgpview_t *parent_view,
                                    bgpview_io_filter_cb_t *cb)
 {
-  time_t rawtime;
-  time_t end;
-  int length;
-  time_t start1;
-  time_t start2;
-
   /* reset the stats */
   memset(&client->stats, 0, sizeof(bgpview_io_kafka_stats_t));
 
-  time(&start1);
-
-  if (client->parent_view == NULL || client->num_diffs == client->max_diffs) {
+  if (parent_view == NULL) {
     if (send_sync_view(client, view, cb) != 0) {
       goto err;
     }
   } else {
-    if (send_diff_view(client, view, cb) != 0) {
+    if (send_diff_view(client, view, parent_view, cb) != 0) {
       goto err;
     }
   }
 
-  time(&rawtime);
-  time(&end);
-  length = difftime(end, start1);
-  STAT(send_time) = length;
-
-  time(&rawtime);
-  time(&start2);
-
-  if ((client->parent_view == NULL &&
-       (client->parent_view = bgpview_dup(view)) == NULL) ||
-      bgpview_copy(client->parent_view, view) != 0) {
-    fprintf(stderr, "ERROR: Could not copy view\n");
-    goto err;
-  }
-
-  if (client->parent_view_it == NULL &&
-      (client->parent_view_it = bgpview_iter_create(client->parent_view)) ==
-        NULL) {
-    goto err;
-  }
-
-  time(&rawtime);
-  time(&end);
-  length = difftime(end, start2);
-  STAT(copy_time) = length;
+  // wait for the queue to drain
+  //while (rd_kafka_outq_len(client->rdk_conn) > 0) {
+  rd_kafka_poll(client->rdk_conn, 100);
+  //}
 
   return 0;
 
