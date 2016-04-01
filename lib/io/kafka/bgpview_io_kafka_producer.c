@@ -131,6 +131,53 @@ static int diff_rows(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
 
 /* ==========START SEND/RECEIVE FUNCTIONS ========== */
 
+int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
+                                                  uint32_t time_now)
+{
+  uint8_t buf[BUFFER_LEN];
+  uint8_t *ptr = buf;
+  size_t len = BUFFER_LEN;
+  size_t written = 0;
+
+  fprintf(stderr, "INFO: Sending update to members topic at %d\n", time_now);
+
+  /* Identity */
+  uint16_t ident_len = strlen(client->identity);
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, ident_len);
+  assert((len-written) >= ident_len);
+  memcpy(ptr, client->identity, ident_len);
+  ptr += ident_len;
+  written += ident_len;
+
+  /* Wall time (or 0 in the case that we are shutting down) */
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, time_now);
+
+  if (rd_kafka_produce(
+                       RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS),
+                       BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT,
+                       RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
+    fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
+            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS)),
+            BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT,
+            rd_kafka_err2str(rd_kafka_errno2err(errno)));
+    rd_kafka_poll(client->rdk_conn, 0);
+    goto err;
+  }
+
+  client->prod_state.next_members_update =
+    time_now + BGPVIEW_IO_KAFKA_MEMBERS_UPDATE_INTERVAL_DEFAULT;
+
+  /* Wait for messages to be delivered */
+  while (rd_kafka_outq_len(client->rdk_conn) > 0) {
+    rd_kafka_poll(client->rdk_conn, 100);
+  }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
 static int send_metadata(bgpview_io_kafka_t *client,
                          bgpview_io_kafka_md_t *meta)
 {
@@ -140,6 +187,14 @@ static int send_metadata(bgpview_io_kafka_t *client,
   size_t written = 0;
 
   /* Serialize the common metadata header */
+
+  /* Identity */
+  uint16_t ident_len = strlen(client->identity);
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, ident_len);
+  assert((len-written) >= ident_len);
+  memcpy(ptr, client->identity, ident_len);
+  ptr += ident_len;
+  written += ident_len;
 
   /* Time */
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, meta->time);
@@ -172,10 +227,11 @@ static int send_metadata(bgpview_io_kafka_t *client,
   }
 
   if (rd_kafka_produce(
-        client->metadata_rkt, BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
+        RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
+        BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
         RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
     fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-            rd_kafka_topic_name(client->metadata_rkt),
+            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META)),
             BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
             rd_kafka_err2str(rd_kafka_errno2err(errno)));
     rd_kafka_poll(client->rdk_conn, 0);
@@ -212,7 +268,7 @@ static int send_peers(bgpview_io_kafka_t *client,
 
   /* find our current offset and update the metadata */
   if ((meta->peers_offset =
-         get_offset(client, client->peers_topic,
+         get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
                     BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "ERROR: Could not get peer offset\n");
     goto err;
@@ -254,10 +310,11 @@ static int send_peers(bgpview_io_kafka_t *client,
     }
 
     if (rd_kafka_produce(
-          client->peers_rkt, BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+          RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+          BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
           RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
       fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-              rd_kafka_topic_name(client->peers_rkt),
+              rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS)),
               BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
               rd_kafka_err2str(rd_kafka_errno2err(errno)));
       rd_kafka_poll(client->rdk_conn, 0);
@@ -277,10 +334,11 @@ static int send_peers(bgpview_io_kafka_t *client,
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, peers_tx);
 
   if (rd_kafka_produce(
-        client->peers_rkt, BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+        RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+        BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
         RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
     fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-            rd_kafka_topic_name(client->peers_rkt),
+            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS)),
             BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
             rd_kafka_err2str(rd_kafka_errno2err(errno)));
     rd_kafka_poll(client->rdk_conn, 0);
@@ -324,7 +382,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
 
   /* find our current offset and update the metadata */
   if ((meta->pfxs_offset =
-         get_offset(client, client->pfxs_topic,
+       get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
                     BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "ERROR: Could not get prefix offset\n");
     goto err;
@@ -378,10 +436,11 @@ static int send_pfxs(bgpview_io_kafka_t *client,
     pfxs_tx++;
 
     if (rd_kafka_produce(
-          client->pfxs_rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+          RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+          BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
           RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
       fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-              rd_kafka_topic_name(client->pfxs_rkt),
+              rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS)),
               BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
               rd_kafka_err2str(rd_kafka_errno2err(errno)));
       // Poll to handle delivery reports
@@ -430,11 +489,12 @@ static int send_pfxs(bgpview_io_kafka_t *client,
         remain--;
         pfxs_tx++;
         if (rd_kafka_produce(
-              client->pfxs_rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+              RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+              BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
               RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
           fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i\n"
                           "Kafka Error: %s\n",
-                  rd_kafka_topic_name(client->pfxs_rkt),
+                  rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS)),
                   BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                   rd_kafka_err2str(rd_kafka_errno2err(errno)));
           rd_kafka_poll(client->rdk_conn, 0);
@@ -467,10 +527,11 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   /* @todo */
 
   if (rd_kafka_produce(
-        client->pfxs_rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+        RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+        BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
         RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
     fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-            rd_kafka_topic_name(client->pfxs_rkt),
+            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS)),
             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
             rd_kafka_err2str(rd_kafka_errno2err(errno)));
     // Poll to handle delivery reports
@@ -506,8 +567,8 @@ static int send_sync_view(bgpview_io_kafka_t *client,
   }
 
   /* find the current metadata offset and update the sync info */
-  if ((client->last_sync_offset =
-         get_offset(client, client->metadata_topic,
+  if ((client->prod_state.last_sync_offset =
+       get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
                     BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "ERROR: Could not get metadata offset\n");
     goto err;
@@ -548,7 +609,7 @@ static int send_diff_view(bgpview_io_kafka_t *client,
 
   assert(parent_view != NULL && bgpview_get_time(parent_view) != 0);
   meta.parent_time = bgpview_get_time(parent_view);
-  meta.sync_md_offset = client->last_sync_offset;
+  meta.sync_md_offset = client->prod_state.last_sync_offset;
 
   if (send_peers(client, &meta, view, it, parent_view_it, cb) == -1) {
     goto err;
@@ -635,7 +696,7 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
   client->connected = 1;
 
   // poll for errors
-  rd_kafka_poll(client->rdk_conn, 1000);
+  rd_kafka_poll(client->rdk_conn, 5000);
 
   return client->fatal_error;
 
@@ -660,6 +721,15 @@ int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
 {
   /* reset the stats */
   memset(&client->stats, 0, sizeof(bgpview_io_kafka_stats_t));
+
+  // if it has been a while since we told the members topic about ourselves,
+  // lets do that now
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  if (client->prod_state.next_members_update <= tv.tv_sec &&
+      bgpview_io_kafka_producer_send_members_update(client, tv.tv_sec) != 0) {
+    goto err;
+  }
 
   if (parent_view == NULL) {
     if (send_sync_view(client, view, cb) != 0) {

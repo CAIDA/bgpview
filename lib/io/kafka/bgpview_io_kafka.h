@@ -44,14 +44,17 @@
 /** Default Kafaka broker(s) */
 #define BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT "127.0.0.1:9092"
 
+/** Default namespace */
+#define BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT "bgpview-test"
+
 /** Default topic for prefixes */
-#define BGPVIEW_IO_KAFKA_PFXS_TOPIC_DEFAULT "bgpview-pfxs"
+#define BGPVIEW_IO_KAFKA_PFXS_TOPIC_DEFAULT "pfxs"
 
 /** Default topic for peers */
-#define BGPVIEW_IO_KAFKA_PEERS_TOPIC_DEFAULT "bgpview-peers"
+#define BGPVIEW_IO_KAFKA_PEERS_TOPIC_DEFAULT "peers"
 
 /** Default topic for metadata */
-#define BGPVIEW_IO_KAFKA_METADATA_TOPIC_DEFAULT "bgpview-metadata"
+#define BGPVIEW_IO_KAFKA_METADATA_TOPIC_DEFAULT "metadata"
 
 /** Default partition for prefixes */
 #define BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT 0
@@ -62,8 +65,14 @@
 /** Default partition for metadata */
 #define BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT 0
 
+/** Default partition for members */
+#define BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT 0
+
 /** Default number of times to retry a failed connection to Kafka */
 #define BGPVIEW_IO_KAFKA_CONNECT_MAX_RETRIES 8
+
+/** Number of seconds (wall time) between updates to the members topic */
+#define BGPVIEW_IO_KAFKA_MEMBERS_UPDATE_INTERVAL_DEFAULT 3600
 
 /** @} */
 
@@ -119,11 +128,16 @@ typedef struct bgpview_io_kafka_stats {
 /** The mode that the client will operate in */
 typedef enum {
 
-  /** This instance will consume data from Kafka */
-  BGPVIEW_IO_KAFKA_MODE_CONSUMER = 0,
+  /** This instance will consume data from Kafka (directly from a single
+      producer) */
+  BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER = 0,
+
+  /** This instance will consume data from Kafka (from all registered producer
+      -- requires the server to be running) */
+  BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER = 1,
 
   /** This instance will produce data into Kafka */
-  BGPVIEW_IO_KAFKA_MODE_PRODUCER = 1,
+  BGPVIEW_IO_KAFKA_MODE_PRODUCER = 2,
 
 } bgpview_io_kafka_mode_t;
 
@@ -132,10 +146,13 @@ typedef enum {
 /** Initialize a new BGPView Kafka IO client
  *
  * @param mode          whether to act as a producer or a consumer
+ * @param identity      string that uniquely identifies a client within the
+ *                      namespace
  * @return a pointer to a BGPView Kafka IO instance if successful, NULL if an
  * error occurred.
  */
-bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode);
+bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
+                                          const char *identity);
 
 /** Destroy the given BGPView Kafka IO client
  *
@@ -159,32 +176,24 @@ int bgpview_io_kafka_start(bgpview_io_kafka_t *client);
 int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
                                           const char *addresses);
 
-/** Set the topic that prefix information will be written into/read from
+/** Set the topic namespace to use
  *
  * @param client        pointer to a bgpview kafka client instance
- * @param topic         pointer to the topic name
+ * @param namespace     pointer to a namespace string
  * @return 0 if successful, -1 otherwise
- */
-int bgpview_io_kafka_set_pfxs_topic(bgpview_io_kafka_t *client,
-                                    const char *topic);
-
-/** Set the topic that peer information will be written into/read from
  *
- * @param client        pointer to a bgpview kafka client instance
- * @param topic         pointer to the topic name
- * @return 0 if successful, -1 otherwise
- */
-int bgpview_io_kafka_set_peers_topic(bgpview_io_kafka_t *client,
-                                     const char *topic);
-
-/** Set the topic that metadata information will be written into/read from
+ * Namespaces allow multiple producers to operate completely independently of
+ * each other (e.g., production and test producers).
  *
- * @param client        pointer to a bgpview kafka client instance
- * @param topic         pointer to the topic name
- * @return 0 if successful, -1 otherwise
+ * It is **completely** up to the user to ensure that it is safe to write into
+ * the provided namespace. If multiple producers write into the same namespace,
+ * at the same time, bad things will happen. You have been warned.
+ *
+ * If the namespace is not set, then BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT will be
+ * used.
  */
-int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
-                                        const char *topic);
+int bgpview_io_kafka_set_namespace(bgpview_io_kafka_t *client,
+                                   const char *namespace);
 
 /** Queue the given View for transmission to Kafka
  *

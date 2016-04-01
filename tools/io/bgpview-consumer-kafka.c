@@ -355,9 +355,13 @@ static void usage(const char *name)
 	  name);
   timeseries_usage();
   fprintf(stderr,
-          "       -m <prefix>           Metric prefix (default:)\n"
+          "       -i <identity>         Consume directly from the given producer\n"
+          "                             (rather than a global view from all producers)\n"
+          "       -m <prefix>           Metric prefix\n"
+          "       -n <namespace>        Kafka topic namespace to use (default: %s)\n"
           "       -N <num-views>        Maximum number of views to process before the consumer stops\n"
-          "                               (default: infinite)\n");
+          "                               (default: infinite)\n",
+          BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
   fprintf(stderr,
 	  "       -c <consumer>         Consumer/s to active (can be used multiple times)\n");
   consumer_usage();
@@ -381,6 +385,9 @@ int main(int argc, char **argv)
   char *consumer_cmds[BVC_ID_LAST];
   int consumer_cmds_cnt = 0;
   int i;
+
+  char *identity = NULL;
+  char *namespace = NULL;
 
   char *metric_prefix = NULL;
 
@@ -417,7 +424,7 @@ int main(int argc, char **argv)
     }
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":f:m:N:b:c:n:k:v?")) >= 0)
+	(opt = getopt(argc, argv, ":f:i:m:n:N:b:c:n:k:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -439,9 +446,17 @@ int main(int argc, char **argv)
             }
           break;
 
+        case 'i':
+          identity = strdup(optarg);
+          break;
+
 	case 'm':
 	  metric_prefix = strdup(optarg);
 	  break;
+
+        case 'n':
+          namespace = strdup(optarg);
+          break;
 
         case 'N':
           processed_view_limit = atoi(optarg);
@@ -485,6 +500,12 @@ int main(int argc, char **argv)
 
   /* NB: once getopt completes, optind points to the first non-option
      argument */
+
+  if (identity == NULL) {
+    fprintf(stderr, "ERROR: Identity string must be set using -i\n");
+    usage(argv[0]);
+    goto err;
+  }
 
   if(metric_prefix != NULL)
     {
@@ -558,7 +579,8 @@ int main(int argc, char **argv)
     }
 
   if((client =
-      bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_CONSUMER)) == NULL)
+      bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER,
+                            identity)) == NULL)
     {
       fprintf(stderr, "ERROR: could not initialize bgpview client\n");
       usage(argv[0]);
@@ -572,7 +594,15 @@ int main(int argc, char **argv)
       goto err;
     }
 
-  bgpview_io_kafka_start(client);
+  if(namespace != NULL &&
+     bgpview_io_kafka_set_namespace(client, namespace) != 0)
+    {
+      goto err;
+    }
+
+  if(bgpview_io_kafka_start(client) != 0) {
+    goto err;
+  }
 
   if((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL)
     {
@@ -580,7 +610,7 @@ int main(int argc, char **argv)
       goto err;
     }
 
-  // disable per-pfx-per-peer user pointer 
+  // disable per-pfx-per-peer user pointer
   bgpview_disable_user_data(view);
 
   while(bgpview_io_kafka_recv_view(client,

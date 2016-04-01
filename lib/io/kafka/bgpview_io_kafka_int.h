@@ -28,23 +28,110 @@
 #include <librdkafka/rdkafka.h>
 
 /**
+ * @name Protected Macros
+ *
+ * @{ */
+
+/** Shortcut to get the RD Kafka topic ref for the given topic ID */
+#define RKT(tid) (client->topics[(tid)].rkt)
+
+/** Shortcut to get the FQ name for the given topic ID */
+#define TNAME(tid) (client->topics[(tid)].name)
+
+#define IDENTITY_MAX_LEN 1024
+
+/* @} */
+
+/**
+ * @name Protected Enums
+ *
+ * @{ */
+
+/** IDs of topics used */
+typedef enum {
+
+  BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS = 0,
+
+  BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS = 1,
+
+  BGPVIEW_IO_KAFKA_TOPIC_ID_META = 2,
+
+  BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS = 3,
+
+  BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA = 4,
+
+  BGPVIEW_IO_KAFKA_TOPIC_ID_CNT = 5,
+
+} bgpview_io_kafka_topic_id_t;
+
+/* @} */
+
+/**
  * @name Protected Data Structures
  *
  * @{ */
 
+typedef struct bgpview_io_kafka_topic {
+
+  /** Fully-qualified name of the topic (includes namespace and possibly
+      identity) */
+  char name[IDENTITY_MAX_LEN];
+
+  /** RD Kafka topic handle */
+  rd_kafka_topic_t *rkt;
+
+} bgpview_io_kafka_topic_t;
+
+typedef struct producer_state {
+
+  /** The metadata offset of the last sync view sent */
+  int64_t last_sync_offset;
+
+  /** The walltime at which we should write another members update */
+  uint32_t next_members_update;
+
+} producer_state_t;
+
+typedef struct direct_consumer_state {
+
+  /** Mapping from Kafka peer ID to local peer ID */
+  bgpstream_peer_id_t *peerid_map;
+
+  /** Length of the peerid_map array */
+  int peerid_map_alloc_cnt;
+
+} direct_consumer_state_t;
+
+typedef struct global_consumer_state {
+
+  /** Need some way to map dynamic topics to peerid mappings */
+
+} global_consumer_state_t;
+
 struct bgpview_io_kafka {
 
-  /** Is this a producer or a consumer? */
+  /** Is this a producer, direct consumer, or global consumer? */
   bgpview_io_kafka_mode_t mode;
 
   /** Structure to store tx statistics */
   bgpview_io_kafka_stats_t stats;
+
+  /* SETTINGS */
 
   /**
    * The broker address/es. It is possible to use more than one broker by
    * separating them with a ","
    */
   char *brokers;
+
+  /** Namespace of this producer (all topic names will have this string prefixed
+      to them) */
+  char *namespace;
+
+  /** String that uniquely IDs a producer within the namespace */
+  char *identity;
+
+  /* STATE */
 
   /** RD Kafka connection handle */
   rd_kafka_t *rdk_conn;
@@ -55,39 +142,20 @@ struct bgpview_io_kafka {
   /** Has there been a fatal error? */
   int fatal_error;
 
-  /** Name of the topic to read/write prefix info to/from */
-  char *pfxs_topic;
+  /** State for the various topics that we use (only some will be connected) */
+  bgpview_io_kafka_topic_t topics[BGPVIEW_IO_KAFKA_TOPIC_ID_CNT];
 
-  /** Name of the topic to read/write peer info to/from */
-  char *peers_topic;
+  /* Various state info used by specific client modes */
+  producer_state_t prod_state;
+  direct_consumer_state_t dc_state;
+  global_consumer_state_t gc_state;
 
-  /** Name of the topic to read/write metadata info to/from */
-  char *metadata_topic;
-
-  /** RD Kafka prefix topic handle */
-  rd_kafka_topic_t *pfxs_rkt;
-
-  /** RD Kafka peer topic handle */
-  rd_kafka_topic_t *peers_rkt;
-
-  /** RD Kafka metadata topic handle */
-  rd_kafka_topic_t *metadata_rkt;
-
-  /** The following fields are only used by the consumer */
-
-  /** Mapping from Kafka peer ID to local peer ID */
-  bgpstream_peer_id_t *peerid_map;
-
-  /** Length of the peerid_map array */
-  int peerid_map_alloc_cnt;
-
-  /** The following fields are only used by the producer. */
-
-  /** The metadata offset of the last sync view sent */
-  int64_t last_sync_offset;
 };
 
 typedef struct bgpviewio_kafka_md {
+
+  /** The identity of the producer */
+  char identity[IDENTITY_MAX_LEN];
 
   /** The time of the the view */
   uint32_t time;
@@ -137,6 +205,15 @@ int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
                                    bgpview_t *view,
                                    bgpview_t *parent_view,
                                    bgpview_io_filter_cb_t *cb);
+
+/** Manually trigger an update to the members topic (used to signal producer is
+ * shutting down)
+ *
+ * @param client
+ * @param time_now      Current wall time, or 0 if the producer is shutting down
+ */
+int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
+                                                  uint32_t time_now);
 
 /* CONSUMER FUNCTIONS */
 

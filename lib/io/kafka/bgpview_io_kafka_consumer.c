@@ -46,39 +46,39 @@ static int add_peerid_mapping(bgpview_io_kafka_t *client, bgpview_iter_t *it,
   bgpstream_peer_id_t local_id;
 
   /* first, is the array big enough to possibly already contain remote_id? */
-  if (remote_id >= client->peerid_map_alloc_cnt) {
-    if ((client->peerid_map =
-           realloc(client->peerid_map,
+  if (remote_id >= client->dc_state.peerid_map_alloc_cnt) {
+    if ((client->dc_state.peerid_map =
+           realloc(client->dc_state.peerid_map,
                    sizeof(bgpstream_peer_id_t) * (remote_id + 1))) == NULL) {
       return -1;
     }
 
     /* now set all ids to 0 (reserved) */
-    for (j = client->peerid_map_alloc_cnt; j <= remote_id; j++) {
-      client->peerid_map[j] = 0;
+    for (j = client->dc_state.peerid_map_alloc_cnt; j <= remote_id; j++) {
+      client->dc_state.peerid_map[j] = 0;
     }
-    client->peerid_map_alloc_cnt = remote_id + 1;
+    client->dc_state.peerid_map_alloc_cnt = remote_id + 1;
   }
 
   /* do we need to add this peer */
-  if (client->peerid_map[remote_id] == 0) {
+  if (client->dc_state.peerid_map[remote_id] == 0) {
     if ((local_id = bgpview_iter_add_peer(
            it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
            sig->peer_asnumber)) == 0) {
       return -1;
     }
     bgpview_iter_activate_peer(it);
-    client->peerid_map[remote_id] = local_id;
+    client->dc_state.peerid_map[remote_id] = local_id;
   }
 
   /* by here we are guaranteed to have a valid mapping */
-  return client->peerid_map[remote_id];
+  return client->dc_state.peerid_map[remote_id];
 }
 
 static void clear_peerid_mapping(bgpview_io_kafka_t *client)
 {
-  memset(client->peerid_map, 0,
-         sizeof(bgpstream_peer_id_t) * client->peerid_map_alloc_cnt);
+  memset(client->dc_state.peerid_map, 0,
+         sizeof(bgpstream_peer_id_t) * client->dc_state.peerid_map_alloc_cnt);
 }
 
 static int seek_topic(rd_kafka_topic_t *rkt, int32_t partition, int64_t offset)
@@ -94,12 +94,23 @@ static int seek_topic(rd_kafka_topic_t *rkt, int32_t partition, int64_t offset)
   return 0;
 }
 
-static int deserialize_metadata(bgpview_io_kafka_md_t *meta, uint8_t *buf,
+static int deserialize_metadata(bgpview_io_kafka_md_t *meta,
+                                uint8_t *buf,
                                 size_t len)
 {
   size_t read = 0;
 
+  uint16_t ident_len;
+
   /* Deserialize the common metadata header */
+
+  /* Identity */
+  BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, ident_len);
+  assert((len-read) >= ident_len);
+  memcpy(meta->identity, buf, ident_len);
+  meta->identity[ident_len] = '\0';
+  buf += ident_len;
+  read += ident_len;
 
   /* Time */
   BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, meta->time);
@@ -153,7 +164,7 @@ static int recv_metadata(bgpview_io_kafka_t *client, bgpview_t *view,
 
 again:
   /* Grab the last metadata message */
-  if ((msg = rd_kafka_consume(client->metadata_rkt,
+  if ((msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
                               BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
                               2000000000)) == NULL) {
     goto err;
@@ -175,19 +186,26 @@ again:
     fprintf(stderr, "ERROR: Could not deserialize metadata message\n");
     goto err;
   }
-
   /* we're done with this message */
   rd_kafka_message_destroy(msg);
   msg = NULL;
 
   /* Can we use this view? */
+  // these asserts are anywhere the code assumes direct consumers...
+  assert(client->mode == BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER);
+  if (strncmp(meta->identity, client->identity, IDENTITY_MAX_LEN) != 0) {
+    fprintf(stderr,
+            "INFO: Skipping view from producer '%s' (looking for '%s')\n",
+            meta->identity, client->identity);
+    goto again;
+  }
   if (meta->type != 'S' && meta->parent_time != bgpview_get_time(view)) {
     /* this is a diff frame with a parent time that does not match the time of
        the view that we are given */
     fprintf(stderr, "WARN: Found Diff frame against %d, but view time is %d\n",
             meta->parent_time, bgpview_get_time(view));
     fprintf(stderr, "INFO: Rewinding to last sync frame\n");
-    if (seek_topic(client->metadata_rkt,
+    if (seek_topic(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
                    BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
                    meta->sync_md_offset) != 0) {
       fprintf(stderr, "ERROR: Could not seek to last sync metadata\n");
@@ -233,7 +251,8 @@ static int recv_peers(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
   int peers_rx = 0;
   int filter;
 
-  if (seek_topic(client->peers_rkt, BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+  if (seek_topic(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+                 BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
                  offset) != 0) {
     fprintf(stderr, "Error changing the offset");
     goto err;
@@ -241,7 +260,7 @@ static int recv_peers(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
 
   /* receive the peers */
   while (1) {
-    msg = rd_kafka_consume(client->peers_rkt,
+    msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
                            BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT, 1000);
     if (msg->payload == NULL) {
       fprintf(stderr, "Cannot not receive peer message\n");
@@ -331,7 +350,8 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
 
   rd_kafka_message_t *msg = NULL;
 
-  if (seek_topic(client->pfxs_rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+  if (seek_topic(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+                 BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                  offset) != 0) {
     fprintf(stderr, "Error changing the offset");
     goto err;
@@ -342,7 +362,7 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
   }
 
   while (1) {
-    msg = rd_kafka_consume(client->pfxs_rkt,
+    msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
                            BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, 1000);
     if (msg->payload == NULL) {
       fprintf(stderr, "Cannot receive prefixes and paths\n");
@@ -379,7 +399,8 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
       tom++;
       if ((s = bgpview_io_deserialize_pfx_row(
              ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
-             client->peerid_map, client->peerid_map_alloc_cnt, NULL, -1)) ==
+             client->dc_state.peerid_map,
+             client->dc_state.peerid_map_alloc_cnt, NULL, -1)) ==
           -1) {
         goto err;
       }

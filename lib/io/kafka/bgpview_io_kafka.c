@@ -68,12 +68,25 @@ static void kafka_error_callback(rd_kafka_t *rk, int err,
 
 static int kafka_topic_connect(bgpview_io_kafka_t *client)
 {
+  bgpview_io_kafka_topic_id_t id;
+
+  static char *names[] = {
+    "pfxs",
+    "peers",
+    "meta",
+    "members",
+    "globalmeta",
+  };
+
   typedef int (topic_connect_func_t)(bgpview_io_kafka_t *client,
                                      rd_kafka_topic_t **rkt,
                                      char *topic);
 
   topic_connect_func_t *topic_connect_funcs[] = {
-    // BGPVIEW_IO_KAFKA_MODE_CONSUMER
+    // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
+    bgpview_io_kafka_consumer_topic_connect,
+
+    // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
     bgpview_io_kafka_consumer_topic_connect,
 
     // BGPVIEW_IO_KAFKA_MODE_PRODUCER
@@ -82,26 +95,52 @@ static int kafka_topic_connect(bgpview_io_kafka_t *client)
 
   fprintf(stderr, "INFO: Checking topic connections...\n");
 
-  if ((client->metadata_rkt == NULL &&
-       topic_connect_funcs[client->mode](client, &client->metadata_rkt,
-                                         client->metadata_topic) != 0)) {
-    goto err;
-  }
-  if ((client->peers_rkt == NULL &&
-       topic_connect_funcs[client->mode](client, &client->peers_rkt,
-                                         client->peers_topic) != 0)) {
-    goto err;
-  }
-  if ((client->pfxs_rkt == NULL &&
-       topic_connect_funcs[client->mode](client, &client->pfxs_rkt,
-                                         client->pfxs_topic) != 0)) {
-    goto err;
+  for (id=0; id<BGPVIEW_IO_KAFKA_TOPIC_ID_CNT; id++) {
+
+    // producer gets: pfxs, peers, meta, members
+    // direct consumer gets: pfxs, peers, meta
+    // global consumer gets: globalmeta
+    if ((client->mode == BGPVIEW_IO_KAFKA_MODE_PRODUCER &&
+         id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA) ||
+        (client->mode == BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER &&
+         (id == BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS ||
+          id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA)) ||
+        (client->mode == BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER &&
+         id != BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA)) {
+      continue;
+    }
+
+    assert(client->namespace != NULL);
+
+    // build the name
+    if (id == BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS ||
+        id == BGPVIEW_IO_KAFKA_TOPIC_ID_META ||
+        id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA) {
+      // format: <namespace>.<name>
+      if (snprintf(TNAME(id), IDENTITY_MAX_LEN, "%s.%s", client->namespace,
+                   names[id]) >= IDENTITY_MAX_LEN) {
+        return -1;
+      }
+    } else {
+      assert(client->identity != NULL);
+      // format: <namespace>.<identity>.<name>
+      if (snprintf(TNAME(id), IDENTITY_MAX_LEN, "%s.%s.%s", client->namespace,
+                   client->identity, names[id]) >= IDENTITY_MAX_LEN) {
+        return -1;
+      }
+    }
+
+    // connect to kafka
+    if (RKT(id) == NULL) {
+      fprintf(stderr, "INFO: Connecting to %s (%d)\n", TNAME(id), id);
+      if(topic_connect_funcs[client->mode](client, &RKT(id),
+                                           TNAME(id)) != 0) {
+        return -1;
+      }
+    }
   }
 
   return 0;
-
- err:
-  return -1;
 }
 
 /* ========== PROTECTED FUNCTIONS ========== */
@@ -134,35 +173,42 @@ int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
 
 /* ========== PUBLIC FUNCTIONS ========== */
 
-bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode)
+bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
+                                          const char *identity)
 {
   bgpview_io_kafka_t *client;
   if ((client = malloc_zero(sizeof(bgpview_io_kafka_t))) == NULL) {
     return NULL;
   }
 
+  assert(mode != BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER);
+
   client->mode = mode;
+
+  if (identity != NULL) {
+    assert(strlen(identity) < IDENTITY_MAX_LEN);
+    if (client->mode == BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER) {
+      fprintf(stderr,
+              "WARN: Identity string is not used for the global consumer\n");
+    }
+  } else if (client->mode != BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER) {
+    fprintf(stderr,
+            "ERROR: Identity must be set for producer and direct consumer\n");
+    goto err;
+  }
+
+  if (identity != NULL && (client->identity = strdup(identity)) == NULL) {
+    fprintf(stderr, "Failed to duplicate identity string\n");
+    goto err;
+  }
+
+  if ((client->namespace = strdup(BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT)) == NULL) {
+    fprintf(stderr, "Failed to duplicate namespace string\n");
+    goto err;
+  }
 
   if ((client->brokers = strdup(BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT)) == NULL) {
     fprintf(stderr, "Failed to duplicate kafka server uri string\n");
-    goto err;
-  }
-
-  if ((client->pfxs_topic = strdup(BGPVIEW_IO_KAFKA_PFXS_TOPIC_DEFAULT)) ==
-      NULL) {
-    fprintf(stderr, "Failed to duplicate kafka prefixes topic string\n");
-    goto err;
-  }
-
-  if ((client->peers_topic = strdup(BGPVIEW_IO_KAFKA_PEERS_TOPIC_DEFAULT)) ==
-      NULL) {
-    fprintf(stderr, "Failed to duplicate kafka peers topic string\n");
-    goto err;
-  }
-
-  if ((client->metadata_topic =
-         strdup(BGPVIEW_IO_KAFKA_METADATA_TOPIC_DEFAULT)) == NULL) {
-    fprintf(stderr, "Failed to duplicate kafka metadata topic string\n");
     goto err;
   }
 
@@ -188,31 +234,26 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
     drain_wait_cnt--;
   }
 
+  // if this is a producer, tell the members topic we're going away
+  if (client->mode == BGPVIEW_IO_KAFKA_MODE_PRODUCER) {
+    bgpview_io_kafka_producer_send_members_update(client, 0);
+  }
+
   free(client->brokers);
   client->brokers = NULL;
 
-  free(client->pfxs_topic);
-  client->pfxs_topic = NULL;
+  free(client->identity);
+  client->identity = NULL;
 
-  free(client->peers_topic);
-  client->peers_topic = NULL;
+  free(client->namespace);
+  client->namespace = NULL;
 
-  free(client->metadata_topic);
-  client->metadata_topic = NULL;
-
-  if (client->peers_rkt != NULL) {
-    rd_kafka_topic_destroy(client->peers_rkt);
-    client->peers_rkt = NULL;
-  }
-
-  if (client->pfxs_rkt != NULL) {
-    rd_kafka_topic_destroy(client->pfxs_rkt);
-    client->pfxs_rkt = NULL;
-  }
-
-  if (client->metadata_rkt != NULL) {
-    rd_kafka_topic_destroy(client->metadata_rkt);
-    client->metadata_rkt = NULL;
+  bgpview_io_kafka_topic_id_t id;
+  for (id=0; id<BGPVIEW_IO_KAFKA_TOPIC_ID_CNT; id++) {
+    if (RKT(id) != NULL) {
+      rd_kafka_topic_destroy(RKT(id));
+      RKT(id) = NULL;
+    }
   }
 
   if (client->rdk_conn != NULL) {
@@ -220,9 +261,9 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
     client->rdk_conn = NULL;
   }
 
-  free(client->peerid_map);
-  client->peerid_map = NULL;
-  client->peerid_map_alloc_cnt = 0;
+  free(client->dc_state.peerid_map);
+  client->dc_state.peerid_map = NULL;
+  client->dc_state.peerid_map_alloc_cnt = 0;
 
   free(client);
   return;
@@ -231,7 +272,10 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
 typedef int (kafka_connect_func_t)(bgpview_io_kafka_t *client);
 
 static kafka_connect_func_t *kafka_connect_funcs[] = {
-  // BGPVIEW_IO_KAFKA_MODE_CONSUMER
+  // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
+  bgpview_io_kafka_consumer_connect,
+
+  // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
   bgpview_io_kafka_consumer_connect,
 
   // BGPVIEW_IO_KAFKA_MODE_PRODUCER
@@ -289,43 +333,15 @@ int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
   return 0;
 }
 
-int bgpview_io_kafka_set_pfxs_topic(bgpview_io_kafka_t *client,
-                                    const char *topic)
+int bgpview_io_kafka_set_namespace(bgpview_io_kafka_t *client,
+                                   const char *namespace)
 {
-  if (client->pfxs_topic != NULL) {
-    free(client->pfxs_topic);
+  if (client->namespace != NULL) {
+    free(client->namespace);
   }
 
-  if ((client->pfxs_topic = strdup(topic)) == NULL) {
-    fprintf(stderr, "Could not set prefixes topic\n");
-    return -1;
-  }
-
-  return 0;
-}
-
-int bgpview_io_kafka_set_peers_topic(bgpview_io_kafka_t *client,
-                                     const char *topic)
-{
-  if (client->peers_topic != NULL)
-    free(client->peers_topic);
-
-  if ((client->peers_topic = strdup(topic)) == NULL) {
-    fprintf(stderr, "Could not set peer topic\n");
-    return -1;
-  }
-
-  return 0;
-}
-
-int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
-                                        const char *topic)
-{
-  if (client->metadata_topic != NULL)
-    free(client->metadata_topic);
-
-  if ((client->metadata_topic = strdup(topic)) == NULL) {
-    fprintf(stderr, "Could not set metadata topic\n");
+  if ((client->namespace = strdup(namespace)) == NULL) {
+    fprintf(stderr, "Could not set namespace\n");
     return -1;
   }
 

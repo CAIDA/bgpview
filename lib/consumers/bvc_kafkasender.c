@@ -68,6 +68,11 @@ typedef struct bvc_kafkasender_state {
 
   bgpview_io_kafka_t *client;
 
+  /* options */
+  char *identity;
+  char *namespace;
+  char *brokers;
+
   /** Timeseries Key Package */
   timeseries_kp_t *kp;
 
@@ -190,11 +195,14 @@ static int create_ts_metrics(bvc_t *consumer)
 static void usage(bvc_t *consumer)
 {
   fprintf(stderr,
-	  "consumer usage: %s [options]\n"
+	  "consumer usage: %s [options] -i <identity>\n"
+          "       -i <identity>         Unique name for this producer (required)\n"
           "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
+          "       -n <namespace>        Kafka topic namespace to use (default: %s)\n"
           "       -s <sync-frequency>   Sync frame freq. in # views (default: %d)\n",
 	  consumer->name,
           BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT,
+          BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT,
           SYNC_FREQUENCY);
 }
 
@@ -210,7 +218,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 
   /* remember the argv strings DO NOT belong to us */
   while(prevoptind = optind,
-        (opt = getopt(argc, argv, ":k:s:?")) >= 0)
+        (opt = getopt(argc, argv, ":i:k:n:s:?")) >= 0)
     {
       if (optind == prevoptind + 2 && optarg && *optarg == '-' ) {
         opt = ':';
@@ -218,13 +226,16 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
       }
       switch(opt)
 	{
-        case 'k':
-          if(bgpview_io_kafka_set_broker_addresses(STATE->client,
-                                                   optarg) != 0) {
-            fprintf(stderr, "ERROR: Could not set broker addresses\n");
-            return -1;
-          }
+        case 'i':
+          STATE->identity = strdup(optarg);
           break;
+
+        case 'k':
+          STATE->brokers = strdup(optarg);
+          break;
+
+        case 'n':
+          STATE->namespace = strdup(optarg);
 
         case 's':
           STATE->sync_freq = atoi(optarg);
@@ -237,6 +248,12 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 	  return -1;
 	}
     }
+
+  if (STATE->identity == NULL) {
+    fprintf(stderr, "ERROR: Producer identity must be set using -i\n");
+    usage(consumer);
+    return -1;
+  }
 
   return 0;
 }
@@ -260,7 +277,6 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
 
   BVC_SET_STATE(consumer, state);
 
-  state->client=bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_PRODUCER);
   state->sync_freq = SYNC_FREQUENCY;
 
   /* parse the command line args */
@@ -269,7 +285,25 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
       goto err;
     }
 
-  if (bgpview_io_kafka_start(state->client) != 0) {
+  if ((STATE->client = bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_PRODUCER,
+                                             state->identity)) == NULL) {
+    return -1;
+  }
+
+  if(bgpview_io_kafka_set_broker_addresses(STATE->client,
+                                           STATE->brokers) != 0) {
+    fprintf(stderr, "ERROR: Could not set broker addresses\n");
+    return -1;
+  }
+
+  if (STATE->namespace != NULL &&
+      bgpview_io_kafka_set_namespace(STATE->client,
+                                     STATE->namespace) != 0) {
+    fprintf(stderr, "ERROR: Could not set namespace\n");
+    return -1;
+  }
+
+  if (bgpview_io_kafka_start(STATE->client) != 0) {
     fprintf(stderr, "ERROR: Could not start Kafka client\n");
     goto err;
   }
@@ -302,6 +336,15 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
     }
 
   /* deallocate dynamic memory HERE */
+
+  free(state->identity);
+  state->identity = NULL;
+
+  free(state->namespace);
+  state->namespace = NULL;
+
+  free(state->brokers);
+  state->brokers = NULL;
 
   timeseries_kp_free(&state->kp);
   bgpview_io_kafka_destroy(state->client);
