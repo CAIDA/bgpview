@@ -38,8 +38,6 @@
 #define CONSUMER_METRIC_PREFIX       "view.consumer.kafka-sender"
 
 #define BUFFER_LEN 1024
-#define METRIC_SENT_PREFIX_FORMAT    "%s."CONSUMER_METRIC_PREFIX".pfx.sent.%s"
-#define METRIC_LOCAL_PREFIX_FORMAT    "%s."CONSUMER_METRIC_PREFIX".pfx.local.%s"
 #define META_METRIC_PREFIX_FORMAT  "%s."CONSUMER_METRIC_PREFIX".meta.%s"
 
 
@@ -66,13 +64,9 @@ static bvc_t bvc_kafkasender = {
 typedef struct bvc_kafkasender_state {
 
   bgpview_io_kafka_t *client;
-  int cs;
 
   /** Timeseries Key Package */
   timeseries_kp_t *kp;
-
-  /** Metrics indices */
-  bgpview_io_kafka_stats_t metrics;
 
   int send_time_idx;
   int copy_time_idx;
@@ -110,39 +104,39 @@ static int create_ts_metrics(bvc_t *consumer)
       return -1;
     }
 
-  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "common.pfx_cnt");
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "diffs.common_pfx_cnt");
+  if((state->common_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "diffs.added_pfx_cnt");
   if((state->add_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
     }
 
-  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "added.pfx_cnt");
-  if((state->add_idx =
-      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
-    {
-      return -1;
-    }
-
-  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "removed.pfx_cnt");
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "diffs.removed_pfx_cnt");
   if((state->remove_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
     }
 
-  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "changed.pfx_cnt");
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "diffs.changed_pfx_cnt");
   if((state->change_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
     }
 
-  snprintf(buffer, BUFFER_LEN, METRIC_SENT_PREFIX_FORMAT,
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, "sync.pfx_cnt");
   if((state->sync_cnt_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
@@ -150,8 +144,7 @@ static int create_ts_metrics(bvc_t *consumer)
       return -1;
     }
 
-
-  snprintf(buffer, BUFFER_LEN, METRIC_LOCAL_PREFIX_FORMAT,
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, "pfx_cnt");
   if((state->pfx_cnt_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
@@ -239,7 +232,10 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
       goto err;
     }
 
-  state->cs=0;
+  if (bgpview_io_kafka_start(state->client) != 0) {
+    fprintf(stderr, "ERROR: Could not start Kafka client\n");
+    goto err;
+  }
 
   if((state->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) == NULL)
     {
@@ -283,62 +279,42 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
 int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_kafkasender_state_t *state = STATE;
-  uint32_t current_view_ts = bgpview_get_time(view);
 
-  //bgpview_io_kafka_t *client=bgpview_io_kafka_init();
+  if (bgpview_io_kafka_send_view(state->client, view, NULL) != 0)
+    {
+      return -1;
+    }
 
-  //TODO: CONFIGURE
-
-
-  if(state->cs==0)
-    bgpview_io_kafka_start(state->client);
-  state->cs=1;
-
-
-  time_t rawtime;
-  time(&rawtime);
-
-  time_t start, end;
-
-  time(&start);
-
-  bgpview_io_kafka_send_view(state->client, &state->metrics, view, NULL);
-
-  time(&rawtime);
-  time(&end);
-
-
-  // set remaining timeseries metrics
+  // set timeseries metrics
+  bgpview_io_kafka_stats_t *stats = bgpview_io_kafka_get_stats(state->client);
 
   timeseries_kp_set(state->kp, state->send_time_idx,
-                    state->metrics.send_time);
+                    stats->send_time);
 
   timeseries_kp_set(state->kp, state->copy_time_idx,
-                    state->metrics.copy_time);
+                    stats->copy_time);
 
   timeseries_kp_set(state->kp, state->common_idx,
-                    state->metrics.common_pfxs_cnt);
+                    stats->common_pfxs_cnt);
   timeseries_kp_set(state->kp, state->add_idx,
-                    state->metrics.added_pfxs_cnt);
+                    stats->added_pfxs_cnt);
   timeseries_kp_set(state->kp, state->remove_idx,
-                    state->metrics.removed_pfxs_cnt);
+                    stats->removed_pfxs_cnt);
   timeseries_kp_set(state->kp, state->change_idx,
-                    state->metrics.changed_pfxs_cnt);
+                    stats->changed_pfxs_cnt);
 
   timeseries_kp_set(state->kp, state->pfx_cnt_idx,
-                    state->metrics.pfx_cnt);
+                    stats->pfx_cnt);
 
   timeseries_kp_set(state->kp, state->sync_cnt_idx,
-                    state->metrics.sync_pfx_cnt);
+                    stats->sync_pfx_cnt);
 
   // flush
-  if(timeseries_kp_flush(STATE->kp, current_view_ts) != 0)
+  if(timeseries_kp_flush(STATE->kp, bgpview_get_time(view)) != 0)
     {
       fprintf(stderr, "Warning: could not flush %s %"PRIu32"\n",
               NAME, bgpview_get_time(view));
     }
-
-
 
   return 0;
 }

@@ -38,6 +38,8 @@
 
 #define BUFFER_LEN 16384
 
+#define STAT(name) (client->stats.name)
+
 static int64_t get_offset(bgpview_io_kafka_t *client, char *topic,
                           int32_t partition)
 {
@@ -293,7 +295,7 @@ err:
 }
 
 static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
-                     bgpview_io_kafka_stats_t *stats, bgpview_iter_t *it,
+                     bgpview_iter_t *it,
                      bgpview_io_filter_cb_t *cb)
 {
   int filter;
@@ -311,11 +313,8 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
   int send;
   int pfxs_tx = 0;
 
-  int pfxs_cnt_ref;
-  int pfxs_cnt_cur;
-
-  /* reset the stats */
-  memset(stats, 0, sizeof(bgpview_io_kafka_stats_t));
+  int pfxs_cnt_ref = 0;
+  int pfxs_cnt_cur = 0;
 
   /* find our current offset and update the metadata */
   if ((meta->pfxs_offset =
@@ -350,9 +349,9 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
       pfx = bgpview_iter_pfx_get_pfx(it);
       if (bgpview_iter_seek_pfx(client->parent_view_it, pfx,
                                 BGPVIEW_FIELD_ACTIVE) == 1) {
-        stats->common_pfxs_cnt++;
+        STAT(common_pfxs_cnt)++;
         if (diff_rows(client->parent_view_it, it) == 1) {
-          stats->changed_pfxs_cnt++;
+          STAT(changed_pfxs_cnt)++;
           /* pfx has changed, send */
         } else {
           send = 0;
@@ -388,24 +387,20 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
 
   if (meta->type == 'D') {
     /* send removals */
-    stats->removed_pfxs_cnt = pfxs_cnt_ref - stats->common_pfxs_cnt;
-    assert(stats->removed_pfxs_cnt >= 0);
+    STAT(removed_pfxs_cnt) = pfxs_cnt_ref - STAT(common_pfxs_cnt);
+    assert(STAT(removed_pfxs_cnt) >= 0);
 
-    fprintf(stderr, "DEBUG: HC %d CC %d common %d remove %d change %d\n",
-            pfxs_cnt_ref, pfxs_cnt_cur, stats->common_pfxs_cnt,
-            stats->removed_pfxs_cnt, stats->changed_pfxs_cnt);
-
-    stats->added_pfxs_cnt =
-      (pfxs_cnt_cur - stats->common_pfxs_cnt) + stats->removed_pfxs_cnt;
-    if (stats->added_pfxs_cnt < 0) {
-      stats->added_pfxs_cnt = 0;
+    STAT(added_pfxs_cnt) =
+      (pfxs_cnt_cur - STAT(common_pfxs_cnt)) + STAT(removed_pfxs_cnt);
+    if (STAT(added_pfxs_cnt) < 0) {
+      STAT(added_pfxs_cnt) = 0;
     }
 
-    stats->pfx_cnt = stats->common_pfxs_cnt + stats->added_pfxs_cnt;
-    stats->sync_pfx_cnt = 0;
+    STAT(pfx_cnt) = STAT(common_pfxs_cnt) + STAT(added_pfxs_cnt);
+    STAT(sync_pfx_cnt) = 0;
 
-    if (stats->removed_pfxs_cnt > 0) {
-      int remain = stats->removed_pfxs_cnt;
+    if (STAT(removed_pfxs_cnt) > 0) {
+      int remain = STAT(removed_pfxs_cnt);
       for (bgpview_iter_first_pfx(client->parent_view_it, 0,
                                   BGPVIEW_FIELD_ACTIVE);
            bgpview_iter_has_more_pfx(client->parent_view_it);
@@ -447,11 +442,8 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
       }
     }
   } else {
-    stats->added_pfxs_cnt = 0;
-    stats->removed_pfxs_cnt = 0;
-    stats->changed_pfxs_cnt = 0;
-    stats->common_pfxs_cnt = 0;
-    stats->pfx_cnt = stats->sync_pfx_cnt =
+    // update sync-only stats
+    STAT(pfx_cnt) = STAT(sync_pfx_cnt) =
       bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE);
   }
 
@@ -480,9 +472,12 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
     return -1;
   }
 
-  /* @todo figure out how to defer this until the connection gets shut down */
-  while (rd_kafka_outq_len(client->rdk_conn) > 0) {
-    rd_kafka_poll(client->rdk_conn, 100);
+  /* Every now and again we wait and allow rd kafka to do its thing */
+  /* @todo: is this necessary? */
+  if (client->num_diffs == 1) {
+    while (rd_kafka_outq_len(client->rdk_conn) > 0) {
+      rd_kafka_poll(client->rdk_conn, 100);
+    }
   }
 
   return 0;
@@ -492,7 +487,7 @@ err:
 }
 
 static int send_sync_view(bgpview_io_kafka_t *client,
-                          bgpview_io_kafka_stats_t *stats, bgpview_t *view,
+                          bgpview_t *view,
                           bgpview_io_filter_cb_t *cb)
 {
   bgpview_iter_t *it = NULL;
@@ -508,7 +503,7 @@ static int send_sync_view(bgpview_io_kafka_t *client,
   if (send_peers(client, &meta, it, view, cb) != 0) {
     goto err;
   }
-  if (send_pfxs(client, &meta, stats, it, cb) != 0) {
+  if (send_pfxs(client, &meta, it, cb) != 0) {
     goto err;
   }
 
@@ -535,7 +530,7 @@ err:
 }
 
 static int send_diff_view(bgpview_io_kafka_t *client,
-                          bgpview_io_kafka_stats_t *stats, bgpview_t *view,
+                          bgpview_t *view,
                           bgpview_io_filter_cb_t *cb)
 {
   bgpview_iter_t *it = NULL;
@@ -557,7 +552,7 @@ static int send_diff_view(bgpview_io_kafka_t *client,
     goto err;
   }
 
-  if (send_pfxs(client, &meta, stats, it, cb) == -1) {
+  if (send_pfxs(client, &meta, it, cb) == -1) {
     goto err;
   }
 
@@ -586,13 +581,39 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
   rd_kafka_conf_t *conf = rd_kafka_conf_new();
   char errstr[512];
 
-  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "7000000", errstr,
+  if (bgpview_io_kafka_common_config(client, conf) != 0) {
+    goto err;
+  }
+
+  if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
   }
 
-  if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr,
+  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
+  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
+  // TODO: change this when librdkafka has better handling of idle disconnects
+  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
+  // Since our prefix table is a flood of messages, batch them up
+  if (rd_kafka_conf_set(conf, "batch.num.messages", "10000", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "ERROR: %s\n", errstr);
+    goto err;
+  }
+  // But don't wait very long before sending a partial batch (0.5s)
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.ms", "500", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "ERROR: %s\n", errstr);
+    goto err;
+  }
+  // And allow the queue to hold a full pfx table
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "7000000", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
@@ -609,7 +630,12 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
     goto err;
   }
 
-  return 0;
+  client->connected = 1;
+
+  // poll for errors
+  rd_kafka_poll(client->rdk_conn, 1000);
+
+  return client->fatal_error;
 
 err:
   return -1;
@@ -626,36 +652,36 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
 }
 
 int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
-                                   bgpview_io_kafka_stats_t *stats,
-                                   bgpview_t *view, bgpview_io_filter_cb_t *cb)
+                                   bgpview_t *view,
+                                   bgpview_io_filter_cb_t *cb)
 {
   time_t rawtime;
   time_t end;
   int length;
   time_t start1;
   time_t start2;
-  struct tm *timeinfo;
+
+  /* reset the stats */
+  memset(&client->stats, 0, sizeof(bgpview_io_kafka_stats_t));
 
   time(&start1);
 
   if (client->parent_view == NULL || client->num_diffs == client->max_diffs) {
-    if (send_sync_view(client, stats, view, cb) != 0) {
+    if (send_sync_view(client, view, cb) != 0) {
       goto err;
     }
   } else {
-    if (send_diff_view(client, stats, view, cb) != 0) {
+    if (send_diff_view(client, view, cb) != 0) {
       goto err;
     }
   }
 
   time(&rawtime);
-  timeinfo = localtime(&rawtime);
   time(&end);
   length = difftime(end, start1);
-  stats->send_time = length;
+  STAT(send_time) = length;
 
   time(&rawtime);
-  timeinfo = localtime(&rawtime);
   time(&start2);
 
   if ((client->parent_view == NULL &&
@@ -672,10 +698,9 @@ int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
   }
 
   time(&rawtime);
-  timeinfo = localtime(&rawtime);
   time(&end);
   length = difftime(end, start2);
-  stats->copy_time = length;
+  STAT(copy_time) = length;
 
   return 0;
 

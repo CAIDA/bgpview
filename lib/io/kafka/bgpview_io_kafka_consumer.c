@@ -477,16 +477,24 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client)
   if ((client->rdk_conn = rd_kafka_new(RD_KAFKA_CONSUMER, conf, errstr,
                                        sizeof(errstr))) == NULL) {
     fprintf(stderr, "ERROR: Failed to create new consumer: %s\n", errstr);
-    return -1;
+    goto err;
   }
 
   // Add brokers
   if (rd_kafka_brokers_add(client->rdk_conn, client->brokers) == 0) {
     fprintf(stderr, "ERROR: No valid brokers specified\n");
-    return -1;
+    goto err;
   }
 
-  return 0;
+  client->connected = 1;
+
+  // poll for connection errors
+  rd_kafka_poll(client->rdk_conn, 5000);
+
+  return client->fatal_error;
+
+ err:
+  return -1;
 }
 
 int bgpview_io_kafka_consumer_topic_connect(bgpview_io_kafka_t *client,

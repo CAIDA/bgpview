@@ -65,6 +65,9 @@
 /** A Sync frame will be sent once per N views */
 #define BGPVIEW_IO_KAFKA_SYNC_FREQUENCY 12
 
+/** Default number of times to retry a failed connection to Kafka */
+#define BGPVIEW_IO_KAFKA_CONNECT_MAX_RETRIES 8
+
 /** @} */
 
 /**
@@ -207,7 +210,6 @@ int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
 /** Queue the given View for transmission to Kafka
  *
  * @param client        pointer to a bgpview kafka client instance
- * @param stats         pointer to a bgpview kafka stats structure to fill
  * @param view          pointer to the view to transmit
  * @param cb            callback function to use to filter entries (may be NULL)
  * @return 0 if the view was transmitted successfully, -1 otherwise
@@ -216,7 +218,7 @@ int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
  * the view **will not** be present in the view received by Kafka.
  */
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
-                               bgpview_io_kafka_stats_t *stats, bgpview_t *view,
+                               bgpview_t *view,
                                bgpview_io_filter_cb_t *cb);
 
 /** Attempt to receive an BGP View from the bgpview server
@@ -240,5 +242,15 @@ int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client, bgpview_t *view,
                                bgpview_io_filter_peer_cb_t *peer_cb,
                                bgpview_io_filter_pfx_cb_t *pfx_cb,
                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+
+/** Get statistics about the last view that was sent
+ * (currently only valid for a producer)
+ *
+ * @param client        pointer to the client instance to get stats for
+ * @return borrowed pointer to a stats structure filled with information
+ * about the last sent view (values will be all zero if no views have been sent)
+ */
+bgpview_io_kafka_stats_t *
+bgpview_io_kafka_get_stats(bgpview_io_kafka_t *client);
 
 #endif /* __BGPVIEW_IO_KAFKA_H */

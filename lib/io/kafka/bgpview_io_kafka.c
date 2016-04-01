@@ -29,12 +29,108 @@
 #include <errno.h>
 #include <librdkafka/rdkafka.h>
 #include <string.h>
+#include <unistd.h>
 #ifdef HAVE_TIME_H
 #include <time.h>
 #endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
+
+/* ========== PRIVATE FUNCTIONS ========== */
+
+static void kafka_error_callback(rd_kafka_t *rk, int err,
+                                 const char *reason,
+                                 void *opaque)
+{
+  bgpview_io_kafka_t *client = (bgpview_io_kafka_t *)opaque;
+
+  switch (err) {
+    // fatal errors:
+  case RD_KAFKA_RESP_ERR__BAD_COMPRESSION:
+  case RD_KAFKA_RESP_ERR__RESOLVE:
+    client->fatal_error = 1;
+    // fall through
+
+    // recoverable? errors:
+  case RD_KAFKA_RESP_ERR__DESTROY:
+  case RD_KAFKA_RESP_ERR__FAIL:
+  case RD_KAFKA_RESP_ERR__TRANSPORT:
+  case RD_KAFKA_RESP_ERR__ALL_BROKERS_DOWN:
+    client->connected = 0;
+    break;
+  }
+
+  fprintf(stderr, "ERROR: %s (%d): %s\n", rd_kafka_err2str(err), err, reason);
+
+  // TODO: handle other errors
+}
+
+static int kafka_topic_connect(bgpview_io_kafka_t *client)
+{
+  typedef int (topic_connect_func_t)(bgpview_io_kafka_t *client,
+                                     rd_kafka_topic_t **rkt,
+                                     char *topic);
+
+  topic_connect_func_t *topic_connect_funcs[] = {
+    // BGPVIEW_IO_KAFKA_MODE_CONSUMER
+    bgpview_io_kafka_consumer_topic_connect,
+
+    // BGPVIEW_IO_KAFKA_MODE_PRODUCER
+    bgpview_io_kafka_producer_topic_connect,
+  };
+
+  fprintf(stderr, "INFO: Checking topic connections...\n");
+
+  if ((client->metadata_rkt == NULL &&
+       topic_connect_funcs[client->mode](client, &client->metadata_rkt,
+                                         client->metadata_topic) != 0)) {
+    goto err;
+  }
+  if ((client->peers_rkt == NULL &&
+       topic_connect_funcs[client->mode](client, &client->peers_rkt,
+                                         client->peers_topic) != 0)) {
+    goto err;
+  }
+  if ((client->pfxs_rkt == NULL &&
+       topic_connect_funcs[client->mode](client, &client->pfxs_rkt,
+                                         client->pfxs_topic) != 0)) {
+    goto err;
+  }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+/* ========== PROTECTED FUNCTIONS ========== */
+
+int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
+                                   rd_kafka_conf_t *conf)
+{
+  char errstr[512];
+
+  // Set the opaque pointer that will be passed to callbacks
+  rd_kafka_conf_set_opaque(conf, client);
+
+  // Set our error handler
+  rd_kafka_conf_set_error_cb(conf, kafka_error_callback);
+
+  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
+  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
+  // TODO: change this when librdkafka has better handling of idle disconnects
+  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
+  return 0;
+
+ err:
+  return -1;
+}
 
 /* ========== PUBLIC FUNCTIONS ========== */
 
@@ -85,6 +181,15 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
     return;
   }
 
+  int drain_wait_cnt = 12;
+  while (rd_kafka_outq_len(client->rdk_conn) > 0 && drain_wait_cnt > 0) {
+    fprintf(stderr,
+            "INFO: Waiting for Kafka queue to drain (currently %d messages)\n",
+            rd_kafka_outq_len(client->rdk_conn));
+    rd_kafka_poll(client->rdk_conn, 5000);
+    drain_wait_cnt--;
+  }
+
   free(client->brokers);
   client->brokers = NULL;
 
@@ -131,32 +236,44 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
   return;
 }
 
+typedef int (kafka_connect_func_t)(bgpview_io_kafka_t *client);
+
+static kafka_connect_func_t *kafka_connect_funcs[] = {
+  // BGPVIEW_IO_KAFKA_MODE_CONSUMER
+  bgpview_io_kafka_consumer_connect,
+
+  // BGPVIEW_IO_KAFKA_MODE_PRODUCER
+  bgpview_io_kafka_producer_connect,
+};
+
 int bgpview_io_kafka_start(bgpview_io_kafka_t *client)
 {
-  switch (client->mode) {
-  case BGPVIEW_IO_KAFKA_MODE_PRODUCER:
-    if (bgpview_io_kafka_producer_connect(client) != 0 ||
-        bgpview_io_kafka_producer_topic_connect(client, &client->metadata_rkt,
-                                                client->metadata_topic) != 0 ||
-        bgpview_io_kafka_producer_topic_connect(client, &client->peers_rkt,
-                                                client->peers_topic) != 0 ||
-        bgpview_io_kafka_producer_topic_connect(client, &client->pfxs_rkt,
-                                                client->pfxs_topic) != 0) {
-      goto err;
-    }
-    break;
+  int wait = 10;
+  int connect_retries = BGPVIEW_IO_KAFKA_CONNECT_MAX_RETRIES;
 
-  case BGPVIEW_IO_KAFKA_MODE_CONSUMER:
-    if (bgpview_io_kafka_consumer_connect(client) != 0 ||
-        bgpview_io_kafka_consumer_topic_connect(client, &client->metadata_rkt,
-                                                client->metadata_topic) != 0 ||
-        bgpview_io_kafka_consumer_topic_connect(client, &client->peers_rkt,
-                                                client->peers_topic) != 0 ||
-        bgpview_io_kafka_consumer_topic_connect(client, &client->pfxs_rkt,
-                                                client->pfxs_topic) != 0) {
+  while (client->connected == 0 && connect_retries > 0) {
+    if (kafka_connect_funcs[client->mode](client) != 0) {
       goto err;
     }
-    break;
+
+    connect_retries--;
+    if (client->connected == 0 && connect_retries > 0) {
+      fprintf(stderr,
+              "WARN: Failed to connect to Kafka. Retrying in %d seconds\n",
+              wait);
+      sleep(wait);
+      wait *= 2;
+      if (wait > 180) {
+        wait = 180;
+      }
+    }
+  }
+
+  if (client->connected == 0) {
+    fprintf(stderr,
+            "ERROR: Failed to connect to Kafka after %d retries. Giving up\n",
+            BGPVIEW_IO_KAFKA_CONNECT_MAX_RETRIES);
+    goto err;
   }
 
   return 0;
@@ -230,11 +347,14 @@ int bgpview_io_kafka_set_metadata_topic(bgpview_io_kafka_t *client,
 }
 
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
-                               bgpview_io_kafka_stats_t *stats, bgpview_t *view,
+                               bgpview_t *view,
                                bgpview_io_filter_cb_t *cb)
 {
-
-  return bgpview_io_kafka_producer_send(client, stats, view, cb);
+  // first, ensure all topics are connected
+  if (kafka_topic_connect(client) != 0) {
+    return -1;
+  }
+  return bgpview_io_kafka_producer_send(client, view, cb);
 }
 
 int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client, bgpview_t *view,
@@ -243,6 +363,16 @@ int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client, bgpview_t *view,
                                bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 
 {
+  // first, ensure all topics are connected
+  if (kafka_topic_connect(client) != 0) {
+    return -1;
+  }
   return bgpview_io_kafka_consumer_recv(client, view, peer_cb, pfx_cb,
                                         pfx_peer_cb);
+}
+
+bgpview_io_kafka_stats_t *
+bgpview_io_kafka_get_stats(bgpview_io_kafka_t *client)
+{
+  return &client->stats;
 }

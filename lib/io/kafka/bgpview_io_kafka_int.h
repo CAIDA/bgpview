@@ -37,6 +37,9 @@ struct bgpview_io_kafka {
   /** Is this a producer or a consumer? */
   bgpview_io_kafka_mode_t mode;
 
+  /** Structure to store tx statistics */
+  bgpview_io_kafka_stats_t stats;
+
   /**
    * The broker address/es. It is possible to use more than one broker by
    * separating them with a ","
@@ -45,6 +48,12 @@ struct bgpview_io_kafka {
 
   /** RD Kafka connection handle */
   rd_kafka_t *rdk_conn;
+
+  /** Are we connected to Kafka? */
+  int connected;
+
+  /** Has there been a fatal error? */
+  int fatal_error;
 
   /** Name of the topic to read/write prefix info to/from */
   char *pfxs_topic;
@@ -113,6 +122,10 @@ typedef struct bgpviewio_kafka_md {
 
 /** @} */
 
+/** Set up config options common to both producer and consumer */
+int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
+                                   rd_kafka_conf_t *conf);
+
 /* PRODUCER FUNCTIONS */
 
 /** Create a producer connection to Kafka */
@@ -131,7 +144,6 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
  * @return 0 if the view was sent successfully, -1 otherwise
  */
 int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
-                                   bgpview_io_kafka_stats_t *stats,
                                    bgpview_t *view, bgpview_io_filter_cb_t *cb);
 
 /* CONSUMER FUNCTIONS */
