@@ -39,7 +39,7 @@
 #define CONSUMER_METRIC_PREFIX       "view.consumer.kafka-sender"
 
 #define BUFFER_LEN 1024
-#define META_METRIC_PREFIX_FORMAT  "%s."CONSUMER_METRIC_PREFIX".meta.%s"
+#define META_METRIC_PREFIX_FORMAT  "%s."CONSUMER_METRIC_PREFIX".meta.%s.%s"
 
 /** A Sync frame will be sent once per N views */
 #define SYNC_FREQUENCY 12
@@ -70,6 +70,7 @@ typedef struct bvc_kafkasender_state {
 
   /* options */
   char *identity;
+  char *gr_identity;
   char *namespace;
   char *brokers;
 
@@ -100,6 +101,29 @@ typedef struct bvc_kafkasender_state {
 
 } bvc_kafkasender_state_t;
 
+static char *graphite_safe(char *p)
+{
+  if(p == NULL)
+    {
+      return p;
+    }
+
+  char *r = p;
+  while(*p != '\0')
+    {
+      if(*p == '.')
+	{
+	  *p = '_';
+	}
+      if(*p == '*')
+	{
+	  *p = '-';
+	}
+      p++;
+    }
+  return r;
+}
+
 /** Create timeseries metrics */
 static int create_ts_metrics(bvc_t *consumer)
 {
@@ -108,7 +132,7 @@ static int create_ts_metrics(bvc_t *consumer)
   bvc_kafkasender_state_t *state = STATE;
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "timing.send_time");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "timing.send_time");
   if((state->send_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -116,7 +140,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "timing.copy_time");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "timing.copy_time");
   if((state->copy_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -124,7 +148,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "timing.processing_time");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "timing.processing_time");
   if((state->proc_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -132,7 +156,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "timing.arrival_delay");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "timing.arrival_delay");
   if((state->arr_delay_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -140,7 +164,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "diffs.common_pfx_cnt");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.common_pfx_cnt");
   if((state->common_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -148,7 +172,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "diffs.added_pfx_cnt");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.added_pfx_cnt");
   if((state->add_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -156,7 +180,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "diffs.removed_pfx_cnt");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.removed_pfx_cnt");
   if((state->remove_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -164,7 +188,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "diffs.changed_pfx_cnt");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.changed_pfx_cnt");
   if((state->change_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -172,7 +196,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "sync.pfx_cnt");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "sync.pfx_cnt");
   if((state->sync_cnt_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -180,7 +204,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "pfx_cnt");
+           CHAIN_STATE->metric_prefix, state->gr_identity, "pfx_cnt");
   if((state->pfx_cnt_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -228,6 +252,8 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 	{
         case 'i':
           STATE->identity = strdup(optarg);
+          STATE->gr_identity = strdup(optarg);
+          graphite_safe(STATE->gr_identity);
           break;
 
         case 'k':
@@ -340,6 +366,9 @@ void bvc_kafkasender_destroy(bvc_t *consumer)
   free(state->identity);
   state->identity = NULL;
 
+  free(state->gr_identity);
+  state->gr_identity = NULL;
+
   free(state->namespace);
   state->namespace = NULL;
 
@@ -395,7 +424,7 @@ int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   uint64_t copy_end = zclock_time()/1000;
-  uint64_t copy_time = send_end - copy_end;
+  uint64_t copy_time = copy_end - send_end;
   uint64_t proc_time = copy_end - start_time;
 
   // set timeseries metrics

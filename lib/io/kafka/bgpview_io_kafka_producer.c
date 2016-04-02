@@ -92,6 +92,7 @@ err:
   return -1;
 }
 
+/* returns 0 if they are the same */
 static int diff_paths(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
 {
   bgpstream_as_path_store_path_id_t idxH =
@@ -99,7 +100,7 @@ static int diff_paths(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
   bgpstream_as_path_store_path_id_t idxC =
     bgpview_iter_pfx_peer_get_as_path_store_path_id(itC);
 
-  return bcmp(&idxH, &idxC, sizeof(bgpstream_as_path_store_path_id_t));
+  return bcmp(&idxH, &idxC, sizeof(bgpstream_as_path_store_path_id_t)) != 0;
 }
 
 static int diff_rows(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
@@ -119,8 +120,8 @@ static int diff_rows(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
     peerid = bgpview_iter_peer_get_peer_id(itC);
     if (bgpview_iter_seek_pfx_peer(parent_view_it, pfx, peerid,
                                    BGPVIEW_FIELD_ACTIVE,
-                                   BGPVIEW_FIELD_ACTIVE) == 1 ||
-        diff_paths(parent_view_it, itC) == 1) {
+                                   BGPVIEW_FIELD_ACTIVE) == 0 ||
+        diff_paths(parent_view_it, itC) != 0) {
       return 1;
     }
   }
