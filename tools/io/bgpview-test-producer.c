@@ -442,9 +442,9 @@ int main(int argc, char **argv)
                   continue;
                 }
               if(bgpview_iter_add_pfx_peer(iter,
-                                                   (bgpstream_pfx_t *)&test_prefix,
-                                                   peer_id,
-                                                   test_as_path) != 0)
+                                           (bgpstream_pfx_t *)&test_prefix,
+                                           peer_id,
+                                           test_as_path) != 0)
                 {
                   fprintf(stderr, "Could not add pfx info to table\n");
                   goto err;

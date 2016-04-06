@@ -40,6 +40,26 @@
 
 #define STAT(name) (client->stats.name)
 
+#define SEND_MSG(topic_id, partition, buf, len)                         \
+  do {                                                                  \
+    if (rd_kafka_produce(RKT(topic_id), (partition),                    \
+                         RD_KAFKA_MSG_F_COPY, (buf), (len),             \
+                         NULL, 0, NULL) == -1) {                        \
+      fprintf(stderr,                                                   \
+              "ERROR: Failed to produce to topic %s partition %i: %s\n", \
+              rd_kafka_topic_name(RKT(topic_id)),                       \
+              (partition),                                              \
+              rd_kafka_err2str(rd_kafka_errno2err(errno)));             \
+      rd_kafka_poll(client->rdk_conn, 0);                               \
+      goto err;                                                         \
+    }                                                                   \
+  } while (0)
+
+#define RESET_BUF(buf, ptr, written)            \
+  do {                                          \
+    (ptr) = (buf); (written) = 0;               \
+  } while (0)
+
 static int64_t get_offset(bgpview_io_kafka_t *client, char *topic,
                           int32_t partition)
 {
@@ -64,27 +84,12 @@ static int pfx_row_serialize(uint8_t *buf, size_t len, char operation,
   // serialize the operation that must be done with this row
   // "Update" or "Remove"
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, operation);
-
-  switch (operation) {
-  case 'U':
-    if ((s = bgpview_io_serialize_pfx_row(buf, (len - written), it, cb, 0)) ==
-        -1) {
-      goto err;
-    }
-    written += s;
-    buf += s;
-    break;
-
-  case 'R':
-    /* simply serialize the prefix */
-    if ((s = bgpview_io_serialize_pfx(buf, (len - written),
-                                      bgpview_iter_pfx_get_pfx(it))) == -1) {
-      goto err;
-    }
-    written += s;
-    buf += s;
-    break;
+  if ((s = bgpview_io_serialize_pfx_row(buf, (len - written), it, cb,
+                                        operation == 'R' ? -1 : 0)) == -1) {
+    goto err;
   }
+  written += s;
+  buf += s;
 
   return written;
 
@@ -92,8 +97,48 @@ err:
   return -1;
 }
 
+static int pfx_row_start(uint8_t *buf, size_t len, char operation,
+                         bgpstream_pfx_t *pfx)
+{
+  size_t written = 0;
+  ssize_t s;
+
+  // serialize the operation that must be done with this row
+  // "Update" or "Remove"
+  BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, operation);
+
+  // send the prefix
+  if ((s = bgpview_io_serialize_pfx(buf, (len - written), pfx))
+      == -1) {
+    goto err;
+  }
+  written += s;
+  buf += s;
+
+  return written;
+
+ err:
+  return -1;
+}
+
+static int pfx_row_end(uint8_t *buf, size_t len, uint16_t peer_cnt)
+{
+  size_t written = 0;
+  uint16_t u16;
+
+  /* send a magic peerid to indicate end of peers */
+  u16 = BGPVIEW_IO_END_OF_PEERS;
+  BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, u16);
+
+  /* peer cnt for cross validation */
+  u16 = htons(peer_cnt);
+  BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, u16);
+
+  return written;
+}
+
 /* returns 0 if they are the same */
-static int diff_paths(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
+static int diff_cells(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
 {
   bgpstream_as_path_store_path_id_t idxH =
     bgpview_iter_pfx_peer_get_as_path_store_path_id(parent_view_it);
@@ -103,6 +148,8 @@ static int diff_paths(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
   return bcmp(&idxH, &idxC, sizeof(bgpstream_as_path_store_path_id_t)) != 0;
 }
 
+#if 0
+/* returns 0 if they are the same */
 static int diff_rows(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
 {
   int npeersH =
@@ -127,6 +174,7 @@ static int diff_rows(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
   }
   return 0;
 }
+#endif
 
 /* ==========END SUPPORT FUNCTIONS ========== */
 
@@ -153,17 +201,9 @@ int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
   /* Wall time (or 0 in the case that we are shutting down) */
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, time_now);
 
-  if (rd_kafka_produce(
-                       RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS),
-                       BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT,
-                       RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
-    fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS)),
-            BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT,
-            rd_kafka_err2str(rd_kafka_errno2err(errno)));
-    rd_kafka_poll(client->rdk_conn, 0);
-    goto err;
-  }
+  SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS,
+           BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT,
+           buf, written);
 
   client->prod_state.next_members_update =
     time_now + BGPVIEW_IO_KAFKA_MEMBERS_UPDATE_INTERVAL_DEFAULT;
@@ -227,17 +267,9 @@ static int send_metadata(bgpview_io_kafka_t *client,
     goto err;
   }
 
-  if (rd_kafka_produce(
-        RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
-        BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
-        RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
-    fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META)),
-            BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
-            rd_kafka_err2str(rd_kafka_errno2err(errno)));
-    rd_kafka_poll(client->rdk_conn, 0);
-    goto err;
-  }
+  SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_META,
+           BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
+           buf, written);
 
   /* Wait for messages to be delivered */
   while (rd_kafka_outq_len(client->rdk_conn) > 0) {
@@ -298,9 +330,6 @@ static int send_peers(bgpview_io_kafka_t *client,
     /* past here means this peer is being sent */
     peers_tx++;
 
-    written = 0;
-    ptr = buf;
-
     type = 'P';
     BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, type);
 
@@ -310,21 +339,11 @@ static int send_peers(bgpview_io_kafka_t *client,
       goto err;
     }
 
-    if (rd_kafka_produce(
-          RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
-          BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
-          RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
-      fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-              rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS)),
-              BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
-              rd_kafka_err2str(rd_kafka_errno2err(errno)));
-      rd_kafka_poll(client->rdk_conn, 0);
-      goto err;
-    }
+    SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS,
+             BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+             buf, written);
+    RESET_BUF(buf, ptr, written);
   }
-
-  written = 0;
-  ptr = buf;
 
   /* End message */
   type = 'E';
@@ -334,17 +353,9 @@ static int send_peers(bgpview_io_kafka_t *client,
   /* Peer Count */
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, peers_tx);
 
-  if (rd_kafka_produce(
-        RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
-        BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
-        RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
-    fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS)),
-            BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
-            rd_kafka_err2str(rd_kafka_errno2err(errno)));
-    rd_kafka_poll(client->rdk_conn, 0);
-    goto err;
-  }
+  SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS,
+           BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+           buf, written);
 
   while (rd_kafka_outq_len(client->rdk_conn) > 0) {
     rd_kafka_poll(client->rdk_conn, 100);
@@ -374,9 +385,13 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   bgpview_t *view = bgpview_iter_get_view(it);
   assert(view != NULL);
   bgpstream_pfx_t *pfx;
+  bgpstream_peer_id_t peerid;
 
-  int send;
-  int pfxs_tx = 0;
+  int send_cell;
+  int cell_cnt;
+  int common_cells;
+  uint32_t pfxs_tx = 0;
+  uint32_t cells_tx = 0;
 
   int pfxs_cnt_ref = 0;
   int pfxs_cnt_cur = 0;
@@ -399,7 +414,6 @@ static int send_pfxs(bgpview_io_kafka_t *client,
     /* reset the buffer */
     written = 0;
     ptr = buf;
-    send = 1;
 
     if (cb != NULL) {
       if ((filter = cb(it, BGPVIEW_IO_FILTER_PFX)) < 0) {
@@ -415,38 +429,150 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       if (bgpview_iter_seek_pfx(parent_view_it, pfx,
                                 BGPVIEW_FIELD_ACTIVE) == 1) {
         STAT(common_pfxs_cnt)++;
-        if (diff_rows(parent_view_it, it) == 1) {
+        cell_cnt = 0;
+        common_cells = 0;
+        // for each pfx-peer in this row, see if it has changed
+        for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+             bgpview_iter_pfx_has_more_peer(it);
+             bgpview_iter_pfx_next_peer(it))
+          {
+            peerid = bgpview_iter_peer_get_peer_id(it);
+            send_cell = 0;
+            // does this pfx-peer exist in the parent view?
+            if (bgpview_iter_pfx_seek_peer(parent_view_it, peerid,
+                                           BGPVIEW_FIELD_ACTIVE) == 1) {
+              // ok, it exists, but has it changed?
+              if (diff_cells(parent_view_it, it) != 0) {
+                // cell has changed wrt parent
+                send_cell = 1;
+                STAT(changed_pfx_peer_cnt)++;
+              }
+              common_cells++;
+            } else {
+              // doesn't exist in the parent, send it
+              STAT(added_pfx_peer_cnt)++;
+              send_cell = 1;
+            }
+
+            if (send_cell != 0) {
+              // is this the first cell?
+              if (cell_cnt == 0) {
+                if ((s = pfx_row_start(ptr, (len - written), 'U',
+                                       bgpview_iter_pfx_get_pfx(it)))
+                    == -1) {
+                  goto err;
+                }
+                written += s;
+                ptr += s;
+                pfxs_tx++;
+              }
+              // send the cell
+              if ((s =
+                   bgpview_io_serialize_pfx_peer(ptr, (len - written), it, 0))
+                  == -1) {
+                goto err;
+              }
+              written += s;
+              ptr += s;
+              cell_cnt++;
+              cells_tx++;
+            }
+          }
+        // if there were cells, we sent something, end the row
+        if (cell_cnt > 0) {
           STAT(changed_pfxs_cnt)++;
-          /* pfx has changed, send */
-        } else {
-          send = 0;
+          if ((s = pfx_row_end(ptr, (len - written), cell_cnt)) == -1) {
+            goto err;
+          }
+          written += s;
+          ptr += s;
+          SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+                   BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                   buf, written);
+          RESET_BUF(buf, ptr, written);
         }
+
+        // Chiara's optimization:
+        int ppc = bgpview_iter_pfx_get_peer_cnt(parent_view_it,
+                                                BGPVIEW_FIELD_ACTIVE);
+        int cpc =  bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
+        if (!(ppc == cpc && cpc == common_cells)) {
+          // there may have been deleted cells
+          // for each pfx-peer in the old row, see if it has disappeared
+          cell_cnt = 0;
+          for (bgpview_iter_pfx_first_peer(parent_view_it, BGPVIEW_FIELD_ACTIVE);
+               bgpview_iter_pfx_has_more_peer(parent_view_it);
+               bgpview_iter_pfx_next_peer(parent_view_it))
+            {
+              peerid = bgpview_iter_peer_get_peer_id(parent_view_it);
+              if (bgpview_iter_pfx_seek_peer(it, peerid,
+                                             BGPVIEW_FIELD_ACTIVE) != 1) {
+                // remove this cell
+                STAT(removed_pfx_peer_cnt)++;
+                if (cell_cnt == 0) {
+                  // send the pfx info now
+                  if ((s =
+                       pfx_row_start(ptr, (len - written), 'R',
+                                     bgpview_iter_pfx_get_pfx(parent_view_it)))
+                      == -1) {
+                    goto err;
+                  }
+                  written += s;
+                  ptr += s;
+                  pfxs_tx++;
+                }
+                if ((s =
+                     bgpview_io_serialize_pfx_peer(ptr, (len - written),
+                                                   parent_view_it, -1))
+                    == -1) {
+                  goto err;
+                }
+                written += s;
+                ptr += s;
+                cell_cnt++;
+                cells_tx++;
+              }
+            }
+          // if we removed any cells, need to end the row
+          if (cell_cnt > 0) {
+            if ((s = pfx_row_end(ptr, (len - written), cell_cnt)) == -1) {
+              goto err;
+            }
+            written += s;
+            ptr += s;
+            SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+                     BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                     buf, written);
+            RESET_BUF(buf, ptr, written);
+          }
+        }
+      } else {
+        // send the full row
+        STAT(added_pfxs_cnt)++;
+        if ((s = pfx_row_serialize(ptr, len, 'U', it, cb)) < 0) {
+          goto err;
+        }
+        written += s;
+        ptr += s;
+        pfxs_tx++;
+        cells_tx += bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
+        SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+                 BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                 buf, written);
+        RESET_BUF(buf, ptr, written);
       }
-    }
-
-    if (send == 0) {
-      continue;
-    }
-
-    if ((s = pfx_row_serialize(ptr, len, 'U', it, cb)) < 0) {
-      goto err;
-    }
-    written += s;
-    ptr += s;
-
-    pfxs_tx++;
-
-    if (rd_kafka_produce(
-          RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
-          BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-          RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
-      fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-              rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS)),
-              BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-              rd_kafka_err2str(rd_kafka_errno2err(errno)));
-      // Poll to handle delivery reports
-      rd_kafka_poll(client->rdk_conn, 0);
-      goto err;
+    } else { // SYNC view, send the full row
+      if ((s = pfx_row_serialize(ptr, len, 'U', it, cb)) < 0) {
+        goto err;
+      }
+      written += s;
+      ptr += s;
+      pfxs_tx++;
+      cells_tx += bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
+      SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+               BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+               buf, written);
+      RESET_BUF(buf, ptr, written);
     }
   }
   rd_kafka_poll(client->rdk_conn, 0);
@@ -489,18 +615,10 @@ static int send_pfxs(bgpview_io_kafka_t *client,
 
         remain--;
         pfxs_tx++;
-        if (rd_kafka_produce(
-              RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
-              BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-              RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
-          fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i\n"
-                          "Kafka Error: %s\n",
-                  rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS)),
-                  BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-                  rd_kafka_err2str(rd_kafka_errno2err(errno)));
-          rd_kafka_poll(client->rdk_conn, 0);
-          goto err;
-        }
+        SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+                 BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                 buf, written);
+        RESET_BUF(buf, ptr, written);
 
         /* stop looking if we have removed all we need to */
         if (remain == 0) {
@@ -522,23 +640,14 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   /* Time */
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, meta->time);
   /* Prefix count */
-  uint32_t pfx_cnt = bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE);
-  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, pfx_cnt);
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, pfxs_tx);
   /* Cell count */
-  /* @todo */
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, cells_tx);
 
-  if (rd_kafka_produce(
-        RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
-        BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-        RD_KAFKA_MSG_F_COPY, buf, written, NULL, 0, NULL) == -1) {
-    fprintf(stderr, "ERROR: Failed to produce to topic %s partition %i: %s\n",
-            rd_kafka_topic_name(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS)),
-            BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-            rd_kafka_err2str(rd_kafka_errno2err(errno)));
-    // Poll to handle delivery reports
-    rd_kafka_poll(client->rdk_conn, 0);
-    return -1;
-  }
+  SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+           BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+           buf, written);
+  RESET_BUF(buf, ptr, written);
 
   return 0;
 

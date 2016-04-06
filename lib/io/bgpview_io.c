@@ -32,9 +32,6 @@
 #define BW_INTERNAL_AF_INET  4
 #define BW_INTERNAL_AF_INET6 6
 
-/** Magic number that denotes the end of the peers array */
-#define END_OF_PEERS 0xffff
-
 int bgpview_io_serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip)
 {
   size_t written = 0;
@@ -297,22 +294,59 @@ bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
   return -1;
 }
 
-int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
-                                   bgpview_iter_t *it,
-                                   int *peers_cnt,
-                                   bgpview_io_filter_cb_t *cb,
-                                   int use_pathid)
+int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
+                                  bgpview_iter_t *it,
+                                  int use_pathid)
 {
   uint16_t peerid;
 
   bgpstream_as_path_store_path_t *spath;
   uint32_t idx;
 
-  uint8_t *ptr = buf;
   size_t written = 0;
   ssize_t s;
 
+  peerid = bgpview_iter_peer_get_peer_id(it);
+
+  /* peer id */
+  assert(peerid > 0);
+  assert(peerid < BGPVIEW_IO_END_OF_PEERS);
+  peerid = htons(peerid);
+  BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, peerid);
+
+  /* AS Path */
+  spath = bgpview_iter_pfx_peer_get_as_path_store_path(it);
+  if(use_pathid == 1)
+    {
+      idx = bgpstream_as_path_store_path_get_idx(spath);
+      BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, idx);
+    }
+  else if(use_pathid == 0)
+    {
+      if((s = bgpview_io_serialize_as_path_store_path(buf, (len-written),
+                                                      spath)) == -1)
+        {
+          goto err;
+        }
+      written += s;
+      buf += s;
+    }
+
+  return written;
+
+ err:
+  return -1;
+}
+
+int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
+                                   bgpview_iter_t *it,
+                                   int *peers_cnt,
+                                   bgpview_io_filter_cb_t *cb,
+                                   int use_pathid)
+{
   int filter;
+  size_t written = 0;
+  ssize_t s;
 
   assert(peers_cnt != NULL);
   *peers_cnt = 0;
@@ -334,31 +368,13 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
             }
         }
 
-      peerid = bgpview_iter_peer_get_peer_id(it);
-
-      /* peer id */
-      assert(peerid > 0);
-      assert(peerid < END_OF_PEERS);
-      peerid = htons(peerid);
-      BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, peerid);
-
-      /* AS Path */
-      spath = bgpview_iter_pfx_peer_get_as_path_store_path(it);
-      if(use_pathid != 0)
+      if ((s = bgpview_io_serialize_pfx_peer(buf, (len-written),
+                                             it, use_pathid)) == -1)
         {
-          idx = bgpstream_as_path_store_path_get_idx(spath);
-          BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, idx);
+          goto err;
         }
-      else
-        {
-          if((s = bgpview_io_serialize_as_path_store_path(ptr, (len-written),
-                                                          spath)) == -1)
-            {
-              goto err;
-            }
-          written += s;
-          ptr += s;
-        }
+      written += s;
+      buf += s;
 
       (*peers_cnt)++;
     }
@@ -409,7 +425,7 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
     }
 
   /* send a magic peerid to indicate end of peers */
-  u16 = END_OF_PEERS;
+  u16 = BGPVIEW_IO_END_OF_PEERS;
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, u16);
 
   /* peer cnt for cross validation */
@@ -430,7 +446,8 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
                                    bgpstream_peer_id_t *peerid_map,
                                    int peerid_map_cnt,
                                    bgpstream_as_path_store_path_id_t *pathid_map,
-                                   int pathid_map_cnt)
+                                   int pathid_map_cnt,
+                                   bgpview_field_state_t state)
 {
   size_t read = 0;
   size_t s = 0;
@@ -490,7 +507,7 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
       BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, peerid);
       peerid = ntohs(peerid);
 
-      if(peerid == END_OF_PEERS)
+      if(peerid == BGPVIEW_IO_END_OF_PEERS)
         {
           /* end of peers */
           break;
@@ -499,7 +516,7 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
       pfx_peer_rx++;
 
       /* are the paths actually serialized, or just an index? */
-      if (pathid_map_cnt >= 0)
+      if (pathid_map_cnt >= 0 && state == BGPVIEW_FIELD_ACTIVE)
         {
           /* AS Path Index */
           BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, pathidx);
@@ -508,7 +525,7 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
               pathid = pathid_map[pathidx];
             }
         }
-      else
+      else if(state == BGPVIEW_FIELD_ACTIVE)
         {
           /* we ask to deserialize (and insert) the path into the store */
           if ((s =
@@ -545,44 +562,67 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
             }
         }
 
-      if(pfx_peers_added == 0)
+      if(state == BGPVIEW_FIELD_ACTIVE)
         {
-          /* to be sure, deactivate the prefix first */
-          if((bgpview_iter_seek_pfx(it, (bgpstream_pfx_t *)&pfx,
-                                    BGPVIEW_FIELD_ACTIVE) != 0) &&
-             (bgpview_iter_deactivate_pfx(it) != 1))
+          if(pfx_peers_added == 0)
             {
-              goto err;
+              /* we have to use add_pfx_peer */
+              if(bgpview_iter_add_pfx_peer_by_id(it,
+                                                 (bgpstream_pfx_t *)&pfx,
+                                                 peerid_map[peerid],
+                                                 pathid) != 0)
+                {
+                  fprintf(stderr, "Could not add prefix\n");
+                  goto err;
+                }
             }
-          /* we have to use add_pfx_peer */
-          if(bgpview_iter_add_pfx_peer_by_id(it,
-                                             (bgpstream_pfx_t *)&pfx,
-                                             peerid_map[peerid],
-                                             pathid) != 0)
+          else
             {
-              fprintf(stderr, "Could not add prefix\n");
-              goto err;
+              /* we can use pfx_add_peer for efficiency */
+              if(bgpview_iter_pfx_add_peer_by_id(it,
+                                                 peerid_map[peerid],
+                                                 pathid) != 0)
+                {
+                  fprintf(stderr, "Could not add prefix\n");
+                  goto err;
+                }
             }
+          if(bgpview_iter_pfx_activate_peer(it) < 0) {
+            fprintf(stderr, "Could not activate prefix\n");
+            goto err;
+          }
         }
       else
         {
-          /* we can use pfx_add_peer for efficiency */
-          if(bgpview_iter_pfx_add_peer_by_id(it,
-                                             peerid_map[peerid],
-                                             pathid) != 0)
+          if(pfx_peers_added == 0)
             {
-              fprintf(stderr, "Could not add prefix\n");
-              goto err;
+              /* seek to pfx-peer */
+              if(bgpview_iter_seek_pfx_peer(it,
+                                            (bgpstream_pfx_t *)&pfx,
+                                            peerid_map[peerid],
+                                            BGPVIEW_FIELD_ALL_VALID,
+                                            BGPVIEW_FIELD_ALL_VALID) != 1)
+                {
+                  goto err;
+                }
             }
+          else
+            {
+              /* seek to peer */
+              if(bgpview_iter_pfx_seek_peer(it,
+                                            peerid_map[peerid],
+                                            BGPVIEW_FIELD_ALL_VALID) != 1)
+                {
+                  goto err;
+                }
+            }
+          if(bgpview_iter_pfx_deactivate_peer(it) < 0) {
+            fprintf(stderr, "Could not deactivate prefix\n");
+            goto err;
+          }
         }
-      pfx_peers_added++;
 
-      /* now we have to activate it */
-      if(bgpview_iter_pfx_activate_peer(it) < 0)
-        {
-          fprintf(stderr, "Could not activate prefix\n");
-          goto err;
-        }
+      pfx_peers_added++;
     }
 
   /* peer cnt */

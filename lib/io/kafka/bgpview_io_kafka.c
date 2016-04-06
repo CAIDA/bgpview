@@ -312,6 +312,11 @@ int bgpview_io_kafka_start(bgpview_io_kafka_t *client)
     goto err;
   }
 
+  // connect to topics (esp for members topic)
+  if (kafka_topic_connect(client) != 0) {
+    return -1;
+  }
+
   return 0;
 
 err:

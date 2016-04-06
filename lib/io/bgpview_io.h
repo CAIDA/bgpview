@@ -41,6 +41,9 @@ typedef enum {
 
 } bgpview_io_filter_type_t;
 
+/** Magic number that denotes the end of the peers array */
+#define BGPVIEW_IO_END_OF_PEERS 0xffff
+
 /** Convenience macro to serialize a simple variable into a byte array.
  *
  * @param buf           pointer to the buffer (will be updated)
@@ -51,8 +54,8 @@ typedef enum {
 #define BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, from)           \
   do {                                                              \
     size_t s;                                                       \
-    assert((len-written) >= sizeof(from));                          \
-    memcpy(buf, &from, sizeof(from));                               \
+    assert(((len)-(written)) >= sizeof((from)));                    \
+    memcpy((buf), &(from), sizeof(from));                           \
     s = sizeof(from);                                               \
     written += s;                                                   \
     buf += s;                                                       \
@@ -69,8 +72,8 @@ typedef enum {
 #define BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, to)  \
   do {							\
     size_t s;                                           \
-    assert((len-read) >= sizeof(to));			\
-    memcpy(&to, buf, sizeof(to));			\
+    assert(((len)-(read)) >= sizeof(to));               \
+    memcpy(&(to), (buf), sizeof(to));			\
     s = sizeof(to);					\
     read += s;						\
     buf += s;						\
@@ -198,10 +201,31 @@ int bgpview_io_deserialize_peer(uint8_t *buf, size_t len,
 int bgpview_io_serialize_as_path_store_path(uint8_t *buf, size_t len,
                                          bgpstream_as_path_store_path_t *spath);
 
+/** Deserialize the given AS Path Store Path
+ *
+ * @param buf           pointer to the buffer to deserialize from
+ * @param len           length of the buffer
+ * @param spath         pointer to the Store Path to deserialize
+ * @return the number of bytes read, or -1 on an error
+ */
 int
 bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
                                      bgpstream_as_path_store_t *store,
                                      bgpstream_as_path_store_path_id_t *pathid);
+
+/** Serialize the current pfx-peer
+ *
+ * @param buf           pointer to the buffer to serialize into
+ * @param len           length of the buffer
+ * @param it            pointer to a valid BGPView iterator
+ * @param use_pathid    if 1, only path IDs will be serialized, not the
+ *                      actual paths, if -1, then no path information will be
+ *                      included
+ * @return the number of bytes written, or -1 on error
+ */
+int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
+                                  bgpview_iter_t *it,
+                                  int use_pathid);
 
 /** Serialize the pfx-peers of the current prefix
  *
@@ -210,8 +234,9 @@ bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
  * @param it            pointer to a valid BGPView iterator
  * @param peers_cnt[out] will be set to the number of pfx-peers serialized
  * @param cb            pointer to a filter callback
- * @param use_pathid    if set, only path IDs will be serialized, not the
- *                      actual paths
+ * @param use_pathid    if 1, only path IDs will be serialized, not the
+ *                      actual paths, if -1, then no path information will be
+ *                      included
  * @return the number of bytes written, or -1 on error
  */
 int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
@@ -226,8 +251,9 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
  * @param len           length of the buffer
  * @param it            pointer to a valid BGPView iterator
  * @param cb            pointer to a filter callback
- * @param use_pathid    if set, only path IDs will be serialized, not the
- *                      actual paths
+ * @param use_pathid    if 1, only path IDs will be serialized, not the
+ *                      actual paths, if -1, then no path information will be
+ *                      included
  * @return the number of bytes written, 0 if there were no peers to write, or -1
  * on error
  */
@@ -248,6 +274,8 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
  * @param peerid_map_cnt number of elements in the peerid_map
  * @param pathid_map    pointer to a mapping from serialized path index to IDs
  *                      in the path store
+ * @param state         indicates if the deserialized cells should be activated
+ *                      or deactivated
  * @return the number of bytes read, or -1 on error
  *
  * If the pathid_map_cnt is < 0, then it is assumed that the full path is
@@ -261,6 +289,7 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
                                    bgpstream_peer_id_t *peerid_map,
                                    int peerid_map_cnt,
                                    bgpstream_as_path_store_path_id_t *pathid_map,
-                                   int pathid_map_cnt);
+                                   int pathid_map_cnt,
+                                   bgpview_field_state_t state);
 
 #endif /* __BGPVIEW_IO_H */

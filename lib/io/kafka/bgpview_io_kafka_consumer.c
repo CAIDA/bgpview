@@ -341,8 +341,8 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
 
   char type;
 
-  bgpstream_pfx_storage_t pfx;
-  int pfx_cnt = 0;
+  uint32_t pfx_cnt = 0;
+  uint32_t cell_cnt = 0;
   int pfx_rx = 0;
 
   int tor = 0;
@@ -383,6 +383,7 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
       assert(view_time == exp_time);
       BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, pfx_cnt);
       assert(pfx_rx == pfx_cnt);
+      BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, cell_cnt);
       assert(read == msg->len);
 
       rd_kafka_message_destroy(msg);
@@ -400,7 +401,8 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
       if ((s = bgpview_io_deserialize_pfx_row(
              ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
              client->dc_state.peerid_map,
-             client->dc_state.peerid_map_alloc_cnt, NULL, -1)) ==
+             client->dc_state.peerid_map_alloc_cnt, NULL, -1,
+             BGPVIEW_FIELD_ACTIVE)) ==
           -1) {
         goto err;
       }
@@ -411,18 +413,16 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
     case 'R':
       /* a remove row */
       tor++;
-      /* just grab the prefix and then deactivate it */
-      if ((s = bgpview_io_deserialize_pfx(ptr, (msg->len - read), &pfx)) ==
+      if ((s = bgpview_io_deserialize_pfx_row(
+             ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
+             client->dc_state.peerid_map,
+             client->dc_state.peerid_map_alloc_cnt, NULL, -1,
+             BGPVIEW_FIELD_INACTIVE)) ==
           -1) {
         goto err;
       }
       read += s;
       ptr += s;
-      if ((bgpview_iter_seek_pfx(iter, (bgpstream_pfx_t *)&pfx,
-                                 BGPVIEW_FIELD_ACTIVE) != 0) &&
-          (bgpview_iter_deactivate_pfx(iter) != 1)) {
-        goto err;
-      }
       break;
     }
 

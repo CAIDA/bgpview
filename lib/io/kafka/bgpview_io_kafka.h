@@ -94,7 +94,7 @@ typedef struct bgpview_io_kafka bgpview_io_kafka_t;
 typedef struct bgpview_io_kafka_stats {
 
   /** The number of prefixes in common between this view and the previous view
-      (only set when sending a diff */
+      (only set when sending a diff) */
   int common_pfxs_cnt;
 
   /** The number of prefixes that were added wrt the previous view (only set
@@ -108,6 +108,18 @@ typedef struct bgpview_io_kafka_stats {
   /** The number of prefixes that were changed wrt the previous view (only set
       when sending a diff) */
   int changed_pfxs_cnt;
+
+  /** The number of pfx-peer cells that were added wrt the previous view (only
+      set when sending a diff) */
+  int added_pfx_peer_cnt;
+
+  /** The total number of pfx-peer cells that were changed wrt the previous view
+      (only set when sending a diff) */
+  int changed_pfx_peer_cnt;
+
+  /** The total number of pfx-peer cells that were removed wrt the previous view
+      (only set when sending a diff) */
+  int removed_pfx_peer_cnt;
 
   /** The number of prefixes sent in the current view (added + changed in the
       case of a diff) */

@@ -387,13 +387,13 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
 
   peerinfo = BWV_PFX_GET_PEER_PTR(iter->view, v, peerid);
 
+  peerinfo->as_path_id = path_id;
+
   /* it was already here and active... */
   if(BWV_PFX_GET_PEER_STATE(v, peerid) != BGPVIEW_FIELD_INVALID)
     {
       return 0;
     }
-
-  peerinfo->as_path_id = path_id;
 
   BWV_PFX_SET_PEER_STATE(v, peerid, BGPVIEW_FIELD_INACTIVE);
 
@@ -1330,10 +1330,10 @@ bgpview_iter_has_more_pfx_peer(bgpview_iter_t *iter)
 
 int
 bgpview_iter_seek_pfx_peer(bgpview_iter_t *iter,
-                                   bgpstream_pfx_t *pfx,
-                                   bgpstream_peer_id_t peerid,
-                                   uint8_t pfx_mask,
-                                   uint8_t peer_mask)
+                           bgpstream_pfx_t *pfx,
+                           bgpstream_peer_id_t peerid,
+                           uint8_t pfx_mask,
+                           uint8_t peer_mask)
 {
   // all these filters are reset to default, and then
   // set by the single seek fuctions
@@ -1514,8 +1514,7 @@ bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter,
     }
 
   /* now seek to the prefix */
-  if(bgpview_iter_seek_pfx(iter, pfx,
-                                   BGPVIEW_FIELD_ALL_VALID) == 0)
+  if(bgpview_iter_seek_pfx(iter, pfx, BGPVIEW_FIELD_ALL_VALID) == 0)
     {
       /* we have to first create (or un-invalid) the prefix */
       if(add_pfx(iter, pfx) != 0)
@@ -1588,6 +1587,7 @@ bgpview_iter_pfx_add_peer(bgpview_iter_t *iter,
   bgpstream_as_path_store_path_id_t path_id;
 
   __iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
+
   /* get the peer ASN */
   if(bgpstream_as_path_store_get_path_id(iter->view->pathstore,
                                          as_path,

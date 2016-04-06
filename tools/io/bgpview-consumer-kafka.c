@@ -447,15 +447,15 @@ int main(int argc, char **argv)
           break;
 
         case 'i':
-          identity = strdup(optarg);
+          identity = optarg;
           break;
 
 	case 'm':
-	  metric_prefix = strdup(optarg);
+	  metric_prefix = optarg;
 	  break;
 
         case 'n':
-          namespace = strdup(optarg);
+          namespace = optarg;
           break;
 
         case 'N':
@@ -463,7 +463,7 @@ int main(int argc, char **argv)
           break;
 
 	case 'b':
-	  backends[backends_cnt++] = strdup(optarg);
+	  backends[backends_cnt++] = optarg;
 	  break;
 
 	case 'c':
@@ -563,7 +563,6 @@ int main(int argc, char **argv)
 	}
 
       /* free the string we dup'd */
-      free(backends[i]);
       backends[i] = NULL;
     }
 
@@ -645,10 +644,6 @@ int main(int argc, char **argv)
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
-  if(metric_prefix !=NULL)
-    {
-      free(metric_prefix);
-    }
   fprintf(stderr, "INFO: Shutdown complete\n");
 
   /* complete successfully */
@@ -659,10 +654,6 @@ int main(int argc, char **argv)
   if(client != NULL) {
     bgpview_io_kafka_destroy(client);
   }
-  if(metric_prefix !=NULL)
-    {
-      free(metric_prefix);
-    }
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);

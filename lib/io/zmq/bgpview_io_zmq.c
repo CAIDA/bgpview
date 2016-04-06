@@ -234,7 +234,8 @@ static int recv_pfxs(void *src, bgpview_iter_t *it,
                                           peerid_map,
                                           peerid_map_cnt,
                                           pathid_map,
-                                          pathid_map_cnt)) == -1)
+                                          pathid_map_cnt,
+                                          BGPVIEW_FIELD_ACTIVE)) == -1)
         {
           goto err;
         }

@@ -91,12 +91,14 @@ typedef struct bvc_kafkasender_state {
   int proc_time_idx;
   int arr_delay_time_idx;
 
-  int common_idx;
-  int add_idx;
-  int remove_idx;
-  int change_idx;
+  int common_pfx_idx;
+  int added_pfx_idx;
+  int removed_pfx_idx;
+  int changed_pfx_idx;
+  int added_pfx_peer_idx;
+  int changed_pfx_peer_idx;
+  int removed_pfx_peer_idx;
   int pfx_cnt_idx;
-
   int sync_cnt_idx;
 
 } bvc_kafkasender_state_t;
@@ -148,7 +150,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, state->gr_identity, "timing.processing_time");
+           CHAIN_STATE->metric_prefix, state->gr_identity,"timing.processing_time");
   if((state->proc_time_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
@@ -165,7 +167,7 @@ static int create_ts_metrics(bvc_t *consumer)
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.common_pfx_cnt");
-  if((state->common_idx =
+  if((state->common_pfx_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
@@ -173,7 +175,7 @@ static int create_ts_metrics(bvc_t *consumer)
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.added_pfx_cnt");
-  if((state->add_idx =
+  if((state->added_pfx_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
@@ -181,7 +183,7 @@ static int create_ts_metrics(bvc_t *consumer)
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.removed_pfx_cnt");
-  if((state->remove_idx =
+  if((state->removed_pfx_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
@@ -189,7 +191,31 @@ static int create_ts_metrics(bvc_t *consumer)
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.changed_pfx_cnt");
-  if((state->change_idx =
+  if((state->changed_pfx_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.added_pfx_peer_cnt");
+  if((state->added_pfx_peer_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.changed_pfx_peer_cnt");
+  if((state->changed_pfx_peer_idx =
+      timeseries_kp_add_key(STATE->kp, buffer)) == -1)
+    {
+      return -1;
+    }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, state->gr_identity, "diffs.removed_pfx_peer_cnt");
+  if((state->removed_pfx_peer_idx =
       timeseries_kp_add_key(STATE->kp, buffer)) == -1)
     {
       return -1;
@@ -316,7 +342,8 @@ int bvc_kafkasender_init(bvc_t *consumer, int argc, char **argv)
     return -1;
   }
 
-  if(bgpview_io_kafka_set_broker_addresses(STATE->client,
+  if(STATE->brokers != NULL &&
+     bgpview_io_kafka_set_broker_addresses(STATE->client,
                                            STATE->brokers) != 0) {
     fprintf(stderr, "ERROR: Could not set broker addresses\n");
     return -1;
@@ -435,13 +462,19 @@ int bvc_kafkasender_process_view(bvc_t *consumer, bgpview_t *view)
   timeseries_kp_set(state->kp, state->proc_time_idx, proc_time);
   timeseries_kp_set(state->kp, state->arr_delay_time_idx, arrival_delay);
 
-  timeseries_kp_set(state->kp, state->common_idx, stats->common_pfxs_cnt);
-  timeseries_kp_set(state->kp, state->add_idx, stats->added_pfxs_cnt);
-  timeseries_kp_set(state->kp, state->remove_idx, stats->removed_pfxs_cnt);
-  timeseries_kp_set(state->kp, state->change_idx, stats->changed_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->common_pfx_idx, stats->common_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->added_pfx_idx, stats->added_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->removed_pfx_idx, stats->removed_pfxs_cnt);
+  timeseries_kp_set(state->kp, state->changed_pfx_idx, stats->changed_pfxs_cnt);
+
+  timeseries_kp_set(state->kp, state->added_pfx_peer_idx,
+                    stats->added_pfx_peer_cnt);
+  timeseries_kp_set(state->kp, state->changed_pfx_peer_idx,
+                    stats->changed_pfx_peer_cnt);
+  timeseries_kp_set(state->kp, state->removed_pfx_peer_idx,
+                    stats->removed_pfx_peer_cnt);
 
   timeseries_kp_set(state->kp, state->pfx_cnt_idx, stats->pfx_cnt);
-
   timeseries_kp_set(state->kp, state->sync_cnt_idx, stats->sync_pfx_cnt);
 
   // flush
