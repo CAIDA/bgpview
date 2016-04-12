@@ -131,6 +131,9 @@ typedef struct bvc_routedspace_state {
   /** first timestamp processed by view consumer */
   uint32_t first_ts;
 
+  /** current timestamp */
+  uint32_t ts;
+
   /** output folder */
   char output_folder[PATH_MAX];
 
@@ -498,13 +501,16 @@ void remove_old_prefixes(bgpstream_patricia_tree_t *pt,
                          bgpstream_patricia_node_t * node,
                          void* data)
 {
-  uint32_t *last_valid_ts = (uint32_t *) data;
+  bvc_t *consumer = (bvc_t *)data;
+    bvc_routedspace_state_t *state = STATE;
+
   perpfx_info_t *info = (perpfx_info_t *)bgpstream_patricia_tree_get_user(node);
   if(info != NULL)
     {
       /* remove prefixes which have last been seen more than 1 day ago */
-      if((info->last_observed) < (*last_valid_ts)-WINDOW_SIZE)
+      if((info->last_observed + state->window_size) <  state->ts)
         {
+
           bgpstream_patricia_tree_remove_node(pt, node);
         }
     }
@@ -525,36 +531,42 @@ int bvc_routedspace_process_view(bvc_t *consumer, uint8_t interests,
     }
 
   /* current view timestamp */
-  uint32_t ts = bgpview_get_time(view);
+  state->ts = bgpview_get_time(view);
 
   /* compute arrival delay */
-  state->arrival_delay = zclock_time()/1000 - ts;
+  state->arrival_delay = zclock_time()/1000 - state->ts;
 
   /* update first timestamp */
   if(state->first_ts == 0)
     {
-      state->first_ts = ts;
+      state->first_ts = state->ts;
     }
 
 
   /* compute the current window size */
   uint32_t current_window_size = state->window_size;
-  if(ts - state->first_ts < state->window_size)
+  if(state->ts - state->first_ts < state->window_size)
     {
-      current_window_size = ts - state->first_ts;
+      current_window_size = state->ts - state->first_ts;
     }
 
   /* remove stale prefixes from the patricia tree */
-  bgpstream_patricia_tree_walk(state->patricia, remove_old_prefixes, (void*) &ts);
+  bgpstream_patricia_tree_walk(state->patricia, remove_old_prefixes, (void*) consumer);
 
 
   /* output newly routed prefixes into a file (one file per view) */
-  FILE *fp = NULL;
+
+  /** wandio file handler */
+  iow_t *wandio_fh;
+
   char filename[PATH_MAX];
-  snprintf(filename, PATH_MAX, "%srouted-space.%"PRIu32".%"PRIu32"s-window.gz", state->output_folder, ts, state->window_size);
-  fp = fopen(filename, "w+");
-  if (fp == NULL)
+  snprintf(filename, PATH_MAX, "%srouted-space.%"PRIu32".%"PRIu32"s-window.gz",
+           state->output_folder, state->ts, state->window_size);
+
+  if((wandio_fh = wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                                 DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
     {
+      fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
       return -1;
     }
 
@@ -613,7 +625,12 @@ int bvc_routedspace_process_view(bvc_t *consumer, uint8_t interests,
           return -1;
         }
 
+      /* a prefix is not new routed by default */
       new_routed = 0;
+      if(state->first_ts == state->ts)
+        {
+          new_routed = 1;
+        }
 
       // get the user pointer
       ppi = (perpfx_info_t *)bgpstream_patricia_tree_get_user(patricia_node);
@@ -622,11 +639,11 @@ int bvc_routedspace_process_view(bvc_t *consumer, uint8_t interests,
       if(ppi == NULL)
         {
           /* if the program is here it means that this pfx did not exist */
-          bgpstream_patricia_tree_set_user(state->patricia, patricia_node, perpfx_info_create(ts));
+          bgpstream_patricia_tree_set_user(state->patricia, patricia_node, perpfx_info_create(state->ts));
 
-          /* check if the prefix overlaps with any other space */
-          if(bgpstream_patricia_tree_get_node_overlap_info(state->patricia, patricia_node)
-             & (~BGPSTREAM_PATRICIA_EXACT_MATCH))
+          /* if the prefix does not overlap with any other pfxs
+           * in the tree, then it's a new routed */
+          if(bgpstream_patricia_tree_get_node_overlap_info(state->patricia, patricia_node) == BGPSTREAM_PATRICIA_EXACT_MATCH)
             {
               new_routed = 1;
             }
@@ -634,14 +651,15 @@ int bvc_routedspace_process_view(bvc_t *consumer, uint8_t interests,
       else
         {
           /* otherwise update it with the latest ts */
-          perpfx_info_set_ts(ppi, ts);
-          new_routed = 0;
+          perpfx_info_set_ts(ppi, state->ts);
         }
 
       /* print the current prefixes on file */
-      if (fp != NULL)
+      if(wandio_printf(wandio_fh,"%"PRIu32"|%s|%d\n",
+                       state->ts, pfx_str, new_routed) == -1)
         {
-          fprintf(fp, "%d,%s,%d\n", ts, pfx_str, new_routed);
+          fprintf(stderr, "ERROR: Could not write data to file\n");
+          return -1;
         }
 
       /* update routed counters */
@@ -664,29 +682,28 @@ int bvc_routedspace_process_view(bvc_t *consumer, uint8_t interests,
 
     }
 
-  if (fp != NULL)
-    {
-      fclose(fp);
-    }
+  wandio_wdestroy(wandio_fh);
 
   /* write the .done file */
-  snprintf(filename, PATH_MAX, "%srouted-space.%"PRIu32".%"PRIu32"s-window.gz.done", state->output_folder, ts, state->window_size);
-  fp = fopen(filename, "w+");
-  if (fp == NULL)
+  snprintf(filename, PATH_MAX, "%srouted-space.%"PRIu32".%"PRIu32"s-window.gz.done",
+           state->output_folder, state->ts, state->window_size);
+  if((wandio_fh = wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                                 DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL)
     {
+      fprintf(stderr, "ERROR: Could not open %s for writing\n",filename);
       return -1;
     }
-  fclose(fp);
+  wandio_wdestroy(wandio_fh);
 
 
   /* destroy the view iterator */
   bgpview_iter_destroy(it);
 
   /* compute processed delay */
-  state->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
+  state->processed_delay = zclock_time()/1000 - state->ts;
   state->processing_time = state->processed_delay - state->arrival_delay;
 
-  output_metrics(consumer, ts, current_window_size);
+  output_metrics(consumer, state->ts, current_window_size);
 
   return 0;
 }
