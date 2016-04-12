@@ -22,18 +22,18 @@
  */
 
 
-#ifndef __BVC_ROUTEDSPACEMONITOR_H
-#define __BVC_ROUTEDSPACEMONITOR_H
+#ifndef __BVC_ROUTEDSPACE_H
+#define __BVC_ROUTEDSPACE_H
 
 /** @file
  *
  * @brief Header file that exposes the public interface of the bgpview 
  *  Route Space Monitor consumer
  *
- * @author Chiara Orsini
+ * @author Chiara Orsini, Pierre-Antoine Vervier
  *
  */
 
-BVC_GENERATE_PROTOS(routedspacemonitor)
+BVC_GENERATE_PROTOS(routedspace)
 
-#endif /* __BVC_ROUTEDSPACEMONITOR_H */
+#endif /* __BVC_ROUTEDSPACE_H */

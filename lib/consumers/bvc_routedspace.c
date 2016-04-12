@@ -36,17 +36,16 @@
 
 #include "bgpview_consumer_interface.h"
 
-#include "bvc_routedspacemonitor.h"
+#include "bvc_routedspace.h"
 
 /** Name of the consumer */
-#define NAME                                "routed-space-monitor"
+#define NAME                                "routed-space"
 
 /** Name of the consumer in metrics */
-#define CONSUMER_METRIC_PREFIX              "routed-space-monitor"
+#define CONSUMER_METRIC_PREFIX              "routed-space"
 
 #define METRIC_PREFIX_WIN_FORMAT            "%s."CONSUMER_METRIC_PREFIX".%"PRIu32"s-window.%s"
-#define METRIC_ROUTED_PREFIX_COUNT_FORMAT   "%s."CONSUMER_METRIC_PREFIX".%"PRIu32"s-routed-count.%s"
-//#define METRIC_PREFIX_OLD_ROUTED_COUNT    "%s."CONSUMER_METRIC_PREFIX".%"PRIu32"s-old-routed.%s"
+
 #define META_METRIC_PREFIX_FORMAT           "%s.meta.bgpview.consumer."NAME".%s"
 
 
@@ -61,24 +60,24 @@
 
 /* macro to access the current consumer state */
 #define STATE					\
-  (BVC_GET_STATE(consumer, routedspacemonitor))
+  (BVC_GET_STATE(consumer, routedspace))
 
 /* macro to access the current chain state, i.e.
  * the state variables shared by other consumers */
 #define CHAIN_STATE                             \
   (BVC_GET_CHAIN_STATE(consumer))
-  
+
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
 
 /* IPv6 default route */
 #define IPV6_DEFAULT_ROUTE "0::/0"
-  
+
 /* our 'class' */
-static bvc_t bvc_routedspacemonitor = {
-  BVC_ID_ROUTEDSPACEMONITOR,
+static bvc_t bvc_routedspace = {
+  BVC_ID_ROUTEDSPACE,
   NAME,
-  BVC_GENERATE_PTRS(routedspacemonitor)
+  BVC_GENERATE_PTRS(routedspace)
 };
 
 
@@ -89,12 +88,12 @@ typedef struct perpfx_info {
 
   /** last ts the prefix was observed */
   uint32_t last_observed;
-  
+
 } perpfx_info_t;
 
 
 /* our 'instance' */
-typedef struct bvc_routedspacemonitor_state {
+typedef struct bvc_routedspace_state {
 
   /** ts when the view arrived */
   uint32_t arrival_delay;
@@ -102,28 +101,26 @@ typedef struct bvc_routedspacemonitor_state {
   uint32_t processed_delay;
   /** processing time */
   uint32_t processing_time;
-  
-  /** Patricia Tree instance that holds the 
+
+  /** Patricia Tree instance that holds the
    *  visible prefixes */
   bgpstream_patricia_tree_t *patricia;
 
   /** Patricia Tree result structure
    *  (re-usable memory) */
   bgpstream_patricia_tree_result_set_t *results;
-  
-  /** Newly routed space PrefixSet structure */
-  bgpstream_pfx_storage_set_t *new_space;
-  
+
   /** To be filtered-out space PrefixSet structure */
   bgpstream_pfx_storage_set_t *filter;
 
   /* Currently routed prefixes */
   uint32_t routed_v4pfx_count;
   uint32_t routed_v6pfx_count;
-  
+
   /* New routed prefixes */
   uint32_t new_routed_v4pfx_count;
   uint32_t new_routed_v6pfx_count;
+
   /* Already routed prefixes */
   uint32_t old_routed_v4pfx_count;
   uint32_t old_routed_v6pfx_count;
@@ -153,7 +150,7 @@ typedef struct bvc_routedspacemonitor_state {
   int window_size_idx;
 
 
-} bvc_routedspacemonitor_state_t;
+} bvc_routedspace_state_t;
 
 
 /* ================ per prefix info management ================ */
@@ -208,7 +205,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 
   assert(argc > 0 && argv != NULL);
 
-  bvc_routedspacemonitor_state_t *state = STATE;
+  bvc_routedspace_state_t *state = STATE;
 
   /* NB: remember to reset optind to 1 before using getopt! */
   optind = 1;
@@ -223,6 +220,10 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
           break;
         case 'o':
           strncpy(state->output_folder, optarg, PATH_MAX-1);
+          if (state->output_folder[strlen(state->output_folder)-1] != '/')
+            {
+              state->output_folder[strlen(state->output_folder)] = '/';
+            }
           state->output_folder[PATH_MAX-1] = '\0';
           break;
         case '?':
@@ -245,18 +246,18 @@ static int create_ts_metrics(bvc_t *consumer)
 {
 
   char buffer[BUFFER_LEN];
-  bvc_routedspacemonitor_state_t *state = STATE;
+  bvc_routedspace_state_t *state = STATE;
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "arrival_delay");             
+           CHAIN_STATE->metric_prefix, "arrival_delay");
   if((state->arrival_delay_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
       return -1;
     }
-  
+
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "processed_delay");             
+           CHAIN_STATE->metric_prefix, "processed_delay");
   if((state->processed_delay_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -264,7 +265,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "processing_time");             
+           CHAIN_STATE->metric_prefix, "processing_time");
   if((state->processing_time_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -272,7 +273,7 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_WIN_FORMAT,
-           CHAIN_STATE->metric_prefix, state->routed_v4pfx_count, "routed_v4pfx_count");             
+           CHAIN_STATE->metric_prefix, state->window_size,"ipv4.routed_pfxs_count");
   if((state->routed_ipv4_prefixes_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -280,38 +281,38 @@ static int create_ts_metrics(bvc_t *consumer)
     }
 
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_WIN_FORMAT,
-           CHAIN_STATE->metric_prefix, state->routed_v6pfx_count, "routed_v6pfx_count");             
+           CHAIN_STATE->metric_prefix, state->window_size, "ipv6.routed_pfxs_count");
   if((state->routed_ipv6_prefixes_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
       return -1;
     }
-    
+
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_WIN_FORMAT,
-           CHAIN_STATE->metric_prefix, state->new_routed_v4pfx_count, "new_routed_v4pfx_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "ipv4.new_routed_pfxs_count");
   if((state->new_routed_ipv4_prefixes_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
       return -1;
     }
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_WIN_FORMAT,
-           CHAIN_STATE->metric_prefix, state->new_routed_v6pfx_count, "new_routed_v6pfx_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "ipv6.new_routed_pfxs_count");
   if((state->new_routed_ipv6_prefixes_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
       return -1;
     }
-    
+
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_WIN_FORMAT,
-           CHAIN_STATE->metric_prefix, state->old_routed_v4pfx_count, "old_routed_v4pfx_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "ipv4.old_routed_pfxs_count");
   if((state->old_routed_ipv4_prefixes_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
       return -1;
     }
-    
+
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_WIN_FORMAT,
-           CHAIN_STATE->metric_prefix, state->old_routed_v6pfx_count, "old_routed_v6pfx_count");
+           CHAIN_STATE->metric_prefix, state->window_size, "ipv6.old_routed_pfxs_count");
   if((state->old_routed_ipv6_prefixes_idx =
       timeseries_kp_add_key(state->kp, buffer)) == -1)
     {
@@ -332,7 +333,7 @@ static int create_ts_metrics(bvc_t *consumer)
 
 static void output_metrics(bvc_t *consumer, uint32_t ts, uint32_t current_window_size)
 {
-  bvc_routedspacemonitor_state_t *state = STATE;
+  bvc_routedspace_state_t *state = STATE;
 
   /* dump timeseries metrics */
   timeseries_kp_set(state->kp, state->arrival_delay_idx,
@@ -355,16 +356,16 @@ static void output_metrics(bvc_t *consumer, uint32_t ts, uint32_t current_window
 
   timeseries_kp_set(state->kp, state->new_routed_ipv6_prefixes_idx,
                     state->new_routed_v6pfx_count);
-                    
+
   timeseries_kp_set(state->kp, state->old_routed_ipv4_prefixes_idx,
                     state->old_routed_v4pfx_count);
 
   timeseries_kp_set(state->kp, state->old_routed_ipv6_prefixes_idx,
                     state->old_routed_v6pfx_count);
-  
+
   timeseries_kp_set(state->kp, state->window_size_idx,
                     current_window_size);
-                    
+
   if(timeseries_kp_flush(state->kp, ts) != 0)
     {
       fprintf(stderr, "Warning: could not flush %s %"PRIu32"\n",
@@ -373,61 +374,21 @@ static void output_metrics(bvc_t *consumer, uint32_t ts, uint32_t current_window
 }
 
 
-/* ================ Prefix processing function ================ */
-
-int process_prefix(bvc_t *consumer, bgpstream_pfx_t *pfx, uint32_t ts)
-{
-  bvc_routedspacemonitor_state_t *state = STATE;
-  
-  bgpstream_patricia_node_t *patricia_node;
-  perpfx_info_t *ppi;
-  bgpstream_pfx_storage_t pfx_storage;
-  
-  pfx_storage.mask_len = pfx->mask_len;
-  bgpstream_addr_copy((bgpstream_ip_addr_t *) &pfx_storage.address , (bgpstream_ip_addr_t *) &pfx->address);
-  /* check if the new prefix is in the set of prefixes to filter out */
-  if(bgpstream_pfx_storage_set_exists(state->filter, &pfx_storage))
-    {
-      return 0;
-    }
-  
-  /* insert prefix in patricia tree */
-  if((patricia_node = bgpstream_patricia_tree_insert(state->patricia, pfx)) == NULL)
-    {
-      fprintf(stderr, "ERROR: could not insert prefix in patricia tree\n");
-      return -1;
-    }
-   
-  ppi = (perpfx_info_t *)bgpstream_patricia_tree_get_user(patricia_node);
-  /* attach a ppi structure if it didn't exist */
-  if(ppi == NULL)
-    {
-      bgpstream_patricia_tree_set_user(state->patricia, patricia_node, perpfx_info_create(ts));
-    }
-  else
-    {
-      /* otherwise update it with the latest ts */
-      perpfx_info_set_ts(ppi, ts);
-    }
-  
-  return 0;
-
-}
 
 
 /* ==================== CONSUMER INTERFACE FUNCTIONS ==================== */
 
-bvc_t *bvc_routedspacemonitor_alloc()
+bvc_t *bvc_routedspace_alloc()
 {
-  return &bvc_routedspacemonitor;
+  return &bvc_routedspace;
 }
 
 
-int bvc_routedspacemonitor_init(bvc_t *consumer, int argc, char **argv)
+int bvc_routedspace_init(bvc_t *consumer, int argc, char **argv)
 {
-  bvc_routedspacemonitor_state_t *state = NULL;
+  bvc_routedspace_state_t *state = NULL;
 
-  if((state = malloc_zero(sizeof(bvc_routedspacemonitor_state_t))) == NULL)
+  if((state = malloc_zero(sizeof(bvc_routedspace_state_t))) == NULL)
     {
       return -1;
     }
@@ -437,28 +398,22 @@ int bvc_routedspacemonitor_init(bvc_t *consumer, int argc, char **argv)
   /* allocate dynamic memory */
   if((state->patricia = bgpstream_patricia_tree_create(perpfx_info_destroy)) == NULL)
     {
-      fprintf(stderr, "ERROR: routedspacemonitor could not create Patricia Tree\n");
+      fprintf(stderr, "ERROR: routedspace could not create Patricia Tree\n");
       goto err;
     }
 
   if((state->results = bgpstream_patricia_tree_result_set_create()) == NULL)
     {
-      fprintf(stderr, "ERROR: routedspacemonitor could not create Patricia Tree results\n");
+      fprintf(stderr, "ERROR: routedspace could not create Patricia Tree results\n");
       goto err;
     }
-    
-  if((state->new_space = bgpstream_pfx_storage_set_create()) == NULL)
-    {
-      fprintf(stderr, "ERROR: routedspacemonitor could not create newly routed space Prefix Set\n");
-      goto err;
-    }
-    
+
   if((state->filter = bgpstream_pfx_storage_set_create()) == NULL)
     {
-      fprintf(stderr, "ERROR: routedspacemonitor could not create to-be-filtered-out space Prefix Set\n");
+      fprintf(stderr, "ERROR: routedspace could not create to-be-filtered-out space Prefix Set\n");
       goto err;
     }
-  
+
   bgpstream_pfx_storage_t pfx;
   if(!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
          bgpstream_pfx_storage_set_insert(state->filter, &pfx) >=0) )
@@ -499,19 +454,19 @@ int bvc_routedspacemonitor_init(bvc_t *consumer, int argc, char **argv)
     {
       goto err;
     }
-  
+
   return 0;
 
  err:
-  bvc_routedspacemonitor_destroy(consumer);
+  bvc_routedspace_destroy(consumer);
   return -1;
 }
 
 
-void bvc_routedspacemonitor_destroy(bvc_t *consumer)
+void bvc_routedspace_destroy(bvc_t *consumer)
 {
-  bvc_routedspacemonitor_state_t *state = STATE;
-  
+  bvc_routedspace_state_t *state = STATE;
+
   if(state == NULL)
     {
       return;
@@ -527,17 +482,11 @@ void bvc_routedspacemonitor_destroy(bvc_t *consumer)
     {
       bgpstream_patricia_tree_result_set_destroy(&state->results);
     }
-    
-  if(state->new_space != NULL)
-    {
-      bgpstream_pfx_storage_set_destroy(state->new_space);
-    }
-    
+
   if(state->filter != NULL)
     {
       bgpstream_pfx_storage_set_destroy(state->filter);
     }
-
 
   free(state);
 
@@ -562,13 +511,13 @@ void remove_old_prefixes(bgpstream_patricia_tree_t *pt,
 }
 
 
-int bvc_routedspacemonitor_process_view(bvc_t *consumer, uint8_t interests,
+int bvc_routedspace_process_view(bvc_t *consumer, uint8_t interests,
                                         bgpview_t *view)
 {
-  bvc_routedspacemonitor_state_t *state = STATE;
+  bvc_routedspace_state_t *state = STATE;
   bgpview_iter_t *it;
   char pfx_str[INET6_ADDRSTRLEN+3] = "";
-    
+
   /* create a new iterator */
   if((it = bgpview_iter_create(view)) == NULL)
     {
@@ -598,43 +547,26 @@ int bvc_routedspacemonitor_process_view(bvc_t *consumer, uint8_t interests,
   /* remove stale prefixes from the patricia tree */
   bgpstream_patricia_tree_walk(state->patricia, remove_old_prefixes, (void*) &ts);
 
-  /* iterate through all peers of the current view 
-   *  - active peers only
-   */
-  /* for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE); */
-  /*     bgpview_iter_has_more_peer(it); */
-  /*     bgpview_iter_next_peer(it)) */
-  /*   { */
-      /* Information that can be retrieved for the current peer:
-       *
-       * PEER NUMERIC ID:
-       * bgpstream_peer_id_t id = bgpview_iter_peer_get_peer_id(it);
-       *
-       * PEER SIGNATURE (i.e. collector, peer ASn, peer IP):
-       * bgpstream_peer_sig_t *s = bgpview_iter_peer_get_sig(it);       
-       *
-       * NUMBER OF CURRENTLY ANNOUNCED THE PFX
-       * int announced_pfxs = bgpview_iter_peer_get_pfx_cnt(it, 0, BGPVIEW_FIELD_ACTIVE);
-       * *0 -> ipv4 + ipv6
-       * 
-       */
-    /* } */
-    
+
   /* output newly routed prefixes into a file (one file per view) */
   FILE *fp = NULL;
   char filename[PATH_MAX];
-  snprintf(filename, PATH_MAX, "%sroutedspacemonitor-%d.out", state->output_folder, (int)ts);
+  snprintf(filename, PATH_MAX, "%srouted-space.%"PRIu32".%"PRIu32"s-window.gz", state->output_folder, ts, state->window_size);
   fp = fopen(filename, "w+");
   if (fp == NULL)
     {
       return -1;
     }
-    
+
   /* working variables */
   bgpstream_pfx_t *pfx;
   bgpstream_pfx_storage_t pfx_storage;
+
+  bgpstream_patricia_node_t *patricia_node;
+  perpfx_info_t *ppi;
+
   int new_routed = 0;
-  
+
   /* reset routed prefix counters upon reading a new view */
   state->routed_v4pfx_count = 0;
   state->routed_v6pfx_count = 0;
@@ -642,63 +574,71 @@ int bvc_routedspacemonitor_process_view(bvc_t *consumer, uint8_t interests,
   state->new_routed_v6pfx_count = 0;
   state->old_routed_v4pfx_count = 0;
   state->old_routed_v6pfx_count = 0;
-    
-  /* iterate through all prefixes of the current view 
+
+  /* iterate through all prefixes of the current view
    *  - both ipv4 and ipv6 prefixes are considered
    *  - active prefixes only (i.e. do not consider prefixes that have
-   *    been withdrawn) 
+   *    been withdrawn)
    */
   for(bgpview_iter_first_pfx(it, 0 /* all ip versions*/, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(it);
       bgpview_iter_next_pfx(it))
     {
-    
-      /* Information that can be retrieved for the current prefix:
-       *
-       * PREFIX:
-       * bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it)
-       *
-       * NUMBER OF PEERS CURRENTLY ANNOUNCING THE PFX
-       * int peers_cnt = bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
-       */
 
       /* get prefix from view */
       pfx = bgpview_iter_pfx_get_pfx(it);
       pfx_storage.mask_len = pfx->mask_len;
       bgpstream_addr_copy((bgpstream_ip_addr_t *) &pfx_storage.address , (bgpstream_ip_addr_t *) &pfx->address);
-      
+
+
+      /* check if the new prefix is in the set of prefixes to filter out */
+      if((bgpstream_pfx_storage_set_exists(state->filter, &pfx_storage)))
+        {
+          continue;
+        }
+
       /* print the processed prefix */
       if(bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN+3, pfx) == NULL)
         {
           return -1;
         }
-      
-      /* check if the new prefix overlaps with any of the prefixes already in
-         in the patricia tree */
-      if(bgpstream_patricia_tree_get_pfx_overlap_info(state->patricia, pfx) == 0)
+
+
+      /* insert the prefix in the patricia tree and check whether it overlaps
+       * with something that was there before */
+
+      if((patricia_node = bgpstream_patricia_tree_insert(state->patricia, pfx)) == NULL)
         {
-          /* check if the new prefix is in the set of prefixes to filter out */
-          if(!(bgpstream_pfx_storage_set_exists(state->filter, &pfx_storage)))
+          fprintf(stderr, "ERROR: could not insert prefix in patricia tree\n");
+          return -1;
+        }
+
+      new_routed = 0;
+
+      // get the user pointer
+      ppi = (perpfx_info_t *)bgpstream_patricia_tree_get_user(patricia_node);
+
+      /* attach a ppi structure if it didn't exist */
+      if(ppi == NULL)
+        {
+          /* if the program is here it means that this pfx did not exist */
+          bgpstream_patricia_tree_set_user(state->patricia, patricia_node, perpfx_info_create(ts));
+
+          /* check if the prefix overlaps with any other space */
+          if(bgpstream_patricia_tree_get_node_overlap_info(state->patricia, patricia_node)
+             & (~BGPSTREAM_PATRICIA_EXACT_MATCH))
             {
-              /* insert the prefix in the set of newly routed prefixes */
-              if(bgpstream_pfx_storage_set_insert(state->new_space, &pfx_storage) < 0)
-                {
-                  return -1;
-                }
               new_routed = 1;
             }
         }
       else
         {
+          /* otherwise update it with the latest ts */
+          perpfx_info_set_ts(ppi, ts);
           new_routed = 0;
         }
 
-      /* DEBUG - BEGIN */
-      //fprintf(stdout, "DEBUG,%d,%s\n", (int)bgpstream_patricia_tree_get_pfx_overlap_info(state->patricia, pfx), pfx_str);
-      //fprintf(stdout, "DEBUG,%d,%s\n", (int)bgpstream_pfx_storage_set_insert(state->new_space, (bgpstream_pfx_storage_t*) pfx), pfx_str);
-      //fprintf(stdout, "%d,%s,%d\n", ts, pfx_str, new_routed);
-      /* DEBUG - END */
-      
+      /* print the current prefixes on file */
       if (fp != NULL)
         {
           fprintf(fp, "%d,%s,%d\n", ts, pfx_str, new_routed);
@@ -721,51 +661,32 @@ int bvc_routedspacemonitor_process_view(bvc_t *consumer, uint8_t interests,
           else
             state->old_routed_v6pfx_count++;
         }
-      
-      /* insert the prefix into the Patricia tree and update its timestamp */
-      if(process_prefix(consumer, pfx, ts) != 0)
-        {
-          return -1;
-        }
-      
-      /* iterate over all the peers that currently observe the current pfx */
-      /* for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE); */
-      /*     bgpview_iter_pfx_has_more_peer(it); */
-      /*     bgpview_iter_pfx_next_peer(it)) */
-      /*   { */
-          /* Information that can be retrieved for the current element:
-           *
-           * ORIGIN ASN (borrowed pointer):
-           * bgpstream_as_path_seg_t *origin_asn = bgpview_iter_pfx_peer_get_origin_seg(it);
-           *
-           * AS PATH (borrowed pointer):
-           * bgpstream_as_path_t *ap = bgpview_iter_pfx_peer_get_as_path(it);
-           *
-           * More info on how to deal with AS path related structures at:
-           * lib/utils/bgpstream_utils_as_path.h
-           *
-           */          
-        /* } */
-      
+
     }
-    
+
   if (fp != NULL)
     {
       fclose(fp);
     }
 
+  /* write the .done file */
+  snprintf(filename, PATH_MAX, "%srouted-space.%"PRIu32".%"PRIu32"s-window.gz.done", state->output_folder, ts, state->window_size);
+  fp = fopen(filename, "w+");
+  if (fp == NULL)
+    {
+      return -1;
+    }
+  fclose(fp);
+
+
   /* destroy the view iterator */
   bgpview_iter_destroy(it);
-  
-  /* empty the newly routed space Prefix Set */
-  bgpstream_pfx_storage_set_clear(state->new_space);
-  
+
   /* compute processed delay */
   state->processed_delay = zclock_time()/1000 - bgpview_get_time(view);
   state->processing_time = state->processed_delay - state->arrival_delay;
 
   output_metrics(consumer, ts, current_window_size);
-  
 
   return 0;
 }

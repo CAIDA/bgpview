@@ -100,10 +100,10 @@ CONSUMER_SRCS += \
 	bvc_pfxorigins.c \
 	bvc_pfxorigins.h
 
-# Routed Space Monitor Consumer (no dependencies)
+# Routed Space Consumer (no dependencies)
 CONSUMER_SRCS += \
-	bvc_routedspacemonitor.c \
-	bvc_routedspacemonitor.h
+	bvc_routedspace.c \
+	bvc_routedspace.h
 
 # My View Process Consumer (no dependencies)
 CONSUMER_SRCS += \

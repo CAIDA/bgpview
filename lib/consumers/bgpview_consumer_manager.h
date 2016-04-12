@@ -156,7 +156,7 @@ typedef enum bvc_id
     BVC_ID_PFXORIGINS         = 12,
 
     /** Generates information about routed prefixes in a given time window  */
-    BVC_ID_ROUTEDSPACEMONITOR = 13,
+    BVC_ID_ROUTEDSPACE = 13,
 
     /** It can be used as a template, it writes generic information about the 
      *  number of view processed and the number of elements in the current view  */

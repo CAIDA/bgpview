@@ -70,7 +70,7 @@
 #include "bvc_pfxorigins.h"
 
 /* Routed Space monitor consumer */
-#include "bvc_routedspacemonitor.h"
+#include "bvc_routedspace.h"
 
 /* My View Process consumer */
 #include "bvc_myviewprocess.h"
@@ -138,8 +138,8 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   /** Pointer to pfxorigins alloc function */
   bvc_pfxorigins_alloc,
 
-  /** Pointer to routedspacemonitor alloc function */
-  bvc_routedspacemonitor_alloc,
+  /** Pointer to routedspace alloc function */
+  bvc_routedspace_alloc,
 
   /** Pointer to myviewprocess alloc function */
   bvc_myviewprocess_alloc,
