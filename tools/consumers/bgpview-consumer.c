@@ -22,9 +22,21 @@
  */
 
 #include "config.h"
-#include "bgpview_io_kafka.h"
+#ifdef WITH_BGPVIEW_IO_FILE
+#include "file/bgpview_io_file.h"
+#endif
+#ifdef WITH_BGPVIEW_IO_KAFKA
+#include "kafka/bgpview_io_kafka.h"
+#endif
+#ifdef WITH_BGPVIEW_IO_TEST
+#include "test/bgpview_io_test.h"
+#endif
+#ifdef WITH_BGPVIEW_IO_ZMQ
+#include "zmq/bgpview_io_zmq.h"
+#endif
 #include "bgpview.h"
 #include "bgpview_consumer_manager.h"
+#include "config.h"
 #include "utils.h"
 #include <assert.h>
 #include <stdio.h>
@@ -70,6 +82,21 @@ static int filter_cnts[] = {
 static int peer_filters_cnt = 0;
 static int pfx_filters_cnt = 0;
 static int pfx_peer_filters_cnt = 0;
+
+bgpview_t *view = NULL;
+
+#ifdef WITH_BGPVIEW_IO_FILE
+io_t *file_handle = NULL;
+#endif
+#ifdef WITH_BGPVIEW_IO_KAFKA
+bgpview_io_kafka_t *kafka_client = NULL;
+#endif
+#ifdef WITH_BGPVIEW_IO_TEST
+bgpview_io_test_t *test_generator = NULL;
+#endif
+#ifdef WITH_BGPVIEW_IO_ZMQ
+bgpview_io_zmq_client_t *zmq_client = NULL;
+#endif
 
 static int parse_pfx(char *value)
 {
@@ -154,7 +181,7 @@ static int match_pfx(bgpstream_pfx_t *pfx)
 static int match_pfx_exact(bgpstream_pfx_t *pfx)
 {
   return bgpstream_pfx_storage_set_exists(pfx_set,
-                                          (bgpstream_pfx_storage_t*)pfx);
+                                           (bgpstream_pfx_storage_t*)pfx);
 }
 
 static bgpview_io_filter_pfx_cb_t *filter_pfx_matchers[] = {
@@ -214,7 +241,7 @@ static int parse_filter(char *filter_str)
   int i;
   int found = 0;
 
-  // first, find the value (if any)
+  /* first, find the value (if any) */
   val = strchr(filter_str, ':');
 
   if(val != NULL)
@@ -348,31 +375,228 @@ static void consumer_usage()
 
 static void usage(const char *name)
 {
+  /* top-level */
+  fprintf(stderr, "usage: %s [<options>] -[ftkz]\n", name);
+
+  /* IO module config */
   fprintf(stderr,
-	  "usage: %s [<options>]\n"
+          "       -i <module opts>      IO module to use for obtaining views.\n"
+          "                               Available modules:\n");
+#ifdef WITH_BGPVIEW_IO_FILE
+  fprintf(stderr,
+          "                                - file\n");
+#endif
+#ifdef WITH_BGPVIEW_IO_TEST
+  fprintf(stderr,
+          "                                - test\n");
+#endif
+#ifdef WITH_BGPVIEW_IO_KAFKA
+  fprintf(stderr,
+          "                                - kafka\n");
+#endif
+#ifdef WITH_BGPVIEW_IO_ZMQ
+  fprintf(stderr,
+          "                                - zmq\n");
+#endif
+
+  /* Timeseries config */
+  fprintf(stderr,
 	  "       -b <backend>          Enable the given timeseries backend,\n"
-	  "                               -b can be used multiple times\n",
-	  name);
+	  "                               -b can be used multiple times\n");
   timeseries_usage();
   fprintf(stderr,
-          "       -i <identity>         Consume directly from the given producer\n"
-          "                             (rather than a global view from all producers)\n"
-          "       -m <prefix>           Metric prefix\n"
-          "       -n <namespace>        Kafka topic namespace to use (default: %s)\n"
-          "       -N <num-views>        Maximum number of views to process before the consumer stops\n"
+          "       -m <prefix>           Metric prefix (default: %s)\n"
+          "       -N <num-views>        Maximum number of views to process\n"
           "                               (default: infinite)\n",
-          BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
+          BGPVIEW_METRIC_PREFIX_DEFAULT);
+
+  /* Consumers config */
   fprintf(stderr,
-	  "       -c <consumer>         Consumer/s to active (can be used multiple times)\n");
+	  "       -c <consumer>         Consumer to activate (can be used multiple times)\n");
   consumer_usage();
+
+  /* Filter config */
   fprintf(stderr,
           "       -f <type:value>       Add a filter. Supported types are:\n");
   filter_usage();
-  fprintf(stderr,
-	  "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n",
-          BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT);
+}
 
-  //BGPVIEW_IO_HEARTBEAT_LIVENESS_DEFAULT,
+
+static int configure_io(char *io_module)
+{
+  char *io_options = NULL;
+
+    /* the string at io_module will contain the name of the IO module
+     optionally followed by a space and then the arguments to pass
+     to the module */
+  if((io_options = strchr(io_module, ' ')) != NULL)
+    {
+      /* set the space to a nul, which allows io_module to be used
+         for the module name, and then increment io_options to
+         point to the next character, which will be the start of the
+         arg string (or at worst case, the terminating \0 */
+      *io_options = '\0';
+      io_options++;
+    }
+
+  if (0) { /* just to simplify the if/else with macros */ }
+#ifdef WITH_BGPVIEW_IO_FILE
+  else if (strcmp(io_module, "file") == 0)
+    {
+      if (io_options == NULL || strlen(io_options) == 0) {
+        fprintf(stderr,
+                "ERROR: filename must be provided when using the file module\n");
+        goto err;
+      }
+      if ((file_handle = wandio_create(io_options)) == NULL) {
+        fprintf(stderr, "ERROR: Could not open BGPView file '%s'\n",
+                io_options);
+        goto err;
+      }
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_KAFKA
+  else if (strcmp(io_module, "kafka") == 0)
+    {
+      fprintf(stderr, "INFO: Starting Kakfa IO producer module...\n");
+      if((kafka_client =
+          bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER,
+                                io_options)) == NULL)
+        {
+          fprintf(stderr, "ERROR: could not initialize Kafka module\n");
+          goto err;
+        }
+      if(bgpview_io_kafka_start(kafka_client) != 0)
+        {
+          goto err;
+        }
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_TEST
+  else if (strcmp(io_module, "test") == 0)
+    {
+      fprintf(stderr, "INFO: Starting Test View Generator IO module...\n");
+      if((test_generator =
+          bgpview_io_test_create(io_options)) == NULL)
+        {
+          fprintf(stderr, "ERROR: could not initialize Test module\n");
+          goto err;
+        }
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_ZMQ
+  else if (strcmp(io_module, "zmq") == 0)
+    {
+      fprintf(stderr, "INFO: Starting ZMQ IO module...\n");
+      if((zmq_client =
+          bgpview_io_zmq_client_init(0)) == NULL)
+        {
+          fprintf(stderr, "ERROR: could not initialize ZMQ module\n");
+          goto err;
+        }
+      if(bgpview_io_zmq_client_set_opts(zmq_client, io_options) != 0)
+        {
+          goto err;
+        }
+      if(bgpview_io_zmq_client_start(zmq_client) != 0)
+        {
+          goto err;
+        }
+    }
+#endif
+  else
+    {
+      fprintf(stderr, "ERROR: Unsupported IO module '%s'\n", io_module);
+      goto err;
+    }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+static void shutdown_io()
+{
+#ifdef WITH_BGPVIEW_IO_FILE
+  if (file_handle != NULL)
+    {
+      wandio_destroy(file_handle);
+      file_handle = NULL;
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_KAFKA
+  if (kafka_client != NULL)
+    {
+      bgpview_io_kafka_destroy(kafka_client);
+      kafka_client = NULL;
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_TEST
+  if (test_generator != NULL)
+    {
+      bgpview_io_test_destroy(test_generator);
+      test_generator = NULL;
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_ZMQ
+  if (zmq_client != NULL)
+    {
+      bgpview_io_zmq_client_stop(zmq_client);
+      bgpview_io_zmq_client_free(zmq_client);
+      zmq_client = NULL;
+    }
+#endif
+}
+
+static int recv_view(char *io_module)
+{
+  if (0) { /* just to simplify the if/else with macros */ }
+#ifdef WITH_BGPVIEW_IO_FILE
+  else if (strcmp(io_module, "file") == 0)
+    {
+      bgpview_clear(view);
+      return bgpview_io_file_read(file_handle,
+                                  view,
+                                  (peer_filters_cnt != 0) ? filter_peer : NULL,
+                                  (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+                                  (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_KAFKA
+  else if (strcmp(io_module, "kafka") == 0)
+    {
+      return
+        bgpview_io_kafka_recv_view(kafka_client,
+                                   view,
+                                   (peer_filters_cnt != 0) ? filter_peer : NULL,
+                                   (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+                                   (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_TEST
+  else if (strcmp(io_module, "test") == 0)
+    {
+      bgpview_clear(view);
+      return bgpview_io_test_generate_view(test_generator, view);
+    }
+#endif
+#ifdef WITH_BGPVIEW_IO_ZMQ
+  else if (strcmp(io_module, "zmq") == 0)
+    {
+      bgpview_clear(view);
+      return
+        bgpview_io_zmq_client_recv_view(zmq_client,
+                                        BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_BLOCK,
+                                        view,
+                                        (peer_filters_cnt != 0) ? filter_peer : NULL,
+                                        (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+                                        (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
+                                        );
+    }
+#endif
+
+    return -1;
 }
 
 int main(int argc, char **argv)
@@ -386,9 +610,6 @@ int main(int argc, char **argv)
   int consumer_cmds_cnt = 0;
   int i;
 
-  char *identity = NULL;
-  char *namespace = NULL;
-
   char *metric_prefix = NULL;
 
   char *backends[TIMESERIES_BACKEND_ID_LAST];
@@ -396,13 +617,10 @@ int main(int argc, char **argv)
   char *backend_arg_ptr = NULL;
   timeseries_backend_t *backend = NULL;
 
-  const char *brokers = NULL;
-
-  bgpview_io_kafka_t *client = NULL;
-
-  bgpview_t *view = NULL;
   int processed_view_limit = -1;
   int processed_view = 0;
+
+  char *io_module = NULL;
 
   if(filters_init() != 0)
     {
@@ -424,7 +642,7 @@ int main(int argc, char **argv)
     }
 
   while(prevoptind = optind,
-	(opt = getopt(argc, argv, ":f:i:m:n:N:b:c:n:k:v?")) >= 0)
+	(opt = getopt(argc, argv, ":f:i:m:N:b:c:I:v?")) >= 0)
     {
       if (optind == prevoptind + 2 && *optarg == '-' ) {
         opt = ':';
@@ -447,16 +665,17 @@ int main(int argc, char **argv)
           break;
 
         case 'i':
-          identity = optarg;
+          if (io_module != NULL)
+            {
+              fprintf(stderr,
+                      "WARN: Only one IO module may be used at a time\n");
+            }
+          io_module = optarg;
           break;
 
 	case 'm':
 	  metric_prefix = optarg;
 	  break;
-
-        case 'n':
-          namespace = optarg;
-          break;
 
         case 'N':
           processed_view_limit = atoi(optarg);
@@ -475,10 +694,6 @@ int main(int argc, char **argv)
 	      return -1;
 	    }
 	  consumer_cmds[consumer_cmds_cnt++] = optarg;
-	  break;
-
-	case 'k':
-	  brokers = optarg;
 	  break;
 
 	case '?':
@@ -501,15 +716,16 @@ int main(int argc, char **argv)
   /* NB: once getopt completes, optind points to the first non-option
      argument */
 
-  if (identity == NULL) {
-    fprintf(stderr, "ERROR: Identity string must be set using -i\n");
-    usage(argv[0]);
-    goto err;
-  }
-
   if(metric_prefix != NULL)
     {
       bgpview_consumer_manager_set_metric_prefix(manager, metric_prefix);
+    }
+
+  if (io_module == NULL)
+    {
+      fprintf(stderr, "ERROR: An IO module must be specified using -i\n");
+      usage(argv[0]);
+      return -1;
     }
 
   if(consumer_cmds_cnt == 0)
@@ -561,72 +777,42 @@ int main(int argc, char **argv)
 	  usage(argv[0]);
 	  goto err;
 	}
-
-      /* free the string we dup'd */
-      backends[i] = NULL;
     }
 
   for(i=0; i<consumer_cmds_cnt; i++)
     {
       assert(consumer_cmds[i] != NULL);
       if(bgpview_consumer_manager_enable_consumer_from_str(manager,
-                                                           consumer_cmds[i]) == NULL)
+						      consumer_cmds[i]) == NULL)
         {
           usage(argv[0]);
           goto err;
         }
     }
 
-  if((client =
-      bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER,
-                            identity)) == NULL)
+  if (configure_io(io_module) != 0)
     {
-      fprintf(stderr, "ERROR: could not initialize bgpview client\n");
       usage(argv[0]);
       goto err;
     }
-
-
-  if(brokers != NULL &&
-     bgpview_io_kafka_set_broker_addresses(client, brokers) != 0)
-    {
-      goto err;
-    }
-
-  if(namespace != NULL &&
-     bgpview_io_kafka_set_namespace(client, namespace) != 0)
-    {
-      goto err;
-    }
-
-  if(bgpview_io_kafka_start(client) != 0) {
-    goto err;
-  }
 
   if((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL)
     {
       fprintf(stderr, "ERROR: Could not create view\n");
       goto err;
     }
-
-  // disable per-pfx-per-peer user pointer
+  /* disable per-pfx-per-peer user pointer */
   bgpview_disable_user_data(view);
 
-  while(bgpview_io_kafka_recv_view(client,
-                                    view,
-                                    (peer_filters_cnt != 0) ? filter_peer : NULL,
-                                    (pfx_filters_cnt != 0) ? filter_pfx : NULL,
-                                    (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL
-                                   ) == 0)
+  while(recv_view(io_module) == 0)
     {
       if(bgpview_consumer_manager_process_view(manager, view) != 0)
-        {
+	{
 	  fprintf(stderr, "ERROR: Failed to process view at %d\n",
 		  bgpview_get_time(view));
 	  goto err;
 	}
 
-      //bgpview_clear(view);
       processed_view++;
 
       if(processed_view_limit > 0 && processed_view >= processed_view_limit)
@@ -637,23 +823,17 @@ int main(int argc, char **argv)
     }
 
   fprintf(stderr, "INFO: Shutting down...\n");
-
-  /* cleanup */
+  shutdown_io();
   filters_destroy();
-  bgpview_io_kafka_destroy(client);
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
   fprintf(stderr, "INFO: Shutdown complete\n");
-
-  /* complete successfully */
   return 0;
 
  err:
+  shutdown_io();
   filters_destroy();
-  if(client != NULL) {
-    bgpview_io_kafka_destroy(client);
-  }
   bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);

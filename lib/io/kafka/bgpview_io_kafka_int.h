@@ -204,7 +204,8 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
 int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
                                    bgpview_t *view,
                                    bgpview_t *parent_view,
-                                   bgpview_io_filter_cb_t *cb);
+                                   bgpview_io_filter_cb_t *cb,
+                                   void *cb_user);
 
 /** Manually trigger an update to the members topic (used to signal producer is
  * shutting down)

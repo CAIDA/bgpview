@@ -77,9 +77,9 @@
 /* My View Process consumer */
 #include "bvc_myviewprocess.h"
 
-#ifdef WITH_BGPVIEW_IO_KAFKA
-/* Kafka Sender consumer */
-#include "bvc_kafkasender.h"
+#if defined(WITH_BGPVIEW_IO_KAFKA) || defined(WITH_BGPVIEW_IO_ZMQ)
+/* View Sender consumer */
+#include "bvc_viewsender.h"
 #endif
 
 
@@ -155,9 +155,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   /** Pointer to myviewprocess alloc function */
   bvc_myviewprocess_alloc,
 
-#ifdef WITH_BGPVIEW_IO_KAFKA
-  /** Pointer to kafkasender alloc function */
-  bvc_kafkasender_alloc,
+#if defined(WITH_BGPVIEW_IO_KAFKA) || defined(WITH_BGPVIEW_IO_ZMQ)
+  /** Pointer to viewsender alloc function */
+  bvc_viewsender_alloc,
 #else
   NULL,
 #endif

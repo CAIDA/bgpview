@@ -24,6 +24,7 @@
 #include "bgpview.h"
 #include "bgpview_io_kafka_int.h"
 #include "config.h"
+#include "parse_cmd.h"
 #include "utils.h"
 #include <assert.h>
 #include <errno.h>
@@ -171,11 +172,67 @@ int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
   return -1;
 }
 
+static void usage()
+{
+  fprintf(stderr,
+          "Kafka Consumer Options:\n"
+          "       -i <identity>         Consume directly from the given producer\n"
+          "                             (rather than a global view from all producers)\n"
+	  "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
+          "       -n <namespace>        Kafka topic namespace to use (default: %s)\n",
+          BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT,
+          BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
+}
+
+static int parse_args(bgpview_io_kafka_t *client, int argc, char **argv)
+{
+  int opt;
+  assert(argc > 0 && argv != NULL);
+  /* NB: remember to reset optind to 1 before using getopt! */
+  optind = 1;
+
+  /* remember the argv strings DO NOT belong to us */
+  while((opt = getopt(argc, argv, ":i:k:n:?")) >= 0)
+    {
+      switch(opt)
+        {
+        case 'i':
+          client->identity = strdup(optarg);
+          break;
+
+        case 'k':
+          if (bgpview_io_kafka_set_broker_addresses(client, optarg) != 0) {
+            return -1;
+          }
+	  break;
+
+        case 'n':
+          if (bgpview_io_kafka_set_namespace(client, optarg) != 0) {
+            return -1;
+          }
+          break;
+
+        case '?':
+        case ':':
+        default:
+          usage();
+          return -1;
+        }
+    }
+  return 0;
+}
+
 /* ========== PUBLIC FUNCTIONS ========== */
 
 bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
-                                          const char *identity)
+                                          const char *opts)
 {
+#define MAXOPTS 1024
+  char *local_args = NULL;
+  char *process_argv[MAXOPTS];
+  int len;
+  int process_argc = 0;
+
   bgpview_io_kafka_t *client;
   if ((client = malloc_zero(sizeof(bgpview_io_kafka_t))) == NULL) {
     return NULL;
@@ -185,8 +242,29 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
 
   client->mode = mode;
 
-  if (identity != NULL) {
-    assert(strlen(identity) < IDENTITY_MAX_LEN);
+  /* set defaults */
+  if ((client->namespace = strdup(BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT)) == NULL) {
+    fprintf(stderr, "Failed to duplicate namespace string\n");
+    goto err;
+  }
+  if ((client->brokers = strdup(BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT)) == NULL) {
+    fprintf(stderr, "Failed to duplicate kafka server uri string\n");
+    goto err;
+  }
+
+  if (opts != NULL && (len = strlen(opts)) > 0) {
+    /* parse the option string ready for getopt */
+    local_args = strdup(opts);
+    parse_cmd(local_args, &process_argc, process_argv, MAXOPTS, "kafka");
+    /* now parse the arguments using getopt */
+    if (parse_args(client, process_argc, process_argv) != 0) {
+      goto err;
+    }
+  }
+
+  /* check that mandatory opts have been set */
+  if (client->identity != NULL) {
+    assert(strlen(client->identity) < IDENTITY_MAX_LEN);
     if (client->mode == BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER) {
       fprintf(stderr,
               "WARN: Identity string is not used for the global consumer\n");
@@ -194,21 +272,7 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
   } else if (client->mode != BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER) {
     fprintf(stderr,
             "ERROR: Identity must be set for producer and direct consumer\n");
-    goto err;
-  }
-
-  if (identity != NULL && (client->identity = strdup(identity)) == NULL) {
-    fprintf(stderr, "Failed to duplicate identity string\n");
-    goto err;
-  }
-
-  if ((client->namespace = strdup(BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT)) == NULL) {
-    fprintf(stderr, "Failed to duplicate namespace string\n");
-    goto err;
-  }
-
-  if ((client->brokers = strdup(BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT)) == NULL) {
-    fprintf(stderr, "Failed to duplicate kafka server uri string\n");
+    usage();
     goto err;
   }
 
@@ -225,18 +289,20 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
     return;
   }
 
-  int drain_wait_cnt = 12;
-  while (rd_kafka_outq_len(client->rdk_conn) > 0 && drain_wait_cnt > 0) {
-    fprintf(stderr,
-            "INFO: Waiting for Kafka queue to drain (currently %d messages)\n",
-            rd_kafka_outq_len(client->rdk_conn));
-    rd_kafka_poll(client->rdk_conn, 5000);
-    drain_wait_cnt--;
-  }
+  if (client->rdk_conn != NULL) {
+    int drain_wait_cnt = 12;
+    while (rd_kafka_outq_len(client->rdk_conn) > 0 && drain_wait_cnt > 0) {
+      fprintf(stderr,
+              "INFO: Waiting for Kafka queue to drain (currently %d messages)\n",
+              rd_kafka_outq_len(client->rdk_conn));
+      rd_kafka_poll(client->rdk_conn, 5000);
+      drain_wait_cnt--;
+    }
 
-  // if this is a producer, tell the members topic we're going away
-  if (client->mode == BGPVIEW_IO_KAFKA_MODE_PRODUCER) {
-    bgpview_io_kafka_producer_send_members_update(client, 0);
+    // if this is a producer, tell the members topic we're going away
+    if (client->mode == BGPVIEW_IO_KAFKA_MODE_PRODUCER) {
+      bgpview_io_kafka_producer_send_members_update(client, 0);
+    }
   }
 
   free(client->brokers);
@@ -356,13 +422,14 @@ int bgpview_io_kafka_set_namespace(bgpview_io_kafka_t *client,
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
                                bgpview_t *view,
                                bgpview_t *parent_view,
-                               bgpview_io_filter_cb_t *cb)
+                               bgpview_io_filter_cb_t *cb,
+                               void *cb_user)
 {
   // first, ensure all topics are connected
   if (kafka_topic_connect(client) != 0) {
     return -1;
   }
-  return bgpview_io_kafka_producer_send(client, view, parent_view, cb);
+  return bgpview_io_kafka_producer_send(client, view, parent_view, cb, cb_user);
 }
 
 int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client, bgpview_t *view,

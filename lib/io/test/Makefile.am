@@ -27,40 +27,18 @@ AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
                 -I$(top_srcdir)/lib \
                 -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib
+                -I$(top_srcdir)/bgpview/lib \
+                -I$(top_srcdir)/bgpview/lib/io
 
-noinst_LTLIBRARIES = libbgpview_io.la
+noinst_LTLIBRARIES = libbgpview_io_test.la
 
 include_HEADERS =
 
-libbgpview_io_la_SOURCES = 		\
-	bgpview_io.c			\
-	bgpview_io.h
+libbgpview_io_test_la_SOURCES = 	\
+	bgpview_io_test.c		\
+	bgpview_io_test.h
 
-MOD_LIBS=
-
-if WITH_BGPVIEW_IO_FILE
-SUBDIRS+=file
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/file/libbgpview_io_file.la
-endif
-
-if WITH_BGPVIEW_IO_ZMQ
-SUBDIRS+=zmq
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/zmq/libbgpview_io_zmq.la
-endif
-
-if WITH_BGPVIEW_IO_KAFKA
-SUBDIRS+=kafka
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/kafka/libbgpview_io_kafka.la
-endif
-
-if WITH_BGPVIEW_IO_TEST
-SUBDIRS+=test
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/test/libbgpview_io_test.la
-endif
-
-libbgpview_io_la_LIBADD = \
-	$(MOD_LIBS)
+libbgpview_io_test_la_LIBADD =
 
 
 ACLOCAL_AMFLAGS = -I m4

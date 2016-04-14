@@ -174,7 +174,8 @@ static int read_ip(io_t *infile, bgpstream_addr_storage_t *ip)
 }
 
 static int write_peers(iow_t *outfile, bgpview_iter_t *it,
-                       bgpview_io_filter_cb_t *cb)
+                       bgpview_io_filter_cb_t *cb,
+                       void *cb_user)
 {
   uint8_t u8;
   uint16_t u16;
@@ -201,7 +202,7 @@ static int write_peers(iow_t *outfile, bgpview_iter_t *it,
       if(cb != NULL)
         {
           /* ask the caller if they want this peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PEER)) < 0)
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PEER, cb_user)) < 0)
             {
               goto err;
             }
@@ -321,7 +322,8 @@ static int write_paths(iow_t *outfile, bgpview_iter_t *it)
 
 
 static int write_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
-                           bgpview_io_filter_cb_t *cb)
+                           bgpview_io_filter_cb_t *cb,
+                           void *cb_user)
 {
   uint16_t peerid;
   bgpstream_as_path_store_path_t *spath;
@@ -339,7 +341,7 @@ static int write_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
       if(cb != NULL)
         {
           /* ask the caller if they want this peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER)) < 0)
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user)) < 0)
             {
               return -1;
             }
@@ -369,7 +371,8 @@ static int write_pfx_peers(iow_t *outfile, bgpview_iter_t *it, int *peers_cnt,
 
 
 static int write_pfxs(iow_t *outfile, bgpview_iter_t *it,
-                      bgpview_io_filter_cb_t *cb)
+                      bgpview_io_filter_cb_t *cb,
+                      void *cb_user)
 {
   int filter;
 
@@ -391,7 +394,7 @@ static int write_pfxs(iow_t *outfile, bgpview_iter_t *it,
       if(cb != NULL)
         {
           /* ask the caller if they want this peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX)) < 0)
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX, cb_user)) < 0)
             {
               return -1;
             }
@@ -415,7 +418,7 @@ static int write_pfxs(iow_t *outfile, bgpview_iter_t *it,
 
       /* send the peers */
       peers_cnt = 0;
-      if(write_pfx_peers(outfile, it, &peers_cnt, cb) != 0)
+      if(write_pfx_peers(outfile, it, &peers_cnt, cb, cb_user) != 0)
 	{
 	  goto err;
 	}
@@ -837,7 +840,8 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 /* ========== PUBLIC FUNCTIONS ========== */
 
 int bgpview_io_file_write(iow_t *outfile, bgpview_t *view,
-                          bgpview_io_filter_cb_t *cb)
+                          bgpview_io_filter_cb_t *cb,
+                          void *cb_user)
 {
   uint32_t u32;
   bgpview_iter_t *it = NULL;
@@ -864,7 +868,7 @@ int bgpview_io_file_write(iow_t *outfile, bgpview_t *view,
   u32 = htonl(bgpview_get_time(view));
   WRITE_VAL(u32);
 
-  if(write_peers(outfile, it, cb) != 0)
+  if(write_peers(outfile, it, cb, cb_user) != 0)
     {
       goto err;
     }
@@ -874,7 +878,7 @@ int bgpview_io_file_write(iow_t *outfile, bgpview_t *view,
       goto err;
     }
 
-  if(write_pfxs(outfile, it, cb) != 0)
+  if(write_pfxs(outfile, it, cb, cb_user) != 0)
     {
       goto err;
     }

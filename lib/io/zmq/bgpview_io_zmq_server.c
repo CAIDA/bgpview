@@ -966,7 +966,7 @@ int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
 #endif
 
   /* NULL -> no peer filtering */
-  if(bgpview_io_zmq_send(server->client_pub_socket, view, NULL) != 0)
+  if(bgpview_io_zmq_send(server->client_pub_socket, view, NULL, NULL) != 0)
     {
       return -1;
     }

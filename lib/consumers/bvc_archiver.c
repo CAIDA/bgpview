@@ -20,7 +20,7 @@
 #include "config.h"
 #include "bgpview_consumer_interface.h"
 #include "bvc_archiver.h"
-#include "bgpview_io_file.h"
+#include "file/bgpview_io_file.h"
 #include "utils.h"
 #include "wandio_utils.h"
 #include <assert.h>
@@ -446,8 +446,8 @@ int bvc_archiver_process_view(bvc_t *consumer, bgpview_t *view)
       break;
 
     case BINARY:
-      /* simply as the IO library to dump the view to a file */
-      if(bgpview_io_file_write(state->outfile, view, NULL) != 0)
+      /* simply ask the IO library to dump the view to a file */
+      if(bgpview_io_file_write(state->outfile, view, NULL, NULL) != 0)
         {
           fprintf(stderr, "ERROR: Failed to write view to file\n");
           goto err;

@@ -342,6 +342,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
                                    bgpview_iter_t *it,
                                    int *peers_cnt,
                                    bgpview_io_filter_cb_t *cb,
+                                   void *cb_user,
                                    int use_pathid)
 {
   int filter;
@@ -358,7 +359,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
       if(cb != NULL)
         {
           /* ask the caller if they want this pfx-peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER)) < 0)
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user)) < 0)
             {
               goto err;
             }
@@ -388,6 +389,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
 int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
                                  bgpview_iter_t *it,
                                  bgpview_io_filter_cb_t *cb,
+                                 void *cb_user,
                                  int use_pathid)
 {
   size_t written = 0;
@@ -411,7 +413,8 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
   /* send the peers */
   peers_cnt = 0;
   if((s = bgpview_io_serialize_pfx_peers(buf, (len-written), it,
-                                         &peers_cnt, cb, use_pathid)) == -1)
+                                         &peers_cnt, cb, cb_user,
+                                         use_pathid)) == -1)
     {
       goto err;
     }

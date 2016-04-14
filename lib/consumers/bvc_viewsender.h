@@ -22,20 +22,19 @@
  */
 
 
-#ifndef __BVC_KAFKASENDER_H
-#define __BVC_KAFKASENDER_H
+#ifndef __BVC_VIEWSENDER_H
+#define __BVC_VIEWSENDER_H
 
 #include "bgpview_consumer_interface.h"
 
 /** @file
  *
- * @brief Header file that exposes the public interface of the bgpview 
- *  Kafka sender to send views to kafka topic
+ * @brief Header file that exposes the public interface of the BGPView Sender
  *
- * @author Danilo Giordano
+ * @author Danilo Giordano, Alistair King
  *
  */
 
-BVC_GENERATE_PROTOS(kafkasender)
+BVC_GENERATE_PROTOS(viewsender)
 
-#endif /* __BVC_KAFKASENDER_H */
+#endif /* __BVC_VIEWSENDER_H */

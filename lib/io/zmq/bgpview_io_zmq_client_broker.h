@@ -68,17 +68,6 @@
  *
  * @{ */
 
-/** Collection of asynchronous callbacks used to notify the client of incoming
-    messages from the server. */
-typedef struct bgpview_io_zmq_client_broker_callbacks {
-
-  /** @todo add other signals from server here (table rx, etc) */
-
-  /** pointer to user-provided data */
-  void *user;
-
-} bgpview_io_zmq_client_broker_callbacks_t;
-
 /** Holds information about a single outstanding request sent to the server */
 typedef struct bgpview_io_zmq_client_broker_req {
 
@@ -116,9 +105,6 @@ typedef struct bgpview_io_zmq_client_broker_config {
 
   /** Pointer to the master's state (passed to callbacks) */
   struct bgpview_io_zmq_client *master;
-
-  /** Client callbacks */
-  bgpview_io_zmq_client_broker_callbacks_t callbacks;
 
   /** 0MQ context pointer (for broker->server comms) */
   zctx_t *ctx;

@@ -158,13 +158,12 @@ typedef enum {
 /** Initialize a new BGPView Kafka IO client
  *
  * @param mode          whether to act as a producer or a consumer
- * @param identity      string that uniquely identifies a client within the
- *                      namespace
+ * @param opts          string containing options to be parsed with getopt
  * @return a pointer to a BGPView Kafka IO instance if successful, NULL if an
  * error occurred.
  */
 bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
-                                          const char *identity);
+                                          const char *opts);
 
 /** Destroy the given BGPView Kafka IO client
  *
@@ -226,7 +225,8 @@ int bgpview_io_kafka_set_namespace(bgpview_io_kafka_t *client,
 int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
                                bgpview_t *view,
                                bgpview_t *parent_view,
-                               bgpview_io_filter_cb_t *cb);
+                               bgpview_io_filter_cb_t *cb,
+                               void *cb_user);
 
 /** Attempt to receive an BGP View from the bgpview server
  *

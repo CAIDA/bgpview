@@ -122,7 +122,8 @@ bgpview_io_zmq_msg_type_t bgpview_io_zmq_recv_type(void *src, int flags);
  * @return 0 if the view was sent successfully, -1 otherwise
  */
 int bgpview_io_zmq_send(void *dest, bgpview_t *view,
-                        bgpview_io_filter_cb_t *cb);
+                        bgpview_io_filter_cb_t *cb,
+                        void *cb_user);
 
 /** Receive a view from the given socket
  *

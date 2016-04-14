@@ -84,6 +84,7 @@ typedef enum {
  *
  * @param iter          iterator to check
  * @param type          enum indicating the type of entry to filter
+ * @param user          user-provided pointer
  * @return 1 to include the entry, 0 to exclude the entry, and -1 if an error
  * occured.
  *
@@ -91,7 +92,8 @@ typedef enum {
  * should be efficient at determining if an entry is to be included.
  */
 typedef int (bgpview_io_filter_cb_t)(bgpview_iter_t *iter,
-                                     bgpview_io_filter_type_t type);
+                                     bgpview_io_filter_type_t type,
+                                     void *user);
 
 /** Callback for filtering peers when reading or receiving a view
  *
@@ -234,6 +236,7 @@ int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
  * @param it            pointer to a valid BGPView iterator
  * @param peers_cnt[out] will be set to the number of pfx-peers serialized
  * @param cb            pointer to a filter callback
+ * @param cb_user       user pointer provided to filter callback
  * @param use_pathid    if 1, only path IDs will be serialized, not the
  *                      actual paths, if -1, then no path information will be
  *                      included
@@ -243,6 +246,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
                                    bgpview_iter_t *it,
                                    int *peers_cnt,
                                    bgpview_io_filter_cb_t *cb,
+                                   void *cb_user,
                                    int use_pathid);
 
 /** Serialize the full 'prefix row' that the iterator currently points at
@@ -251,6 +255,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
  * @param len           length of the buffer
  * @param it            pointer to a valid BGPView iterator
  * @param cb            pointer to a filter callback
+ * @param cb_user       user pointer provided to filter callback
  * @param use_pathid    if 1, only path IDs will be serialized, not the
  *                      actual paths, if -1, then no path information will be
  *                      included
@@ -260,6 +265,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
 int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
                                  bgpview_iter_t *it,
                                  bgpview_io_filter_cb_t *cb,
+                                 void *cb_user,
                                  int use_pathid);
 
 /** Deserialize a full 'prefix row' from the given buffer

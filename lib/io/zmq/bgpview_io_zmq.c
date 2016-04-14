@@ -110,7 +110,8 @@ static int recv_ip(void *src, bgpstream_addr_storage_t *ip)
 #endif
 
 static int send_pfxs(void *dest, bgpview_iter_t *it,
-                     bgpview_io_filter_cb_t *cb)
+                     bgpview_io_filter_cb_t *cb,
+                     void *cb_user)
 {
   int filter;
 
@@ -134,7 +135,7 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
       if(cb != NULL)
         {
           /* ask the caller if they want this peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX)) < 0)
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX, cb_user)) < 0)
             {
               goto err;
             }
@@ -151,7 +152,7 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
       s = 0;
 
       // serialize the pfx row using only path IDs
-      if((s = bgpview_io_serialize_pfx_row(ptr, len, it, cb, 1)) == -1)
+      if((s = bgpview_io_serialize_pfx_row(ptr, len, it, cb, cb_user, 1)) == -1)
         {
           goto err;
         }
@@ -260,7 +261,8 @@ static int recv_pfxs(void *src, bgpview_iter_t *it,
 }
 
 static int send_peers(void *dest, bgpview_iter_t *it,
-                      bgpview_io_filter_cb_t *cb)
+                      bgpview_io_filter_cb_t *cb,
+                      void *cb_user)
 {
   uint16_t u16;
 
@@ -283,7 +285,7 @@ static int send_peers(void *dest, bgpview_iter_t *it,
       if(cb != NULL)
         {
           /* ask the caller if they want this peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PEER)) < 0)
+          if((filter = cb(it, BGPVIEW_IO_FILTER_PEER, cb_user)) < 0)
             {
               goto err;
             }
@@ -704,7 +706,8 @@ bgpview_io_zmq_msg_type_t bgpview_io_zmq_recv_type(void *src, int flags)
 }
 
 int bgpview_io_zmq_send(void *dest, bgpview_t *view,
-                        bgpview_io_filter_cb_t *cb)
+                        bgpview_io_filter_cb_t *cb,
+                        void *cb_user)
 {
   uint32_t u32;
 
@@ -726,7 +729,7 @@ int bgpview_io_zmq_send(void *dest, bgpview_t *view,
       goto err;
     }
 
-  if(send_peers(dest, it, cb) != 0)
+  if(send_peers(dest, it, cb, cb_user) != 0)
     {
       goto err;
     }
@@ -736,7 +739,7 @@ int bgpview_io_zmq_send(void *dest, bgpview_t *view,
       goto err;
     }
 
-  if(send_pfxs(dest, it, cb) != 0)
+  if(send_pfxs(dest, it, cb, cb_user) != 0)
     {
       goto err;
     }

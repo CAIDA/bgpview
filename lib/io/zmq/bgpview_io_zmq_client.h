@@ -99,11 +99,6 @@ typedef enum {
 bgpview_io_zmq_client_t *
 bgpview_io_zmq_client_init(uint8_t intents);
 
-/** Set the user data that will provided to each callback function */
-void
-bgpview_io_zmq_client_set_cb_userdata(bgpview_io_zmq_client_t *client,
-                                      void *user);
-
 /** Start the given bgpview client instance
  *
  * @param client       pointer to a bgpview client instance to start
@@ -117,6 +112,7 @@ bgpview_io_zmq_client_start(bgpview_io_zmq_client_t *client);
  * @param client        pointer to a bgpview client instance
  * @param view          pointer to the view to transmit
  * @param cb            callback function to use to filter entries (may be NULL)
+ * @param cb_user       user pointer provided to callback
  * @return 0 if the view was transmitted successfully, -1 otherwise
  *
  * This function only sends 'active' fields. Any fields that are 'inactive' in
@@ -128,7 +124,8 @@ bgpview_io_zmq_client_start(bgpview_io_zmq_client_t *client);
 int
 bgpview_io_zmq_client_send_view(bgpview_io_zmq_client_t *client,
                                 bgpview_t *view,
-                                bgpview_io_filter_cb_t *cb);
+                                bgpview_io_filter_cb_t *cb,
+                                void *cb_user);
 
 /** Attempt to receive an BGP View from the bgpview server
  *
@@ -163,6 +160,19 @@ bgpview_io_zmq_client_stop(bgpview_io_zmq_client_t *client);
  */
 void
 bgpview_io_zmq_client_free(bgpview_io_zmq_client_t *client);
+
+/** Set options for the given client
+ *
+ * @param client        pointer to the bgpview client to set options for
+ * @param opts          string containing options to be parsed with getopt
+ * @returns 0 if the options were set successfully, -1 otherwise
+ *
+ * This function will output usage information to stderr if an incorrect option
+ * is encountered, or if the "-?" option is provided.
+ */
+int
+bgpview_io_zmq_client_set_opts(bgpview_io_zmq_client_t *client,
+                               const char *opts);
 
 /** Set the URI for the client to connect to the server on
  *

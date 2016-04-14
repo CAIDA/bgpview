@@ -21,7 +21,7 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS = io
+SUBDIRS = consumers io
 AM_CPPFLAGS =
 
 EXTRA_DIST =

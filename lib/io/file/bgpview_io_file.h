@@ -33,10 +33,12 @@
  * @param outfile       wandio file handle to write to
  * @param view          pointer to the view to send
  * @param cb            callback function to use to filter entries (may be NULL)
+ * @param cb_user       user pointer provided to callback function
  * @return 0 if the view was written successfully, -1 otherwise
  */
 int bgpview_io_file_write(iow_t *outfile, bgpview_t *view,
-                     bgpview_io_filter_cb_t *cb);
+                          bgpview_io_filter_cb_t *cb,
+                          void *cb_user);
 
 /** Receive a view from the given file
  *

@@ -29,9 +29,6 @@ AM_CPPFLAGS = 	-I$(top_srcdir)				\
 		-I$(top_srcdir)/lib/utils		\
 		-I$(top_srcdir)/bgpview/lib		\
 		-I$(top_srcdir)/bgpview/lib/io		\
-		-I$(top_srcdir)/bgpview/lib/io/file	\
-		-I$(top_srcdir)/bgpview/lib/io/kafka	\
-		-I$(top_srcdir)/bgpview/lib/io/zmq	\
 		-I$(top_srcdir)/bgpview/lib/consumers
 
 # BGPView IO is needed for bgpview_io_dump and bgpview_io_write
@@ -115,11 +112,19 @@ CONSUMER_SRCS += \
 	bvc_myviewprocess.c \
 	bvc_myviewprocess.h
 
+# Alistair can't figure out how to do an OR...
 if WITH_BGPVIEW_IO_KAFKA
-# kafka sender
+# view sender
 CONSUMER_SRCS += \
-	bvc_kafkasender.c  \
-	bvc_kafkasender.h
+	bvc_viewsender.c  \
+	bvc_viewsender.h
+else
+if WITH_BGPVIEW_IO_ZMQ
+# view sender
+CONSUMER_SRCS += \
+	bvc_viewsender.c  \
+	bvc_viewsender.h
+endif
 endif
 
 # -- sample how to add conditional consumer

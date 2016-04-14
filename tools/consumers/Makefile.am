@@ -21,47 +21,24 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS =
+AM_CPPFLAGS = -I$(top_srcdir) \
+	      -I$(top_srcdir)/common \
+	      -I$(top_srcdir)/lib \
+	      -I$(top_srcdir)/lib/utils \
+	      -I$(top_srcdir)/bgpview/lib \
+	      -I$(top_srcdir)/bgpview/lib/io \
+	      -I$(top_srcdir)/bgpview/lib/consumers
 
-AM_CPPFLAGS = 	-I$(top_srcdir) \
-	 	-I$(top_srcdir)/common \
-                -I$(top_srcdir)/lib \
-                -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib
+dist_bin_SCRIPTS =
 
-noinst_LTLIBRARIES = libbgpview_io.la
+bin_PROGRAMS =
 
-include_HEADERS =
-
-libbgpview_io_la_SOURCES = 		\
-	bgpview_io.c			\
-	bgpview_io.h
-
-MOD_LIBS=
-
-if WITH_BGPVIEW_IO_FILE
-SUBDIRS+=file
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/file/libbgpview_io_file.la
-endif
-
-if WITH_BGPVIEW_IO_ZMQ
-SUBDIRS+=zmq
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/zmq/libbgpview_io_zmq.la
-endif
-
-if WITH_BGPVIEW_IO_KAFKA
-SUBDIRS+=kafka
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/kafka/libbgpview_io_kafka.la
-endif
-
-if WITH_BGPVIEW_IO_TEST
-SUBDIRS+=test
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/test/libbgpview_io_test.la
-endif
-
-libbgpview_io_la_LIBADD = \
-	$(MOD_LIBS)
-
+# obtains views from {file,test,kafka,zmq} and drives consumer plugins
+bin_PROGRAMS += bgpview-consumer
+bgpview_consumer_SOURCES = \
+	bgpview-consumer.c
+bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
+		         $(top_builddir)/bgpview/lib/libbgpviewcaida.la
 
 ACLOCAL_AMFLAGS = -I m4
 

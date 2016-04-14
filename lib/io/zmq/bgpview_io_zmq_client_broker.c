@@ -34,15 +34,6 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg);
 
 #define CFG (broker->cfg)
 
-#define DO_CALLBACK(cbfunc, args...)                    \
-  do {                                                  \
-    if(CFG->callbacks.cbfunc != NULL)                   \
-      {                                                 \
-	CFG->callbacks.cbfunc(CFG->master, args,        \
-                              CFG->callbacks.user);     \
-      }                                                 \
-  } while(0)
-
 #define ISERR                                   \
   if(errno == EINTR || errno == ETERM)          \
     {                                           \

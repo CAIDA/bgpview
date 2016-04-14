@@ -25,6 +25,7 @@
 #include "bgpview_io_zmq_client_broker.h"
 #include "bgpview_io_zmq.h"
 #include "khash.h"
+#include "parse_cmd.h"
 #include "utils.h"
 #include <stdint.h>
 
@@ -79,6 +80,86 @@ int send_view_hdrs(bgpview_io_zmq_client_t *client, bgpview_t *view)
 
  err:
   return -1;
+}
+
+static void usage()
+{
+  fprintf(stderr,
+          "ZMQ Client Options:\n"
+	  "       -i <interval-ms>      Time in ms between heartbeats to server\n"
+	  "                               (default: %d)\n"
+	  "       -l <beats>            Number of heartbeats that can go by before the\n"
+	  "                               server is declared dead (default: %d)\n"
+	  "       -n <identity>         Globally unique client name (default: random)\n"
+	  "       -r <retry-min>        Min wait time (in msec) before reconnecting server\n"
+
+	  "                               (default: %d)\n"
+	  "       -R <retry-max>        Max wait time (in msec) before reconnecting server\n"
+	  "                               (default: %d)\n"
+	  "       -s <server-uri>       0MQ-style URI to connect to server on\n"
+	  "                               (default: %s)\n"
+          "       -S <server-sub-uri>   0MQ-style URI to subscribe to tables on\n"
+          "                               (default: %s)\n",
+	  BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
+	  BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
+	  BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN,
+	  BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX,
+	  BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT,
+	  BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT);
+}
+
+static int parse_args(bgpview_io_zmq_client_t *client,
+                      int argc, char **argv)
+{
+  int opt;
+  assert(argc > 0 && argv != NULL);
+  /* NB: remember to reset optind to 1 before using getopt! */
+  optind = 1;
+
+  /* remember the argv strings DO NOT belong to us */
+  while((opt = getopt(argc, argv, ":i:l:n:r:R:s:S:?")) >= 0)
+    {
+      switch(opt)
+        {
+        case 'i':
+            bgpview_io_zmq_client_set_heartbeat_interval(client,
+                                                         atoi(optarg));
+	  break;
+
+	case 'l':
+	  bgpview_io_zmq_client_set_heartbeat_liveness(client, atoi(optarg));
+	  break;
+
+	case 'n':
+	  bgpview_io_zmq_client_set_identity(client, optarg);
+	  break;
+
+	case 'r':
+	  bgpview_io_zmq_client_set_reconnect_interval_min(client,
+                                                           atoi(optarg));
+	  break;
+
+	case 'R':
+	  bgpview_io_zmq_client_set_reconnect_interval_max(client,
+                                                           atoi(optarg));
+	  break;
+
+	case 's':
+	  bgpview_io_zmq_client_set_server_uri(client, optarg);
+	  break;
+
+	case 'S':
+	  bgpview_io_zmq_client_set_server_sub_uri(client, optarg);
+	  break;
+
+        case '?':
+        case ':':
+        default:
+          usage();
+          return -1;
+        }
+    }
+  return 0;
 }
 
 /* ========== PUBLIC FUNCS BELOW HERE ========== */
@@ -166,13 +247,6 @@ bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t intents)
   return NULL;
 }
 
-void bgpview_io_zmq_client_set_cb_userdata(bgpview_io_zmq_client_t *client,
-                                           void *user)
-{
-  assert(client != NULL);
-  BCFG.callbacks.user = user;
-}
-
 int bgpview_io_zmq_client_start(bgpview_io_zmq_client_t *client)
 {
   /* crank up the broker */
@@ -202,7 +276,8 @@ int bgpview_io_zmq_client_start(bgpview_io_zmq_client_t *client)
 
 int bgpview_io_zmq_client_send_view(bgpview_io_zmq_client_t *client,
                                     bgpview_t *view,
-                                    bgpview_io_filter_cb_t *cb)
+                                    bgpview_io_filter_cb_t *cb,
+                                    void *cb_user)
 {
   if(send_view_hdrs(client, view) != 0)
     {
@@ -210,7 +285,7 @@ int bgpview_io_zmq_client_send_view(bgpview_io_zmq_client_t *client,
     }
 
   /* now just transmit the view */
-  if(bgpview_io_zmq_send(client->broker_zocket, view, cb) != 0)
+  if(bgpview_io_zmq_send(client->broker_zocket, view, cb, cb_user) != 0)
     {
       goto err;
     }
@@ -288,6 +363,29 @@ void bgpview_io_zmq_client_free(bgpview_io_zmq_client_t *client)
   free(client);
 
   return;
+}
+
+int
+bgpview_io_zmq_client_set_opts(bgpview_io_zmq_client_t *client,
+                               const char *opts)
+{
+#define MAXOPTS 1024
+  char *local_args = NULL;
+  char *process_argv[MAXOPTS];
+  int len;
+  int process_argc = 0;
+
+  /* nothing to process */
+  if (opts == NULL || (len = strlen(opts)) == 0) {
+    return 0;
+  }
+
+  /* parse the option string ready for getopt */
+  local_args = strdup(opts);
+  parse_cmd(local_args, &process_argc, process_argv, MAXOPTS, "zmq");
+
+  /* now parse the arguments using getopt */
+  return parse_args(client, process_argc, process_argv);
 }
 
 int bgpview_io_zmq_client_set_server_uri(bgpview_io_zmq_client_t *client,

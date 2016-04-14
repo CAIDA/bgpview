@@ -76,7 +76,9 @@ static int64_t get_offset(bgpview_io_kafka_t *client, char *topic,
 }
 
 static int pfx_row_serialize(uint8_t *buf, size_t len, char operation,
-                             bgpview_iter_t *it, bgpview_io_filter_cb_t *cb)
+                             bgpview_iter_t *it,
+                             bgpview_io_filter_cb_t *cb,
+                             void *cb_user)
 {
   size_t written = 0;
   ssize_t s;
@@ -84,7 +86,7 @@ static int pfx_row_serialize(uint8_t *buf, size_t len, char operation,
   // serialize the operation that must be done with this row
   // "Update" or "Remove"
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, operation);
-  if ((s = bgpview_io_serialize_pfx_row(buf, (len - written), it, cb,
+  if ((s = bgpview_io_serialize_pfx_row(buf, (len - written), it, cb, cb_user,
                                         operation == 'R' ? -1 : 0)) == -1) {
     goto err;
   }
@@ -287,7 +289,8 @@ static int send_peers(bgpview_io_kafka_t *client,
                       bgpview_t *view,
                       bgpview_iter_t *it,
                       bgpview_iter_t *parent_view_it,
-                      bgpview_io_filter_cb_t *cb)
+                      bgpview_io_filter_cb_t *cb,
+                      void *cb_user)
 {
   uint8_t buf[BUFFER_LEN];
   uint8_t *ptr = buf;
@@ -320,7 +323,7 @@ static int send_peers(bgpview_io_kafka_t *client,
 
     if (cb != NULL) {
       /* ask the caller if they want this peer */
-      if ((filter = cb(it, BGPVIEW_IO_FILTER_PEER)) < 0) {
+      if ((filter = cb(it, BGPVIEW_IO_FILTER_PEER, cb_user)) < 0) {
         goto err;
       }
       if (filter == 0) {
@@ -372,7 +375,8 @@ static int send_pfxs(bgpview_io_kafka_t *client,
                      bgpview_iter_t *it,
                      bgpview_t *parent_view,
                      bgpview_iter_t *parent_view_it,
-                     bgpview_io_filter_cb_t *cb)
+                     bgpview_io_filter_cb_t *cb,
+                     void *cb_user)
 {
   int filter;
 
@@ -416,7 +420,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
     ptr = buf;
 
     if (cb != NULL) {
-      if ((filter = cb(it, BGPVIEW_IO_FILTER_PFX)) < 0) {
+      if ((filter = cb(it, BGPVIEW_IO_FILTER_PFX, cb_user)) < 0) {
         goto err;
       }
       if (filter == 0) {
@@ -549,7 +553,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       } else {
         // send the full row
         STAT(added_pfxs_cnt)++;
-        if ((s = pfx_row_serialize(ptr, len, 'U', it, cb)) < 0) {
+        if ((s = pfx_row_serialize(ptr, len, 'U', it, cb, cb_user)) < 0) {
           goto err;
         }
         written += s;
@@ -562,7 +566,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
         RESET_BUF(buf, ptr, written);
       }
     } else { // SYNC view, send the full row
-      if ((s = pfx_row_serialize(ptr, len, 'U', it, cb)) < 0) {
+      if ((s = pfx_row_serialize(ptr, len, 'U', it, cb, cb_user)) < 0) {
         goto err;
       }
       written += s;
@@ -607,7 +611,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
         }
 
         if ((s = pfx_row_serialize(ptr, (len - written), 'R',
-                                   parent_view_it, cb)) < 0) {
+                                   parent_view_it, cb, cb_user)) < 0) {
           goto err;
         }
         written += s;
@@ -657,7 +661,8 @@ err:
 
 static int send_sync_view(bgpview_io_kafka_t *client,
                           bgpview_t *view,
-                          bgpview_io_filter_cb_t *cb)
+                          bgpview_io_filter_cb_t *cb,
+                          void *cb_user)
 {
   bgpview_iter_t *it = NULL;
   bgpview_io_kafka_md_t meta;
@@ -669,10 +674,10 @@ static int send_sync_view(bgpview_io_kafka_t *client,
   meta.time = bgpview_get_time(view);
   meta.type = 'S';
 
-  if (send_peers(client, &meta, view, it, NULL, cb) != 0) {
+  if (send_peers(client, &meta, view, it, NULL, cb, cb_user) != 0) {
     goto err;
   }
-  if (send_pfxs(client, &meta, it, NULL, NULL, cb) != 0) {
+  if (send_pfxs(client, &meta, it, NULL, NULL, cb, cb_user) != 0) {
     goto err;
   }
 
@@ -700,7 +705,8 @@ err:
 static int send_diff_view(bgpview_io_kafka_t *client,
                           bgpview_t *view,
                           bgpview_t *parent_view,
-                          bgpview_io_filter_cb_t *cb)
+                          bgpview_io_filter_cb_t *cb,
+                          void *cb_user)
 {
   bgpview_iter_t *it = NULL;
   bgpview_iter_t *parent_view_it = NULL;
@@ -721,11 +727,11 @@ static int send_diff_view(bgpview_io_kafka_t *client,
   meta.parent_time = bgpview_get_time(parent_view);
   meta.sync_md_offset = client->prod_state.last_sync_offset;
 
-  if (send_peers(client, &meta, view, it, parent_view_it, cb) == -1) {
+  if (send_peers(client, &meta, view, it, parent_view_it, cb, cb_user) == -1) {
     goto err;
   }
 
-  if (send_pfxs(client, &meta, it, parent_view, parent_view_it, cb) == -1) {
+  if (send_pfxs(client, &meta, it, parent_view, parent_view_it, cb, cb_user) == -1) {
     goto err;
   }
 
@@ -827,7 +833,8 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
 int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
                                    bgpview_t *view,
                                    bgpview_t *parent_view,
-                                   bgpview_io_filter_cb_t *cb)
+                                   bgpview_io_filter_cb_t *cb,
+                                   void *cb_user)
 {
   /* reset the stats */
   memset(&client->stats, 0, sizeof(bgpview_io_kafka_stats_t));
@@ -842,11 +849,11 @@ int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
   }
 
   if (parent_view == NULL) {
-    if (send_sync_view(client, view, cb) != 0) {
+    if (send_sync_view(client, view, cb, cb_user) != 0) {
       goto err;
     }
   } else {
-    if (send_diff_view(client, view, parent_view, cb) != 0) {
+    if (send_diff_view(client, view, parent_view, cb, cb_user) != 0) {
       goto err;
     }
   }
