@@ -152,7 +152,8 @@ static int send_pfxs(void *dest, bgpview_iter_t *it,
       s = 0;
 
       // serialize the pfx row using only path IDs
-      if((s = bgpview_io_serialize_pfx_row(ptr, len, it, cb, cb_user, 1)) == -1)
+      if((s = bgpview_io_serialize_pfx_row(ptr, len, it, NULL,
+                                           cb, cb_user, 1)) == -1)
         {
           goto err;
         }

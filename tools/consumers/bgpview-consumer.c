@@ -458,7 +458,7 @@ static int configure_io(char *io_module)
 #ifdef WITH_BGPVIEW_IO_KAFKA
   else if (strcmp(io_module, "kafka") == 0)
     {
-      fprintf(stderr, "INFO: Starting Kakfa IO producer module...\n");
+      fprintf(stderr, "INFO: Starting Kakfa IO consumer module...\n");
       if((kafka_client =
           bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER,
                                 io_options)) == NULL)
@@ -487,7 +487,7 @@ static int configure_io(char *io_module)
 #ifdef WITH_BGPVIEW_IO_ZMQ
   else if (strcmp(io_module, "zmq") == 0)
     {
-      fprintf(stderr, "INFO: Starting ZMQ IO module...\n");
+      fprintf(stderr, "INFO: Starting ZMQ consumer IO module...\n");
       if((zmq_client =
           bgpview_io_zmq_client_init(0)) == NULL)
         {

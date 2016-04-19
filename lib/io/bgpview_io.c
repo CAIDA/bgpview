@@ -392,6 +392,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
 
 int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
                                  bgpview_iter_t *it,
+                                 int *peers_cnt,
                                  bgpview_io_filter_cb_t *cb,
                                  void *cb_user,
                                  int use_pathid)
@@ -400,7 +401,7 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
   ssize_t s = 0;
 
   bgpstream_pfx_t *pfx;
-  int peers_cnt = 0;
+  int peers_tx = 0;
 
   uint16_t u16;
 
@@ -415,9 +416,8 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
   buf += s;
 
   /* send the peers */
-  peers_cnt = 0;
   if((s = bgpview_io_serialize_pfx_peers(buf, (len-written), it,
-                                         &peers_cnt, cb, cb_user,
+                                         &peers_tx, cb, cb_user,
                                          use_pathid)) == -1)
     {
       goto err;
@@ -425,19 +425,27 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
   written += s;
   buf += s;
 
+  if (peers_cnt != NULL) {
+    *peers_cnt = peers_tx;
+  }
+
   /* for a pfx to be sent it must have active peers */
-  if(peers_cnt == 0)
+  if(peers_tx == 0)
     {
       return 0;
     }
+
+  if (peers_cnt != NULL) {
+    *peers_cnt = peers_tx;
+  }
 
   /* send a magic peerid to indicate end of peers */
   u16 = BGPVIEW_IO_END_OF_PEERS;
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, u16);
 
   /* peer cnt for cross validation */
-  assert(peers_cnt > 0);
-  u16 = htons(peers_cnt);
+  assert(peers_tx > 0);
+  u16 = htons(peers_tx);
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, u16);
 
   return written;

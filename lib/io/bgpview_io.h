@@ -244,6 +244,7 @@ int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
  * @param use_pathid    if 1, only path IDs will be serialized, not the
  *                      actual paths, if -1, then no path information will be
  *                      included
+ * @param[out] cells_tx  if not NULL; set to the number of pfx-peers serialized
  * @return the number of bytes written, or -1 on error
  */
 int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
@@ -258,6 +259,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
  * @param buf           pointer to the buffer to serialize into
  * @param len           length of the buffer
  * @param it            pointer to a valid BGPView iterator
+ * @param peers_cnt[out] if not NULL; set to the number of pfx-peers serialized
  * @param cb            pointer to a filter callback
  * @param cb_user       user pointer provided to filter callback
  * @param use_pathid    if 1, only path IDs will be serialized, not the
@@ -268,6 +270,7 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
  */
 int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
                                  bgpview_iter_t *it,
+                                 int *peers_cnt,
                                  bgpview_io_filter_cb_t *cb,
                                  void *cb_user,
                                  int use_pathid);

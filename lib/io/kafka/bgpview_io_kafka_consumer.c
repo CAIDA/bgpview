@@ -60,16 +60,15 @@ static int add_peerid_mapping(bgpview_io_kafka_t *client, bgpview_iter_t *it,
     client->dc_state.peerid_map_alloc_cnt = remote_id + 1;
   }
 
-  /* do we need to add this peer */
-  if (client->dc_state.peerid_map[remote_id] == 0) {
-    if ((local_id = bgpview_iter_add_peer(
+  /* just blindly add the peer */
+  if ((local_id = bgpview_iter_add_peer(
            it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
            sig->peer_asnumber)) == 0) {
-      return -1;
-    }
-    bgpview_iter_activate_peer(it);
-    client->dc_state.peerid_map[remote_id] = local_id;
+    return -1;
   }
+  /* ensure the peer is active */
+  bgpview_iter_activate_peer(it);
+  client->dc_state.peerid_map[remote_id] = local_id;
 
   /* by here we are guaranteed to have a valid mapping */
   return client->dc_state.peerid_map[remote_id];
@@ -393,6 +392,7 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
     pfx_rx++;
 
     switch (type) {
+    case 'S':
     case 'U':
       /* an update row */
       tom++;

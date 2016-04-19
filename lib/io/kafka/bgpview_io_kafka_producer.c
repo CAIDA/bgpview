@@ -75,7 +75,8 @@ static int64_t get_offset(bgpview_io_kafka_t *client, char *topic,
   return -1;
 }
 
-static int pfx_row_serialize(uint8_t *buf, size_t len, char operation,
+static int pfx_row_serialize(bgpview_io_kafka_t *client,
+                             uint8_t *buf, size_t len, char operation,
                              bgpview_iter_t *it,
                              bgpview_io_filter_cb_t *cb,
                              void *cb_user)
@@ -83,13 +84,33 @@ static int pfx_row_serialize(uint8_t *buf, size_t len, char operation,
   size_t written = 0;
   ssize_t s;
 
+  int cells_tx = 0;
+
   // serialize the operation that must be done with this row
   // "Update" or "Remove"
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, operation);
-  if ((s = bgpview_io_serialize_pfx_row(buf, (len - written), it, cb, cb_user,
-                                        operation == 'R' ? -1 : 0)) == -1) {
+  if ((s =
+       bgpview_io_serialize_pfx_row(buf, (len - written), it,
+                                    operation == 'S' ? NULL : &cells_tx,
+                                    cb, cb_user,
+                                    operation == 'R' ? -1 : 0)) == -1) {
     goto err;
   }
+
+  /* update stats */
+  switch(operation) {
+  case 'S':
+    break;
+
+  case 'U':
+    STAT(changed_pfx_peer_cnt) += cells_tx;
+    break;
+
+  case 'R':
+    STAT(removed_pfx_peer_cnt) += cells_tx;
+    break;
+  }
+
   if (s == 0) {
     return 0;
   } else {
@@ -284,16 +305,8 @@ static int send_peers(bgpview_io_kafka_t *client,
   }
 
   for (bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-       bgpview_iter_has_more_peer(it); bgpview_iter_next_peer(it)) {
-    /* if we are sending a diff, only send if this peer is not in our
-       reference diff */
-    if (meta->type == 'D' &&
-        bgpview_iter_seek_peer(parent_view_it,
-                               bgpview_iter_peer_get_peer_id(it),
-                               BGPVIEW_FIELD_ACTIVE) == 1) {
-      continue;
-    }
-
+       bgpview_iter_has_more_peer(it);
+       bgpview_iter_next_peer(it)) {
     if (cb != NULL) {
       /* ask the caller if they want this peer */
       if ((filter = cb(it, BGPVIEW_IO_FILTER_PEER, cb_user)) < 0) {
@@ -343,6 +356,348 @@ err:
   return -1;
 }
 
+static int send_cells(bgpview_io_kafka_t *client,
+                      bgpview_iter_t *it,
+                      bgpview_iter_t *parent_view_it,
+                      bgpview_io_filter_cb_t *cb,
+                      void *cb_user)
+{
+  uint8_t upd_buf[BUFFER_LEN];
+  uint8_t *upd_ptr = upd_buf;
+  size_t upd_written = 0;
+  int upd_cells = 0;
+
+  uint8_t rem_buf[BUFFER_LEN];
+  uint8_t *rem_ptr = rem_buf;
+  size_t rem_written = 0;
+  int rem_cells = 0;
+
+  ssize_t s;
+
+  /* both iterators refer to a prefix to do a cellular diff on */
+
+  /* for each pfx-peer in the new view */
+  for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_pfx_has_more_peer(it);
+       bgpview_iter_pfx_next_peer(it))
+    {
+      bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(it);
+      int parent_exists = bgpview_iter_pfx_seek_peer(parent_view_it, peerid,
+                                                     BGPVIEW_FIELD_ACTIVE);
+      /* and did we send this cell last time? */
+      int parent_exists_sent = parent_exists && cb(parent_view_it,
+                                                   BGPVIEW_IO_FILTER_PFX_PEER,
+                                                   cb_user);
+
+      int send_this = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user);
+
+      int upd_cell = 0;
+      int rem_cell = 0;
+      if (parent_exists_sent && send_this) {
+        if (diff_cells(parent_view_it, it) != 0) {
+          /* the cell has changed, send it */
+          upd_cell = 1;
+          STAT(changed_pfx_peer_cnt)++;
+        }
+      } else if (parent_exists_sent && !send_this) {
+        /* cell has been removed */
+        rem_cell = 1;
+        STAT(removed_pfx_peer_cnt)++;
+      } else if (!parent_exists_sent && send_this) {
+        /* cell has been added */
+        upd_cell = 1;
+        STAT(added_pfx_peer_cnt)++;
+      } else {
+        /* nothing to send */
+        continue;
+      }
+
+      if (upd_cell == 1) {
+        assert(rem_cell == 0);
+        if (upd_written == 0) {
+          /* start the row */
+          if ((s = pfx_row_start(upd_ptr, (BUFFER_LEN - upd_written), 'U',
+                                 bgpview_iter_pfx_get_pfx(it))) == -1) {
+            goto err;
+          }
+          upd_written += s;
+          upd_ptr += s;
+        }
+
+        /* add this cell */
+        if ((s = bgpview_io_serialize_pfx_peer(upd_ptr,
+                                               (BUFFER_LEN - upd_written),
+                                               it, NULL, NULL, 0)) == -1) {
+          goto err;
+        }
+        if (s > 0) {
+          upd_cells++;
+          upd_written += s;
+          upd_ptr += s;
+        }
+      } else if (rem_cell == 1) {
+        assert(upd_cell == 0);
+        if (rem_written == 0) {
+          /* start the row */
+          if ((s = pfx_row_start(rem_ptr, (BUFFER_LEN - rem_written), 'R',
+                                 bgpview_iter_pfx_get_pfx(parent_view_it)))
+              == -1) {
+            goto err;
+          }
+          rem_written += s;
+          rem_ptr += s;
+        }
+
+        /* add this cell */
+        if ((s = bgpview_io_serialize_pfx_peer(rem_ptr,
+                                               (BUFFER_LEN - rem_written),
+                                               parent_view_it,
+                                               NULL, NULL, -1)) == -1) {
+          goto err;
+        }
+        if (s > 0) {
+          rem_cells++;
+          rem_written += s;
+          rem_ptr += s;
+        }
+      }
+    }
+
+  /* for each pfx-peer in the parent view */
+  for (bgpview_iter_pfx_first_peer(parent_view_it, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_pfx_has_more_peer(parent_view_it);
+       bgpview_iter_pfx_next_peer(parent_view_it)) {
+      /* was this cell actually sent? */
+      if (cb(parent_view_it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user) == 0) {
+        /* no need to do anything */
+        continue;
+      }
+
+      bgpstream_peer_id_t peerid =
+        bgpview_iter_peer_get_peer_id(parent_view_it);
+      if (bgpview_iter_pfx_seek_peer(it, peerid, BGPVIEW_FIELD_ACTIVE) != 1) {
+        /* pfx-peer has been removed in new view, send removal (parent iter) */
+
+        if (rem_written == 0) {
+          /* start the row */
+          if ((s = pfx_row_start(rem_ptr, (BUFFER_LEN - rem_written), 'R',
+                                 bgpview_iter_pfx_get_pfx(parent_view_it)))
+              == -1) {
+            goto err;
+          }
+          rem_written += s;
+          rem_ptr += s;
+        }
+
+        /* add this cell */
+        if ((s = bgpview_io_serialize_pfx_peer(rem_ptr,
+                                               (BUFFER_LEN - rem_written),
+                                               parent_view_it, cb, cb_user, -1))
+            == -1) {
+          goto err;
+        }
+        if (s > 0) {
+          rem_cells++;
+          rem_written += s;
+          rem_ptr += s;
+        }
+      }
+  }
+
+  if (upd_cells > 0) {
+    /* send the update row */
+    if ((s = pfx_row_end(upd_ptr, (BUFFER_LEN - upd_written),
+                         upd_cells)) == -1) {
+      goto err;
+    }
+    upd_written += s;
+    upd_ptr += s;
+    SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+             upd_buf, upd_written);
+  }
+
+  if (rem_cells > 0) {
+    /* send the remove row */
+    if ((s = pfx_row_end(rem_ptr, (BUFFER_LEN - rem_written),
+                         rem_cells)) == -1) {
+      goto err;
+    }
+    rem_written += s;
+    rem_ptr += s;
+    SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+             rem_buf, rem_written);
+  }
+
+  if (upd_cells > 0 || rem_cells > 0) {
+    STAT(changed_pfxs_cnt)++;
+    STAT(pfx_cnt)++;
+  }
+  STAT(common_pfxs_cnt)++;
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+static int send_pfxs(bgpview_io_kafka_t *client,
+                     bgpview_io_kafka_md_t *meta,
+                     bgpview_iter_t *it,
+                     bgpview_t *parent_view,
+                     bgpview_iter_t *parent_view_it,
+                     bgpview_io_filter_cb_t *cb,
+                     void *cb_user)
+{
+  /* serialization buffer and state */
+  uint8_t buf[BUFFER_LEN];
+  uint8_t *ptr = buf;;
+  size_t len = BUFFER_LEN;
+  size_t written = 0;
+  ssize_t s = 0;
+
+  /* find our current offset and update the metadata */
+  if ((meta->pfxs_offset =
+       get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+                    BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT)) < 0) {
+    fprintf(stderr, "ERROR: Could not get prefix offset\n");
+    goto err;
+  }
+
+  /* for each prefix in new view */
+  for (bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_pfx(it);
+       bgpview_iter_next_pfx(it)) {
+
+    /* if we are sending a sync frame, just send the row */
+    if (meta->type == 'S') {
+      if ((s = pfx_row_serialize(client, ptr, len, 'S', it,
+                                 cb, cb_user)) < 0) {
+        goto err;
+      }
+      if (s > 0) {
+        STAT(pfx_cnt)++;
+        STAT(sync_pfx_cnt)++;
+        SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+                 BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                 buf, s);
+        RESET_BUF(buf, ptr, s);
+      }
+      continue;
+    }
+
+    /* we are sending a diff */
+    assert(meta->type == 'D');
+
+    bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
+    int parent_exists = bgpview_iter_seek_pfx(parent_view_it, pfx,
+                                              BGPVIEW_FIELD_ACTIVE);
+    /* did we send this prefix last time? */
+    int parent_exists_sent =
+      parent_exists && cb(parent_view_it, BGPVIEW_IO_FILTER_PFX, cb_user);
+
+    /* does the user want this prefix sent? */
+    int send_this = cb(it, BGPVIEW_IO_FILTER_PFX, cb_user);
+
+    if (parent_exists_sent && send_this) {
+      /* cellular diff */
+      if (send_cells(client, it, parent_view_it, cb, cb_user) != 0) {
+        goto err;
+      }
+    } else if (parent_exists_sent && !send_this) {
+      /* remove row (parent cb) */
+      assert(ptr == buf);
+      if ((s = pfx_row_serialize(client, ptr, len, 'R', parent_view_it,
+                                 cb, cb_user)) < 0) {
+        goto err;
+      }
+
+      if (s > 0) {
+        STAT(removed_pfxs_cnt)++;
+      }
+    } else if (!parent_exists_sent && send_this) {
+      /* update row (current cb) */
+      assert(ptr == buf);
+      if ((s = pfx_row_serialize(client, ptr, len, 'U', it,
+                                 cb, cb_user)) < 0) {
+        goto err;
+      }
+
+      if (s > 0) {
+        STAT(added_pfxs_cnt)++;
+      }
+    } else {
+      /* nothing to send */
+      continue;
+    }
+
+    /* if one of the above cases serialized something, send the message now */
+    if (s > 0) {
+      SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+               BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+               buf, s);
+      RESET_BUF(buf, ptr, s);
+
+      STAT(pfx_cnt)++;
+    }
+  }
+
+  /* if this is a diff, we need to send prefix-removal info */
+  if (meta->type == 'D') {
+    /* for each prefix in the parent view */
+    for (bgpview_iter_first_pfx(parent_view_it, 0,
+                                BGPVIEW_FIELD_ACTIVE);
+         bgpview_iter_has_more_pfx(parent_view_it);
+         bgpview_iter_next_pfx(parent_view_it)) {
+      /* was this prefix actually sent? */
+      if (cb(parent_view_it, BGPVIEW_IO_FILTER_PFX, cb_user) == 0) {
+        /* no need to do anything */
+        continue;
+      }
+
+      bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(parent_view_it);
+      /* does this prefix exist in the new view? */
+      if (bgpview_iter_seek_pfx(it, pfx, BGPVIEW_FIELD_ACTIVE) != 1) {
+        /* does not exist, send a removal (parent iter) */
+        assert(ptr == buf);
+        if ((s = pfx_row_serialize(client, ptr, len, 'R', parent_view_it,
+                                   cb, cb_user)) < 0) {
+          goto err;
+        }
+        if (s > 0) {
+          SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+                   BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                   buf, s);
+          RESET_BUF(buf, ptr, s);
+
+          STAT(removed_pfxs_cnt)++;
+          STAT(pfx_cnt)++;
+        }
+      }
+    }
+  }
+
+  /* send the end-of-prefixes message */
+  assert(ptr == buf);
+  char type = 'E';
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, type);
+  /* Time */
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, meta->time);
+  /* Prefix count */
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, STAT(pfx_cnt));
+
+  SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+           BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+           buf, written);
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+#if 0
 static int send_pfxs(bgpview_io_kafka_t *client,
                      bgpview_io_kafka_md_t *meta,
                      bgpview_iter_t *it,
@@ -618,8 +973,6 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   }
 
   /* send the end message */
-  written = 0;
-  ptr = buf;
   char type = 'E';
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, type);
   /* Time */
@@ -630,13 +983,13 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
            BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
            buf, written);
-  RESET_BUF(buf, ptr, written);
 
   return 0;
 
 err:
   return -1;
 }
+#endif
 
 static int send_sync_view(bgpview_io_kafka_t *client,
                           bgpview_t *view,

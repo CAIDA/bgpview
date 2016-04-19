@@ -121,8 +121,8 @@ typedef struct bgpview_io_kafka_stats {
       (only set when sending a diff) */
   int removed_pfx_peer_cnt;
 
-  /** The number of prefixes sent in the current view (added + changed in the
-      case of a diff) */
+  /** The number of prefixes sent in the current view (added + changed + removed
+      in the case of a diff) */
   int pfx_cnt;
 
   /** The number of prefixes sent as part of a sync frame */

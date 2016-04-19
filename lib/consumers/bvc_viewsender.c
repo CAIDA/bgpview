@@ -296,7 +296,7 @@ static int configure_io(bvc_t *consumer)
 #ifdef WITH_BGPVIEW_IO_KAFKA
   else if (strcmp(STATE->io_module, "kafka") == 0)
     {
-      fprintf(stderr, "INFO: Starting Kafka IO module...\n");
+      fprintf(stderr, "INFO: Starting Kafka IO producer module...\n");
       if ((STATE->kafka_client =
            bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_PRODUCER,
                                  io_options)) == NULL) {
@@ -311,7 +311,7 @@ static int configure_io(bvc_t *consumer)
 #ifdef WITH_BGPVIEW_IO_ZMQ
   else if (strcmp(STATE->io_module, "zmq") == 0)
     {
-      fprintf(stderr, "INFO: Starting ZMQ IO module...\n");
+      fprintf(stderr, "INFO: Starting ZMQ IO producer module...\n");
       if((STATE->zmq_client =
           bgpview_io_zmq_client_init(BGPVIEW_PRODUCER_INTENT_PREFIX)) == NULL)
         {
@@ -625,6 +625,7 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
                         stats->removed_pfx_peer_cnt);
 
       timeseries_kp_set(state->kp, state->sync_cnt_idx, stats->sync_pfx_cnt);
+      timeseries_kp_set(state->kp, state->pfx_cnt_idx, stats->pfx_cnt);
     }
 #endif
 #ifdef WITH_BGPVIEW_IO_ZMQ
