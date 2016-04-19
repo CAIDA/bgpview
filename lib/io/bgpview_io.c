@@ -296,8 +296,11 @@ bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
 
 int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
                                   bgpview_iter_t *it,
+                                  bgpview_io_filter_cb_t *cb,
+                                  void *cb_user,
                                   int use_pathid)
 {
+  int filter;
   uint16_t peerid;
 
   bgpstream_as_path_store_path_t *spath;
@@ -305,6 +308,19 @@ int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
 
   size_t written = 0;
   ssize_t s;
+
+  if(cb != NULL)
+    {
+      /* ask the caller if they want this pfx-peer */
+      if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user)) < 0)
+        {
+          goto err;
+        }
+      if(filter == 0)
+        {
+          return 0;
+        }
+    }
 
   peerid = bgpview_iter_peer_get_peer_id(it);
 
@@ -345,7 +361,6 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
                                    void *cb_user,
                                    int use_pathid)
 {
-  int filter;
   size_t written = 0;
   ssize_t s;
 
@@ -356,28 +371,17 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
       bgpview_iter_pfx_has_more_peer(it);
       bgpview_iter_pfx_next_peer(it))
     {
-      if(cb != NULL)
-        {
-          /* ask the caller if they want this pfx-peer */
-          if((filter = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user)) < 0)
-            {
-              goto err;
-            }
-          if(filter == 0)
-            {
-              continue;
-            }
-        }
-
       if ((s = bgpview_io_serialize_pfx_peer(buf, (len-written),
-                                             it, use_pathid)) == -1)
+                                             it, cb, cb_user,
+                                             use_pathid)) == -1)
         {
           goto err;
         }
-      written += s;
-      buf += s;
-
-      (*peers_cnt)++;
+      if (s > 0) { // 0 if the callback filtered the pfx-peer
+        written += s;
+        buf += s;
+        (*peers_cnt)++;
+      }
     }
 
   return written;

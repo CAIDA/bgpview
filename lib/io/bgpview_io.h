@@ -220,6 +220,8 @@ bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
  * @param buf           pointer to the buffer to serialize into
  * @param len           length of the buffer
  * @param it            pointer to a valid BGPView iterator
+ * @param cb            pointer to a filter callback
+ * @param cb_user       user pointer provided to filter callback
  * @param use_pathid    if 1, only path IDs will be serialized, not the
  *                      actual paths, if -1, then no path information will be
  *                      included
@@ -227,6 +229,8 @@ bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
  */
 int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
                                   bgpview_iter_t *it,
+                                  bgpview_io_filter_cb_t *cb,
+                                  void *cb_user,
                                   int use_pathid);
 
 /** Serialize the pfx-peers of the current prefix

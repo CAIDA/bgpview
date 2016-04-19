@@ -342,7 +342,6 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
   char type;
 
   uint32_t pfx_cnt = 0;
-  uint32_t cell_cnt = 0;
   int pfx_rx = 0;
 
   int tor = 0;
@@ -383,7 +382,6 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
       assert(view_time == exp_time);
       BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, pfx_cnt);
       assert(pfx_rx == pfx_cnt);
-      BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, cell_cnt);
       assert(read == msg->len);
 
       rd_kafka_message_destroy(msg);
