@@ -500,7 +500,7 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
   read += s;
   buf += s;
 
-  if(pfx_cb != NULL)
+  if(pfx_cb != NULL && state == BGPVIEW_FIELD_ACTIVE)
     {
       /* ask the caller if they want this pfx */
       if((filter = pfx_cb((bgpstream_pfx_t*)&pfx)) < 0)
@@ -561,7 +561,7 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
 
       assert(peerid < peerid_map_cnt);
 
-      if(pfx_peer_cb != NULL)
+      if(pfx_peer_cb != NULL && state == BGPVIEW_FIELD_ACTIVE)
         {
           /* get the store path using the id */
           store_path =
@@ -616,25 +616,20 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
                                             (bgpstream_pfx_t *)&pfx,
                                             peerid_map[peerid],
                                             BGPVIEW_FIELD_ALL_VALID,
-                                            BGPVIEW_FIELD_ALL_VALID) != 1)
-                {
-                  goto err;
-                }
+                                            BGPVIEW_FIELD_ALL_VALID) == 1) {
+                bgpview_iter_pfx_deactivate_peer(it);
+              }
             }
           else
             {
               /* seek to peer */
               if(bgpview_iter_pfx_seek_peer(it,
                                             peerid_map[peerid],
-                                            BGPVIEW_FIELD_ALL_VALID) != 1)
-                {
-                  goto err;
-                }
+                                            BGPVIEW_FIELD_ALL_VALID) == 1) {
+                bgpview_iter_pfx_deactivate_peer(it);
+              }
             }
-          if(bgpview_iter_pfx_deactivate_peer(it) < 0) {
-            fprintf(stderr, "Could not deactivate prefix\n");
-            goto err;
-          }
+
         }
 
       pfx_peers_added++;

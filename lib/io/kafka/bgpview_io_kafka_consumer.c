@@ -414,7 +414,8 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
       if ((s = bgpview_io_deserialize_pfx_row(
              ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
              client->dc_state.peerid_map,
-             client->dc_state.peerid_map_alloc_cnt, NULL, -1,
+             client->dc_state.peerid_map_alloc_cnt,
+             NULL, -1,
              BGPVIEW_FIELD_INACTIVE)) ==
           -1) {
         goto err;
