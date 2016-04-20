@@ -530,10 +530,8 @@ static int send_cells(bgpview_io_kafka_t *client,
              rem_buf, rem_written);
   }
 
-  if (upd_cells > 0 || rem_cells > 0) {
-    STAT(changed_pfxs_cnt)++;
-    STAT(pfx_cnt)++;
-  }
+  STAT(changed_pfxs_cnt) += (upd_cells > 0 || rem_cells > 0);
+  STAT(pfx_cnt) += (upd_cells > 0) + (rem_cells > 0);
   STAT(common_pfxs_cnt)++;
 
   return 0;
