@@ -146,9 +146,71 @@ static int deserialize_metadata(bgpview_io_kafka_md_t *meta,
     goto err;
   }
 
-  return 0;
+  return read;
 
 err:
+  return -1;
+}
+
+static int deserialize_global_metadata(bgpview_io_kafka_md_t **metasptr,
+                                       int64_t *last_sync_offset,
+                                       uint8_t *buf,
+                                       size_t len)
+{
+  size_t read = 0;
+  ssize_t s;
+
+  *metasptr = NULL;
+
+  /* get the number of members */
+  uint16_t members_cnt;
+  BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, members_cnt);
+
+  if (members_cnt == 0) {
+    fprintf(stderr, "ERROR: Empty global metadata message\n");
+    goto err;
+  }
+
+  /* allocate the metas array */
+  bgpview_io_kafka_md_t *metas;
+  if ((metas =
+       malloc_zero(sizeof(bgpview_io_kafka_md_t) * members_cnt)) == NULL) {
+    return -1;
+  }
+
+  int i;
+  bgpview_io_kafka_md_t common;
+  for (i=0; i<members_cnt; i++) {
+    if ((s = deserialize_metadata(&metas[i], buf, (len-read))) <= 0) {
+      goto err;
+    }
+    read += s;
+    buf += s;
+    if (i == 0) {
+      // copy into common
+      common = metas[i];
+    } else {
+      // check against common
+      if (metas[i].time != common.time ||
+          metas[i].type != common.type ||
+          metas[i].parent_time != common.parent_time) {
+        fprintf(stderr, "WARN: Found inconsistent global metadata. Skipping\n");
+        return 0;
+      }
+    }
+  }
+
+  // NB: last_sync_offset is a ptr, but this macro expects a regular variable,
+  // so we de-reference the ptr, and then the macro will take the address of
+  // that
+  BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, *last_sync_offset);
+
+  assert(read == len);
+
+  *metasptr = metas;
+  return members_cnt;
+
+ err:
   return -1;
 }
 
@@ -156,8 +218,8 @@ err:
 
 /* ==========START SEND/RECEIVE FUNCTIONS ========== */
 
-static int recv_metadata(bgpview_io_kafka_t *client, bgpview_t *view,
-                         bgpview_io_kafka_md_t *meta)
+static int recv_direct_metadata(bgpview_io_kafka_t *client, bgpview_t *view,
+                                bgpview_io_kafka_md_t *meta)
 {
   rd_kafka_message_t *msg = NULL;
 
@@ -181,7 +243,7 @@ again:
   }
 
   /* extract the information from the message */
-  if (deserialize_metadata(meta, msg->payload, msg->len) != 0) {
+  if (deserialize_metadata(meta, msg->payload, msg->len) != msg->len) {
     fprintf(stderr, "ERROR: Could not deserialize metadata message\n");
     goto err;
   }
@@ -190,7 +252,6 @@ again:
   msg = NULL;
 
   /* Can we use this view? */
-  // these asserts are anywhere the code assumes direct consumers...
   assert(client->mode == BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER);
   if (strncmp(meta->identity, client->identity, IDENTITY_MAX_LEN) != 0) {
     fprintf(stderr,
@@ -232,7 +293,95 @@ err:
   return -1;
 }
 
-static int recv_peers(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
+static int recv_global_metadata(bgpview_io_kafka_t *client, bgpview_t *view,
+                                bgpview_io_kafka_md_t **metasptr)
+{
+  rd_kafka_message_t *msg = NULL;
+
+again:
+  /* Grab the next metadata message */
+  if ((msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
+                              BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
+                              2000000000)) == NULL) {
+    goto err;
+  }
+
+  if (msg->payload == NULL) {
+    if (msg->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
+      rd_kafka_message_destroy(msg);
+      msg = NULL;
+      goto again;
+    }
+    /* TODO: handle this failure -- maybe reconnect? */
+    fprintf(stderr, "ERROR: Could not consume metadata message\n");
+    goto err;
+  }
+
+  /* extract the information from the message */
+  int metas_cnt;
+  bgpview_io_kafka_md_t *metas = NULL;
+  int64_t last_sync_offset = -1;
+  if ((metas_cnt =
+       deserialize_global_metadata(&metas, &last_sync_offset,
+                                   msg->payload, msg->len)) < 0) {
+    fprintf(stderr, "ERROR: Could not deserialize metadata message\n");
+    goto err;
+  }
+  /* we're done with this message */
+  rd_kafka_message_destroy(msg);
+  msg = NULL;
+
+  /* can we use this view */
+  if (metas_cnt == 0) {
+    /* GMD was inconsistent and thus unusable, try again */
+    goto again;
+  }
+  /* since by here we know all members are giving a view for the same time,
+     type, and parent view, we can just check the first member's metadata */
+  if (metas[0].type != 'S' && metas[0].parent_time != bgpview_get_time(view)) {
+     fprintf(stderr, "WARN: Found Diff frame against %d, but view time is %d\n",
+            metas[0].parent_time, bgpview_get_time(view));
+
+     if (last_sync_offset == -1) {
+       fprintf(stderr, "INFO: No rewind info. Waiting for next sync frame\n");
+     } else {
+       fprintf(stderr, "INFO: Rewinding to last sync frame (%"PRIi64")\n",
+               last_sync_offset);
+       if (seek_topic(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
+                      BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
+                      last_sync_offset) != 0) {
+         fprintf(stderr, "ERROR: Could not seek to last sync metadata\n");
+         goto err;
+       }
+     }
+
+     goto again;
+  }
+
+  /* we can use this view! */
+
+  /* if it is a Sync frame we need to clean up the view that we were given, and
+     also our peer mapping */
+  if (metas[0].type == 'S') {
+    bgpview_clear(view);
+    clear_peerid_mapping(client);
+  }
+
+  assert(msg == NULL);
+  assert(metasptr != NULL);
+  *metasptr = metas;
+  return metas_cnt;
+
+err:
+  if (msg != NULL) {
+    rd_kafka_message_destroy(msg);
+  }
+  return -1;
+}
+
+static int recv_peers(bgpview_io_kafka_t *client,
+                      bgpview_io_kafka_topic_t *topic,
+                      bgpview_iter_t *iter,
                       bgpview_io_filter_peer_cb_t *peer_cb, int64_t offset,
                       uint32_t exp_time)
 {
@@ -250,7 +399,7 @@ static int recv_peers(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
   int peers_rx = 0;
   int filter;
 
-  if (seek_topic(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+  if (seek_topic(topic->rkt,
                  BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
                  offset) != 0) {
     fprintf(stderr, "Error changing the offset");
@@ -259,7 +408,7 @@ static int recv_peers(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
 
   /* receive the peers */
   while (1) {
-    msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+    msg = rd_kafka_consume(topic->rkt,
                            BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT, 1000);
     if (msg->payload == NULL) {
       fprintf(stderr, "Cannot not receive peer message\n");
@@ -326,7 +475,9 @@ err:
   return -1;
 }
 
-static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
+static int recv_pfxs(bgpview_io_kafka_t *client,
+                     bgpview_io_kafka_topic_t *topic,
+                     bgpview_iter_t *iter,
                      bgpview_io_filter_pfx_cb_t *pfx_cb,
                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
                      int64_t offset, uint32_t exp_time)
@@ -348,7 +499,7 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
 
   rd_kafka_message_t *msg = NULL;
 
-  if (seek_topic(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+  if (seek_topic(topic->rkt,
                  BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                  offset) != 0) {
     fprintf(stderr, "Error changing the offset");
@@ -360,7 +511,7 @@ static int recv_pfxs(bgpview_io_kafka_t *client, bgpview_iter_t *iter,
   }
 
   while (1) {
-    msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+    msg = rd_kafka_consume(topic->rkt,
                            BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, 1000);
     if (msg->payload == NULL) {
       fprintf(stderr, "Cannot receive prefixes and paths\n");
@@ -441,6 +592,8 @@ err:
 
 static int recv_view(bgpview_io_kafka_t *client, bgpview_t *view,
                      bgpview_io_kafka_md_t *meta,
+                     bgpview_io_kafka_topic_t *peers_topic,
+                     bgpview_io_kafka_topic_t *pfxs_topic,
                      bgpview_io_filter_peer_cb_t *peer_cb,
                      bgpview_io_filter_pfx_cb_t *pfx_cb,
                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
@@ -451,13 +604,14 @@ static int recv_view(bgpview_io_kafka_t *client, bgpview_t *view,
     return -1;
   }
 
-  if (recv_peers(client, it, peer_cb, meta->peers_offset, meta->time) < 0) {
+  if (recv_peers(client, peers_topic, it, peer_cb,
+                 meta->peers_offset, meta->time) < 0) {
     fprintf(stderr, "Could not receive peers\n");
     return -1;
   }
 
-  if (recv_pfxs(client, it, pfx_cb, pfx_peer_cb, meta->pfxs_offset,
-                meta->time) != 0) {
+  if (recv_pfxs(client, pfxs_topic, it, pfx_cb, pfx_peer_cb,
+                meta->pfxs_offset, meta->time) != 0) {
     fprintf(stderr, "Could not receive prefixes\n");
     goto err;
   }
@@ -481,6 +635,101 @@ err:
   if (it != NULL) {
     bgpview_iter_destroy(it);
   }
+  return -1;
+}
+
+static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
+                                  char *identity)
+{
+  gc_topics_t *gct = NULL;
+  char *cpy = NULL;
+  khiter_t k;
+  int khret;
+
+  /* is there already a record for this identity? */
+  if ((k = kh_get(str_topic, client->gc_state.topics, identity))
+      == kh_end(client->gc_state.topics)) {
+    /* need to create the topic and insert into the hash */
+    cpy = strdup(identity);
+    assert(cpy != NULL);
+    k = kh_put(str_topic, client->gc_state.topics, cpy, &khret);
+    gct = &kh_val(client->gc_state.topics, k);
+
+    memset(gct, 0, sizeof(gc_topics_t));
+
+    if (bgpview_io_kafka_single_topic_connect(client, identity,
+                                              BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS,
+                                              &gct->peers) != 0) {
+      goto err;
+    }
+    if (bgpview_io_kafka_single_topic_connect(client, identity,
+                                              BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
+                                              &gct->pfxs) != 0) {
+      goto err;
+    }
+  } else {
+    gct = &kh_val(client->gc_state.topics, k);
+  }
+
+  return gct;
+
+ err:
+  return NULL;
+}
+
+static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
+                            bgpview_io_filter_peer_cb_t *peer_cb,
+                            bgpview_io_filter_pfx_cb_t *pfx_cb,
+                            bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
+{
+  /* first, retrieve a list of per-producer metadata */
+
+  bgpview_io_kafka_md_t *metas;
+  int metas_cnt;
+
+  if ((metas_cnt = recv_global_metadata(client, view, &metas)) <= 0) {
+    goto err;
+  }
+
+  int i;
+  fprintf(stderr, "DEBUG: %d members:\n", metas_cnt);
+  for (i = 0; i < metas_cnt; i++) {
+    fprintf(stderr,
+            "DEBUG: [%d] "
+            "%s|"
+            "%"PRIu32"|"
+            "%c|"
+            "%"PRIi64"|"
+            "%"PRIi64"|"
+            "%"PRIi64"|"
+            "%"PRIu32"\n",
+            i,
+            metas[i].identity,
+            metas[i].time,
+            metas[i].type,
+            metas[i].pfxs_offset,
+            metas[i].peers_offset,
+            metas[i].sync_md_offset,
+            metas[i].parent_time);
+
+    gc_topics_t *gct;
+    if ((gct = get_gc_topics(client, metas[i].identity)) == NULL) {
+      fprintf(stderr, "ERROR: Could not create topics for '%s'\n",
+              metas[i].identity);
+      goto err;
+    }
+
+    /* ask to read each view */
+    if (recv_view(client, view, &metas[i], &gct->peers, &gct->pfxs,
+                  peer_cb, pfx_cb, pfx_peer_cb) != 0) {
+      fprintf(stderr, "ERROR: Failed to receive view\n");
+      goto err;
+    }
+  }
+
+  return 0;
+
+ err:
   return -1;
 }
 
@@ -540,10 +789,27 @@ int bgpview_io_kafka_consumer_recv(bgpview_io_kafka_t *client, bgpview_t *view,
 {
   bgpview_io_kafka_md_t meta;
 
-  /* find the view that we will receive */
-  if (recv_metadata(client, view, &meta) != 0) {
+  switch (client->mode) {
+  case BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER:
+    /* directly find metadata for a single view frame */
+    if (recv_direct_metadata(client, view, &meta) != 0) {
+      return -1;
+    }
+    return recv_view(client, view, &meta,
+                     TOPIC(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+                     TOPIC(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+                     peer_cb, pfx_cb, pfx_peer_cb);
+    break;
+
+  case BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER:
+    /* retrieve global view (which will retrieve global metadata and then
+       iteratively retrieve partial views) */
+    return recv_global_view(client, view, peer_cb, pfx_cb, pfx_peer_cb);
+    break;
+
+  default:
+    fprintf(stderr, "ERROR: Invalid client mode (%d) to receive a view\n",
+            client->mode);
     return -1;
   }
-
-  return recv_view(client, view, &meta, peer_cb, pfx_cb, pfx_peer_cb);
 }

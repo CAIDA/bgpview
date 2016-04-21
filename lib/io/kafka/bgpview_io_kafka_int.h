@@ -25,12 +25,16 @@
 #define __BGPVIEW_IO_KAFKA_INT_H
 
 #include "bgpview_io_kafka.h"
+#include "khash.h"
 #include <librdkafka/rdkafka.h>
 
 /**
  * @name Protected Macros
  *
  * @{ */
+
+/** Shortcut to get the BGPView topic ref for the given topic ID */
+#define TOPIC(tid) (&(client->topics[(tid)]))
 
 /** Shortcut to get the RD Kafka topic ref for the given topic ID */
 #define RKT(tid) (client->topics[(tid)].rkt)
@@ -102,9 +106,25 @@ typedef struct direct_consumer_state {
 
 } direct_consumer_state_t;
 
+
+/** Topic state for a member */
+typedef struct gc_topics {
+
+  /** The peer topic for this member */
+  bgpview_io_kafka_topic_t peers;
+
+  /** The prefix topic for this member */
+  bgpview_io_kafka_topic_t pfxs;
+
+} gc_topics_t;
+
+/** Maps a member identity string (e.g., collector name) to a topic structure */
+KHASH_INIT(str_topic, char *, gc_topics_t, 1,
+           kh_str_hash_func, kh_str_hash_equal);
+
 typedef struct global_consumer_state {
 
-  /** Need some way to map dynamic topics to peerid mappings */
+  khash_t(str_topic) *topics;
 
 } global_consumer_state_t;
 
@@ -182,6 +202,13 @@ typedef struct bgpviewio_kafka_md {
 /** Set up config options common to both producer and consumer */
 int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
                                    rd_kafka_conf_t *conf);
+
+/** Generate the topic name from the given producer identity and topic id,
+    create a connection to the generated topic */
+int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
+                                          char *identity,
+                                          bgpview_io_kafka_topic_id_t id,
+                                          bgpview_io_kafka_topic_t *topic);
 
 /* PRODUCER FUNCTIONS */
 

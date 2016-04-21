@@ -47,15 +47,6 @@
 /** Default namespace */
 #define BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT "bgpview-test"
 
-/** Default topic for prefixes */
-#define BGPVIEW_IO_KAFKA_PFXS_TOPIC_DEFAULT "pfxs"
-
-/** Default topic for peers */
-#define BGPVIEW_IO_KAFKA_PEERS_TOPIC_DEFAULT "peers"
-
-/** Default topic for metadata */
-#define BGPVIEW_IO_KAFKA_METADATA_TOPIC_DEFAULT "metadata"
-
 /** Default partition for prefixes */
 #define BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT 0
 
@@ -64,6 +55,9 @@
 
 /** Default partition for metadata */
 #define BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT 0
+
+/** Default partition for global metadata */
+#define BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT 0
 
 /** Default partition for members */
 #define BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT 0
@@ -144,9 +138,14 @@ typedef enum {
       producer) */
   BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER = 0,
 
-  /** This instance will consume data from Kafka (from all registered producer
+  /** This instance will consume data from Kafka (from all registered producers
       -- requires the server to be running) */
   BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER = 1,
+
+  /** This instance will consume either directly from a single producer (if the
+      identity is set), or from all registered producers (i.e., a global
+      consumer) */
+  BGPVIEW_IO_KAFKA_MODE_AUTO_CONSUMER = 2,
 
   /** This instance will produce data into Kafka */
   BGPVIEW_IO_KAFKA_MODE_PRODUCER = 2,

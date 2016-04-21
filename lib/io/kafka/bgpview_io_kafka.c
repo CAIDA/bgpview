@@ -67,32 +67,21 @@ static void kafka_error_callback(rd_kafka_t *rk, int err,
   // TODO: handle other errors
 }
 
+static void free_gc_topics(gc_topics_t gct)
+{
+  if (gct.peers.rkt != NULL) {
+    rd_kafka_topic_destroy(gct.peers.rkt);
+    gct.peers.rkt = NULL;
+  }
+  if (gct.pfxs.rkt != NULL) {
+    rd_kafka_topic_destroy(gct.pfxs.rkt);
+    gct.pfxs.rkt = NULL;
+  }
+}
+
 static int kafka_topic_connect(bgpview_io_kafka_t *client)
 {
   bgpview_io_kafka_topic_id_t id;
-
-  static char *names[] = {
-    "pfxs",
-    "peers",
-    "meta",
-    "members",
-    "globalmeta",
-  };
-
-  typedef int (topic_connect_func_t)(bgpview_io_kafka_t *client,
-                                     rd_kafka_topic_t **rkt,
-                                     char *topic);
-
-  topic_connect_func_t *topic_connect_funcs[] = {
-    // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
-    bgpview_io_kafka_consumer_topic_connect,
-
-    // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
-    bgpview_io_kafka_consumer_topic_connect,
-
-    // BGPVIEW_IO_KAFKA_MODE_PRODUCER
-    bgpview_io_kafka_producer_topic_connect,
-  };
 
   fprintf(stderr, "INFO: Checking topic connections...\n");
 
@@ -113,63 +102,13 @@ static int kafka_topic_connect(bgpview_io_kafka_t *client)
 
     assert(client->namespace != NULL);
 
-    // build the name
-    if (id == BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS ||
-        id == BGPVIEW_IO_KAFKA_TOPIC_ID_META ||
-        id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA) {
-      // format: <namespace>.<name>
-      if (snprintf(TNAME(id), IDENTITY_MAX_LEN, "%s.%s", client->namespace,
-                   names[id]) >= IDENTITY_MAX_LEN) {
-        return -1;
-      }
-    } else {
-      assert(client->identity != NULL);
-      // format: <namespace>.<identity>.<name>
-      if (snprintf(TNAME(id), IDENTITY_MAX_LEN, "%s.%s.%s", client->namespace,
-                   client->identity, names[id]) >= IDENTITY_MAX_LEN) {
-        return -1;
-      }
-    }
-
-    // connect to kafka
-    if (RKT(id) == NULL) {
-      fprintf(stderr, "INFO: Connecting to %s (%d)\n", TNAME(id), id);
-      if(topic_connect_funcs[client->mode](client, &RKT(id),
-                                           TNAME(id)) != 0) {
-        return -1;
-      }
+    if (bgpview_io_kafka_single_topic_connect(client, client->identity,
+                                               id, TOPIC(id)) != 0) {
+      return -1;
     }
   }
 
   return 0;
-}
-
-/* ========== PROTECTED FUNCTIONS ========== */
-
-int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
-                                   rd_kafka_conf_t *conf)
-{
-  char errstr[512];
-
-  // Set the opaque pointer that will be passed to callbacks
-  rd_kafka_conf_set_opaque(conf, client);
-
-  // Set our error handler
-  rd_kafka_conf_set_error_cb(conf, kafka_error_callback);
-
-  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
-  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
-  // TODO: change this when librdkafka has better handling of idle disconnects
-  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    fprintf(stderr, "ERROR: %s\n", errstr);
-    goto err;
-  }
-
-  return 0;
-
- err:
-  return -1;
 }
 
 static void usage()
@@ -222,6 +161,92 @@ static int parse_args(bgpview_io_kafka_t *client, int argc, char **argv)
   return 0;
 }
 
+/* ========== PROTECTED FUNCTIONS ========== */
+
+int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
+                                   rd_kafka_conf_t *conf)
+{
+  char errstr[512];
+
+  // Set the opaque pointer that will be passed to callbacks
+  rd_kafka_conf_set_opaque(conf, client);
+
+  // Set our error handler
+  rd_kafka_conf_set_error_cb(conf, kafka_error_callback);
+
+  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
+  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
+  // TODO: change this when librdkafka has better handling of idle disconnects
+  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
+  return 0;
+
+ err:
+  return -1;
+}
+
+int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
+                                          char *identity,
+                                          bgpview_io_kafka_topic_id_t id,
+                                          bgpview_io_kafka_topic_t *topic)
+{
+  static char *names[] = {
+    "pfxs",
+    "peers",
+    "meta",
+    "members",
+    "globalmeta",
+  };
+
+  typedef int (topic_connect_func_t)(bgpview_io_kafka_t *client,
+                                     rd_kafka_topic_t **rkt,
+                                     char *topic);
+
+  topic_connect_func_t *topic_connect_funcs[] = {
+    // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
+    bgpview_io_kafka_consumer_topic_connect,
+
+    // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
+    bgpview_io_kafka_consumer_topic_connect,
+
+    // BGPVIEW_IO_KAFKA_MODE_PRODUCER
+    bgpview_io_kafka_producer_topic_connect,
+  };
+
+  // build the name
+  if (id == BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS ||
+      id == BGPVIEW_IO_KAFKA_TOPIC_ID_META ||
+      id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA) {
+    // format: <namespace>.<name>
+    if (snprintf(topic->name, IDENTITY_MAX_LEN, "%s.%s", client->namespace,
+                 names[id]) >= IDENTITY_MAX_LEN) {
+      return -1;
+    }
+  } else {
+    assert(identity != NULL);
+    // format: <namespace>.<identity>.<name>
+    if (snprintf(topic->name, IDENTITY_MAX_LEN, "%s.%s.%s", client->namespace,
+                 identity, names[id]) >= IDENTITY_MAX_LEN) {
+      return -1;
+    }
+  }
+
+  // connect to kafka
+  if (topic->rkt == NULL) {
+    fprintf(stderr, "INFO: Connecting to %s (%d)\n", topic->name, id);
+    if(topic_connect_funcs[client->mode](client, &topic->rkt,
+                                         topic->name) != 0) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 /* ========== PUBLIC FUNCTIONS ========== */
 
 bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
@@ -237,8 +262,6 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
   if ((client = malloc_zero(sizeof(bgpview_io_kafka_t))) == NULL) {
     return NULL;
   }
-
-  assert(mode != BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER);
 
   client->mode = mode;
 
@@ -262,6 +285,14 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
     }
   }
 
+  if (client->mode == BGPVIEW_IO_KAFKA_MODE_AUTO_CONSUMER) {
+    if (client->identity == NULL) {
+      client->mode = BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER;
+    } else {
+      client->mode = BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER;
+    }
+  }
+
   /* check that mandatory opts have been set */
   if (client->identity != NULL) {
     assert(strlen(client->identity) < IDENTITY_MAX_LEN);
@@ -273,6 +304,11 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
     fprintf(stderr,
             "ERROR: Identity must be set for producer and direct consumer\n");
     usage();
+    goto err;
+  }
+
+  if (client->mode == BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER &&
+      (client->gc_state.topics = kh_init(str_topic)) == NULL) {
     goto err;
   }
 
@@ -330,6 +366,13 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
   free(client->dc_state.peerid_map);
   client->dc_state.peerid_map = NULL;
   client->dc_state.peerid_map_alloc_cnt = 0;
+
+  if (client->gc_state.topics != NULL) {
+    kh_free_vals(str_topic, client->gc_state.topics, free_gc_topics);
+    kh_free(str_topic, client->gc_state.topics, (void (*)(char *))free);
+    kh_destroy(str_topic, client->gc_state.topics);
+    client->gc_state.topics = NULL;
+  }
 
   free(client);
   return;

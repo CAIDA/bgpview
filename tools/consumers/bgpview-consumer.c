@@ -383,20 +383,16 @@ static void usage(const char *name)
           "       -i <module opts>      IO module to use for obtaining views.\n"
           "                               Available modules:\n");
 #ifdef WITH_BGPVIEW_IO_FILE
-  fprintf(stderr,
-          "                                - file\n");
+  fprintf(stderr, "                                - file\n");
 #endif
 #ifdef WITH_BGPVIEW_IO_TEST
-  fprintf(stderr,
-          "                                - test\n");
+  fprintf(stderr, "                                - test\n");
 #endif
 #ifdef WITH_BGPVIEW_IO_KAFKA
-  fprintf(stderr,
-          "                                - kafka\n");
+  fprintf(stderr, "                                - kafka\n");
 #endif
 #ifdef WITH_BGPVIEW_IO_ZMQ
-  fprintf(stderr,
-          "                                - zmq\n");
+  fprintf(stderr, "                                - zmq\n");
 #endif
 
   /* Timeseries config */
@@ -460,7 +456,7 @@ static int configure_io(char *io_module)
     {
       fprintf(stderr, "INFO: Starting Kakfa IO consumer module...\n");
       if((kafka_client =
-          bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER,
+          bgpview_io_kafka_init(BGPVIEW_IO_KAFKA_MODE_AUTO_CONSUMER,
                                 io_options)) == NULL)
         {
           fprintf(stderr, "ERROR: could not initialize Kafka module\n");
