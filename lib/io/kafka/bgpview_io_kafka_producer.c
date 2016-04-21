@@ -38,7 +38,7 @@
 
 #define BUFFER_LEN 16384
 
-#define STAT(name) (client->stats.name)
+#define STAT(name) (client->prod_state.stats.name)
 
 #define SEND_MSG(topic_id, partition, buf, len)                         \
   do {                                                                  \
@@ -1167,7 +1167,7 @@ int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
                                    void *cb_user)
 {
   /* reset the stats */
-  memset(&client->stats, 0, sizeof(bgpview_io_kafka_stats_t));
+  memset(&client->prod_state.stats, 0, sizeof(bgpview_io_kafka_stats_t));
 
   // if it has been a while since we told the members topic about ourselves,
   // lets do that now

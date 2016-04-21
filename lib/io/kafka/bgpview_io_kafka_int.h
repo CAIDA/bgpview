@@ -24,9 +24,14 @@
 #ifndef __BGPVIEW_IO_KAFKA_INT_H
 #define __BGPVIEW_IO_KAFKA_INT_H
 
+/* #define WITH_THREADS */
+
 #include "bgpview_io_kafka.h"
 #include "khash.h"
 #include <librdkafka/rdkafka.h>
+#ifdef WITH_THREADS
+#include <pthread.h>
+#endif
 
 /**
  * @name Protected Macros
@@ -86,7 +91,20 @@ typedef struct bgpview_io_kafka_topic {
 
 } bgpview_io_kafka_topic_t;
 
+typedef struct bgpview_io_kafka_peeridmap {
+
+  /** Mapping from Kafka peer ID to local peer ID */
+  bgpstream_peer_id_t *map;
+
+  /** Length of the peerid_map array */
+  int alloc_cnt;
+
+} bgpview_io_kafka_peeridmap_t;
+
 typedef struct producer_state {
+
+  /** Structure to store tx statistics */
+  bgpview_io_kafka_stats_t stats;
 
   /** The metadata offset of the last sync view sent */
   int64_t last_sync_offset;
@@ -98,11 +116,7 @@ typedef struct producer_state {
 
 typedef struct direct_consumer_state {
 
-  /** Mapping from Kafka peer ID to local peer ID */
-  bgpstream_peer_id_t *peerid_map;
-
-  /** Length of the peerid_map array */
-  int peerid_map_alloc_cnt;
+  bgpview_io_kafka_peeridmap_t idmap;
 
 } direct_consumer_state_t;
 
@@ -110,19 +124,61 @@ typedef struct direct_consumer_state {
 /** Topic state for a member */
 typedef struct gc_topics {
 
+#ifdef WITH_THREADS
+  /** Borrowed pointer to the view mutex */
+  pthread_mutex_t *view_mutex;
+
+  /** The thread that reads data from this topic */
+  pthread_t worker;
+
+  /** Should the worker shutdown at the next chance it gets? */
+  int shutdown;
+
+  /** Is there a view waiting for the worker to read? */
+  int view_waiting;
+  pthread_cond_t view_waiting_cond;
+
+  /** Has the worker finished reading a view? */
+  int worker_ready;
+  pthread_cond_t worker_ready_cond;
+
+  /* Mutex for the worker conditions */
+  pthread_mutex_t mutex;
+
+  /* PROTECTED BY MUTEX */
+  /** Borrowed pointer to the view to deserialize into (use VIEW mutex) */
+  bgpview_t *view;
+
+  /** Borrowed pointer to the view metadata to work on receiving */
+  struct bgpview_io_kafka_md *meta;
+
+  /** Filter callbacks (use VIEW mutex) */
+  bgpview_io_filter_peer_cb_t *peer_cb;
+  bgpview_io_filter_pfx_cb_t *pfx_cb;
+  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb;
+#endif
+
   /** The peer topic for this member */
   bgpview_io_kafka_topic_t peers;
 
   /** The prefix topic for this member */
   bgpview_io_kafka_topic_t pfxs;
 
+  /** Mapping of remote to local peer IDs */
+  bgpview_io_kafka_peeridmap_t idmap;
+
 } gc_topics_t;
 
 /** Maps a member identity string (e.g., collector name) to a topic structure */
-KHASH_INIT(str_topic, char *, gc_topics_t, 1,
+KHASH_INIT(str_topic, char *, gc_topics_t *, 1,
            kh_str_hash_func, kh_str_hash_equal);
 
 typedef struct global_consumer_state {
+
+#ifdef WITH_THREADS
+  /* Mutex for the view */
+  pthread_mutex_t view_mutex;
+#endif
 
   khash_t(str_topic) *topics;
 
@@ -132,9 +188,6 @@ struct bgpview_io_kafka {
 
   /** Is this a producer, direct consumer, or global consumer? */
   bgpview_io_kafka_mode_t mode;
-
-  /** Structure to store tx statistics */
-  bgpview_io_kafka_stats_t stats;
 
   /* SETTINGS */
 
@@ -172,7 +225,7 @@ struct bgpview_io_kafka {
 
 };
 
-typedef struct bgpviewio_kafka_md {
+typedef struct bgpview_io_kafka_md {
 
   /** The identity of the producer */
   char identity[IDENTITY_MAX_LEN];
