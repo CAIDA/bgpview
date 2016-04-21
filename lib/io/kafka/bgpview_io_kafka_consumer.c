@@ -180,6 +180,8 @@ static int deserialize_global_metadata(bgpview_io_kafka_md_t **metasptr,
 
   int i;
   bgpview_io_kafka_md_t common;
+  /* hush anxious gcc5: */
+  common.time = 0; common.type = '\0'; common.parent_time = 0;
   for (i=0; i<members_cnt; i++) {
     if ((s = deserialize_metadata(&metas[i], buf, (len-read))) <= 0) {
       goto err;
@@ -410,6 +412,10 @@ static int recv_peers(bgpview_io_kafka_t *client,
   while (1) {
     msg = rd_kafka_consume(topic->rkt,
                            BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT, 1000);
+    if (msg == NULL) {
+      fprintf(stderr, "INFO: Failed to retrieve peer message. Retrying...\n");
+      continue;
+    }
     if (msg->payload == NULL) {
       fprintf(stderr, "Cannot not receive peer message\n");
       goto err;
@@ -513,6 +519,10 @@ static int recv_pfxs(bgpview_io_kafka_t *client,
   while (1) {
     msg = rd_kafka_consume(topic->rkt,
                            BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, 1000);
+    if (msg == NULL) {
+      fprintf(stderr, "INFO: Failed to retrieve prefix message. Retrying...\n");
+      continue;
+    }
     if (msg->payload == NULL) {
       fprintf(stderr, "Cannot receive prefixes and paths\n");
       goto err;
