@@ -24,7 +24,7 @@
 #ifndef __BGPVIEW_IO_KAFKA_INT_H
 #define __BGPVIEW_IO_KAFKA_INT_H
 
-/* #define WITH_THREADS */
+#define WITH_THREADS
 
 #include "bgpview_io_kafka.h"
 #include "khash.h"
@@ -125,6 +125,9 @@ typedef struct direct_consumer_state {
 typedef struct gc_topics {
 
 #ifdef WITH_THREADS
+  /** Borrowed pointer to RD Kafka connection handle */
+  rd_kafka_t *rdk_conn;
+
   /** Borrowed pointer to the view mutex */
   pthread_mutex_t *view_mutex;
 
@@ -133,6 +136,9 @@ typedef struct gc_topics {
 
   /** Should the worker shutdown at the next chance it gets? */
   int shutdown;
+
+  /** Was there an error receiving the view */
+  int recv_error;
 
   /** Is there a view waiting for the worker to read? */
   int view_waiting;
@@ -166,6 +172,9 @@ typedef struct gc_topics {
 
   /** Mapping of remote to local peer IDs */
   bgpview_io_kafka_peeridmap_t idmap;
+
+  /** The time of the last view we successfully received */
+  uint32_t parent_view_time;
 
 } gc_topics_t;
 
