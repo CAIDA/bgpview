@@ -452,6 +452,12 @@ int bgpview_io_kafka_start(bgpview_io_kafka_t *client)
     return -1;
   }
 
+  if (client->mode == BGPVIEW_IO_KAFKA_MODE_PRODUCER) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    bgpview_io_kafka_producer_send_members_update(client, tv.tv_sec);
+  }
+
   return 0;
 
 err:

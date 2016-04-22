@@ -206,7 +206,7 @@ int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
 
   /* Wait for messages to be delivered */
   while (rd_kafka_outq_len(client->rdk_conn) > 0) {
-    rd_kafka_poll(client->rdk_conn, 10000);
+    rd_kafka_poll(client->rdk_conn, 2000);
   }
 
   return 0;
