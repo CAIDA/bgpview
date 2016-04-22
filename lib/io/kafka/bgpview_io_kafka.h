@@ -148,7 +148,7 @@ typedef enum {
   BGPVIEW_IO_KAFKA_MODE_AUTO_CONSUMER = 2,
 
   /** This instance will produce data into Kafka */
-  BGPVIEW_IO_KAFKA_MODE_PRODUCER = 2,
+  BGPVIEW_IO_KAFKA_MODE_PRODUCER = 3,
 
 } bgpview_io_kafka_mode_t;
 
