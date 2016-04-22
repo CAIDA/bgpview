@@ -296,12 +296,13 @@ static int send_peers(bgpview_io_kafka_t *client,
   uint16_t peers_tx = 0;
   int filter;
 
+ again:
   /* find our current offset and update the metadata */
   if ((meta->peers_offset =
          get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
                     BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT)) < 0) {
-    fprintf(stderr, "ERROR: Could not get peer offset\n");
-    goto err;
+    fprintf(stderr, "WARN: Could not get peer offset. Retrying...\n");
+    goto again;
   }
 
   for (bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
@@ -555,12 +556,13 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   size_t written = 0;
   ssize_t s = 0;
 
+ again:
   /* find our current offset and update the metadata */
   if ((meta->pfxs_offset =
        get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
                     BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT)) < 0) {
-    fprintf(stderr, "ERROR: Could not get prefix offset\n");
-    goto err;
+    fprintf(stderr, "WARN: Could not get prefix offset. Retrying...\n");
+    goto again;
   }
 
   /* for each prefix in new view */
