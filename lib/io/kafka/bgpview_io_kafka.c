@@ -224,6 +224,9 @@ int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
     // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
     bgpview_io_kafka_consumer_topic_connect,
 
+    // AUTO CONSUMER
+    NULL,
+
     // BGPVIEW_IO_KAFKA_MODE_PRODUCER
     bgpview_io_kafka_producer_topic_connect,
   };
@@ -406,6 +409,9 @@ static kafka_connect_func_t *kafka_connect_funcs[] = {
 
   // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
   bgpview_io_kafka_consumer_connect,
+
+  // AUTO CONSUMER
+  NULL,
 
   // BGPVIEW_IO_KAFKA_MODE_PRODUCER
   bgpview_io_kafka_producer_connect,
