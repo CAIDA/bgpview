@@ -200,6 +200,10 @@ static int deserialize_global_metadata(bgpview_io_kafka_md_t **metasptr,
 
   *metasptr = NULL;
 
+  /* get (and discard) the time */
+  uint32_t view_time;
+  BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, view_time);
+
   /* get the number of members */
   uint16_t members_cnt;
   BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, members_cnt);
@@ -472,7 +476,6 @@ static int recv_peers(bgpview_io_kafka_peeridmap_t *idmap,
       continue;
     }
     if (msg->payload == NULL) {
-      fprintf(stderr, "Cannot not receive peer message\n");
       goto err;
     }
     ptr = msg->payload;
@@ -586,7 +589,6 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       continue;
     }
     if (msg->payload == NULL) {
-      fprintf(stderr, "Cannot receive prefixes and paths\n");
       goto err;
     }
 
@@ -897,7 +899,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
               metas[i].identity, metas[i].parent_time, gct->parent_view_time);
       continue;
     }
-    gct->parent_view_time = metas[i].parent_time;
+    gct->parent_view_time = metas[i].time;
 
 #ifdef WITH_THREADS
     /* the user *could* have changed the view instance they are using */
@@ -920,7 +922,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     pthread_mutex_unlock(&gct->mutex);
 #else
     if (recv_view(&gct->idmap, view, &metas[i], &gct->peers, &gct->pfxs,
-                  peer_cb, pfx_cb, pfx_peer_cb, client->rfk_conn) != 0) {
+                  peer_cb, pfx_cb, pfx_peer_cb, client->rdk_conn) != 0) {
       fprintf(stderr, "WARN: Failed to receive view (%d), moving on\n",
               metas[i].time);
       need_sync = 1;
@@ -989,36 +991,11 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client)
   rd_kafka_conf_t *conf = rd_kafka_conf_new();
   char errstr[512];
 
-  //#if 0
-#ifdef WITH_THREADS
-  // Increase buffer sizes when using threads
-  if (rd_kafka_conf_set(conf, "receive.message.max.bytes", "900000000", errstr,
+  if (rd_kafka_conf_set(conf, "queued.min.messages", "1000000", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
   }
-  if (rd_kafka_conf_set(conf, "queued.min.messages", "100000", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    fprintf(stderr, "ERROR: %s\n", errstr);
-    goto err;
-  }
-  if (rd_kafka_conf_set(conf, "fetch.wait.max.ms", "5000", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    fprintf(stderr, "ERROR: %s\n", errstr);
-    goto err;
-  }
-  if (rd_kafka_conf_set(conf, "fetch.message.max.bytes", "20000000", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    fprintf(stderr, "ERROR: %s\n", errstr);
-    goto err;
-  }
-  if (rd_kafka_conf_set(conf, "fetch.min.bytes", "10485760", errstr,
-                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-    fprintf(stderr, "ERROR: %s\n", errstr);
-    goto err;
-  }
-#endif
-  //#endif
 
   // Create Kafka handle
   if ((client->rdk_conn = rd_kafka_new(RD_KAFKA_CONSUMER, conf, errstr,
@@ -1051,7 +1028,7 @@ int bgpview_io_kafka_consumer_topic_connect(bgpview_io_kafka_t *client,
     return -1;
   }
 
-  if (rd_kafka_consume_start(*rkt, 0, RD_KAFKA_OFFSET_BEGINNING/*RD_KAFKA_OFFSET_TAIL(1)*/) == -1) {
+  if (rd_kafka_consume_start(*rkt, 0, RD_KAFKA_OFFSET_TAIL(1)) == -1) {
     fprintf(stderr, "ERROR: Failed to start consuming: %s\n",
             rd_kafka_err2str(rd_kafka_errno2err(errno)));
     return -1;
