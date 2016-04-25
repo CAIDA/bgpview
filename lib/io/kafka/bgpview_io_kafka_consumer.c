@@ -43,7 +43,7 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
                               bgpstream_peer_sig_t *sig,
                               bgpstream_peer_id_t remote_id
 #ifdef WITH_THREADS
-                              ,pthread_mutex_t *mutex
+                              , pthread_mutex_t *mutex
 #endif
                               )
 {
@@ -65,10 +65,10 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
     idmap->alloc_cnt = remote_id + 1;
   }
 
+  /* just blindly add the peer */
 #ifdef WITH_THREADS
   pthread_mutex_lock(mutex);
 #endif
-  /* just blindly add the peer */
   if ((local_id = bgpview_iter_add_peer(
            it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
            sig->peer_asnumber)) == 0) {
@@ -109,7 +109,7 @@ static int check_offset(rd_kafka_t *rdk_conn, const char *topic,
     fprintf(stderr, "INFO: Valid offsets are %"PRIi64" - %"PRIu64"\n",
             low, high);
   }
-  return (offset > low);
+  return 1;//(offset >= low);
 }
 
 static int seek_topic(rd_kafka_t *rdk_conn, rd_kafka_topic_t *rkt,
@@ -410,7 +410,7 @@ again:
                       RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
                       BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
                       last_sync_offset) != 0) {
-         fprintf(stderr, "ERROR: Could not seek to last sync metadata\n");
+         fprintf(stderr, "ERROR: Could not seek to last global sync metadata\n");
          goto err;
        }
      }
@@ -442,10 +442,11 @@ static int recv_peers(bgpview_io_kafka_peeridmap_t *idmap,
                       bgpview_iter_t *iter,
                       bgpview_io_filter_peer_cb_t *peer_cb, int64_t offset,
                       uint32_t exp_time,
+                      rd_kafka_t *rdk_conn
 #ifdef WITH_THREADS
-                      pthread_mutex_t *mutex,
+                     , pthread_mutex_t *mutex
 #endif
-                      rd_kafka_t *rdk_conn)
+                      )
 {
   rd_kafka_message_t *msg = NULL;
   size_t read = 0;
@@ -526,7 +527,7 @@ static int recv_peers(bgpview_io_kafka_peeridmap_t *idmap,
 
     if (add_peerid_mapping(idmap, iter, &ps, peerid_remote
 #ifdef WITH_THREADS
-                           ,mutex
+                           , mutex
 #endif
                            ) <= 0) {
       goto err;
@@ -549,10 +550,11 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
                      bgpview_io_filter_pfx_cb_t *pfx_cb,
                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
                      int64_t offset, uint32_t exp_time,
+                     rd_kafka_t *rdk_conn
 #ifdef WITH_THREADS
-                     pthread_mutex_t *mutex,
+                     , pthread_mutex_t *mutex
 #endif
-                     rd_kafka_t *rdk_conn)
+                     )
 {
   bgpview_t *view = NULL;
   uint32_t view_time;
@@ -684,10 +686,11 @@ static int recv_view(bgpview_io_kafka_peeridmap_t *idmap,
                      bgpview_io_filter_peer_cb_t *peer_cb,
                      bgpview_io_filter_pfx_cb_t *pfx_cb,
                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
+                     rd_kafka_t *rdk_conn
 #ifdef WITH_THREADS
-                     pthread_mutex_t *mutex,
+                     , pthread_mutex_t *mutex
 #endif
-                     rd_kafka_t *rdk_conn)
+                     )
 {
   bgpview_iter_t *it = NULL;
 
@@ -697,19 +700,21 @@ static int recv_view(bgpview_io_kafka_peeridmap_t *idmap,
 
   if (recv_peers(idmap, peers_topic, it, peer_cb,
                  meta->peers_offset, meta->time,
+                 rdk_conn
 #ifdef WITH_THREADS
-                 mutex,
+                 , mutex
 #endif
-                 rdk_conn) < 0) {
+                 ) < 0) {
     return -1;
   }
 
   if (recv_pfxs(idmap, pfxs_topic, it, pfx_cb, pfx_peer_cb,
                 meta->pfxs_offset, meta->time,
+                rdk_conn
 #ifdef WITH_THREADS
-                mutex,
+                 , mutex
 #endif
-                rdk_conn) != 0) {
+                ) != 0) {
     goto err;
   }
 
@@ -731,25 +736,24 @@ static void *thread_worker(void *user)
 {
   gc_topics_t *gct = (gc_topics_t *)user;
 
+  pthread_mutex_lock(&gct->mutex);
   while (gct->shutdown == 0) {
     /* signal that we are ready to do some work */
-    pthread_mutex_lock(&gct->mutex);
-    gct->worker_ready = 1;
-    pthread_cond_signal(&gct->worker_ready_cond);
+    gct->worker_state = WORKER_IDLE;
+    pthread_cond_signal(&gct->worker_state_cond);
 
     /* block until there is something for us to do */
-    while (gct->view_waiting == 0) {
+    while (gct->job_state != WORKER_JOB_ASSIGNED) {
       if (gct->shutdown != 0) {
         break;
       }
-      pthread_cond_wait(&gct->view_waiting_cond, &gct->mutex);
+      pthread_cond_wait(&gct->job_state_cond, &gct->mutex);
     }
     if (gct->shutdown != 0) {
       break;
     }
-    assert(gct->view_waiting != 0);
-    gct->view_waiting = 0; /* we've workin on it! */
-    gct->worker_ready = 0; /* hey, we're busy! */
+    assert(gct->job_state == WORKER_JOB_ASSIGNED);
+    gct->worker_state = WORKER_BUSY; /* hey, we're busy! */
     gct->recv_error = 0; /* so far, so good... */
     pthread_mutex_unlock(&gct->mutex);
 
@@ -757,17 +761,60 @@ static void *thread_worker(void *user)
     /* ask to read each view */
     if (recv_view(&gct->idmap, gct->view, gct->meta, &gct->peers, &gct->pfxs,
                   gct->peer_cb, gct->pfx_cb, gct->pfx_peer_cb,
-                  gct->view_mutex, gct->rdk_conn) != 0) {
+                  gct->rdk_conn, &gct->global->mutex) != 0) {
       pthread_mutex_lock(&gct->mutex);
       gct->recv_error = 1;
       pthread_mutex_unlock(&gct->mutex);
     }
+
+    /* signal that our view is ready */
+    pthread_mutex_lock(&gct->mutex);
+    gct->view_state = WORKER_VIEW_READY;
+    gct->job_state = WORKER_JOB_COMPLETE;
+    fprintf(stderr, "DEBUG: %s done\n", gct->meta->identity);
+
+    /* we'll now cycle through and block until we're assigned more work */
+    // OUR MUTEX IS LOCKED
   }
 
   gct->shutdown = 1;
   return NULL;
 }
 #endif
+
+static int deactivate_worker(gc_topics_t *gct)
+{
+  int i;
+  bgpview_iter_t *iter = bgpview_iter_create(gct->view);
+
+  fprintf(stderr, "DEBUG: Disabling view for %s...\n", gct->meta->identity);
+
+  /* for each peersig in worker's map, disable the peer in the view */
+
+  for (i=0; i<gct->idmap.alloc_cnt; i++) {
+    bgpstream_peer_id_t peerid = gct->idmap.map[i];
+    if (peerid == 0) {
+      continue;
+    }
+#ifdef WITH_THREADS
+    pthread_mutex_lock(&gct->global->mutex);
+#endif
+    if (bgpview_iter_seek_peer(iter, peerid, BGPVIEW_FIELD_ACTIVE) == 1) {
+      bgpview_iter_deactivate_peer(iter);
+    }
+#ifdef WITH_THREADS
+    pthread_mutex_unlock(&gct->global->mutex);
+#endif
+  }
+  bgpview_iter_destroy(iter);
+
+  gct->parent_view_time = -1;
+  gct->view_state = WORKER_VIEW_EMPTY;
+
+  fprintf(stderr, "DEBUG: Disable complete\n");
+
+  return 0;
+}
 
 static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
                                   char *identity)
@@ -799,30 +846,35 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
                                               &gct->pfxs) != 0) {
       goto err;
     }
+    gct->job_state = WORKER_JOB_IDLE;
+    gct->view_state = WORKER_VIEW_EMPTY;
 
 #ifdef WITH_THREADS
-    gct->view_mutex = &client->gc_state.view_mutex;
     gct->rdk_conn = client->rdk_conn;
+    gct->global = &client->gc_state;
+
+    gct->worker_state = WORKER_IDLE;
 
     /* spin up the worker thread */
     pthread_mutex_init(&gct->mutex, NULL);
-    pthread_cond_init(&gct->view_waiting_cond, NULL);
-    pthread_cond_init(&gct->worker_ready_cond, NULL);
+    pthread_cond_init(&gct->job_state_cond, NULL);
+    pthread_cond_init(&gct->worker_state_cond, NULL);
     pthread_create(&gct->worker, NULL, thread_worker, gct);
 
     /* wait until the worker is ready */
     pthread_mutex_lock(&gct->mutex);
-    while (gct->worker_ready == 0) {
+    while (gct->worker_state != WORKER_IDLE) {
       if (gct->shutdown != 0) {
         goto err;
       }
-      pthread_cond_wait(&gct->worker_ready_cond, &gct->mutex);
+      pthread_cond_wait(&gct->worker_state_cond, &gct->mutex);
     }
     if (gct->shutdown != 0) {
       goto err;
     }
-    assert(gct->worker_ready != 0);
-    assert(gct->view_waiting == 0);
+    assert(gct->worker_state == WORKER_IDLE); // the worker can accept work
+    assert(gct->job_state == WORKER_JOB_IDLE); // there is work assigned to the worker
+    assert(gct->view_state == WORKER_VIEW_EMPTY);   // the worker has completed some work
     pthread_mutex_unlock(&gct->mutex);
 #endif
 
@@ -841,19 +893,11 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
                             bgpview_io_filter_pfx_cb_t *pfx_cb,
                             bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 {
-  /* first, retrieve a list of per-producer metadata */
-
   bgpview_io_kafka_md_t *metas = NULL;
   int metas_cnt;
-  int need_sync = 0;
+  int i;
 
- again:
-  if (metas != NULL) {
-    free(metas);
-    metas = NULL;
-  }
-  if ((metas_cnt = recv_global_metadata(client, view, &metas,
-                                        need_sync)) <= 0) {
+  if ((metas_cnt = recv_global_metadata(client, view, &metas, 0)) <= 0) {
     goto err;
   }
 
@@ -863,7 +907,6 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
   gettimeofday(&tv, NULL);
   uint32_t start = tv.tv_sec;
 
-  int i;
   fprintf(stderr, "DEBUG: %d members:\n", metas_cnt);
   for (i = 0; i < metas_cnt; i++) {
     fprintf(stderr,
@@ -900,40 +943,87 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
       continue;
     }
     gct->parent_view_time = metas[i].time;
+    assert(gct->job_state == WORKER_JOB_IDLE);
+    gct->meta = &metas[i];
+    gct->view = view;
+
+    /* if it is a Sync frame we need to clear the peerid map (the view has
+       already been cleared inside recv_global_metadata) */
+    if (metas[0].type == 'S') {
+      clear_peerid_mapping(&gct->idmap);
+      gct->view_state = WORKER_VIEW_EMPTY;
+    }
 
 #ifdef WITH_THREADS
-    /* the user *could* have changed the view instance they are using */
-    gct->view = view;
+    /* the user *could* have changed the filter funcs they are using */
     gct->peer_cb = peer_cb;
     gct->pfx_cb = pfx_cb;
     gct->pfx_peer_cb = pfx_peer_cb;
 
-    /* if it is a Sync frame we need to clear the peerid map */
-    if (metas[0].type == 'S') {
-      clear_peerid_mapping(&gct->idmap);
-    }
-
-    gct->meta = &metas[i];
     /* tell the worker to get cracking on this */
-    assert(gct->worker_ready == 1);
     pthread_mutex_lock(&gct->mutex);
-    gct->view_waiting = 1;
-    pthread_cond_signal(&gct->view_waiting_cond);
+    assert(gct->worker_state == WORKER_IDLE);
+    gct->job_state = WORKER_JOB_ASSIGNED;
+    pthread_cond_signal(&gct->job_state_cond);
     pthread_mutex_unlock(&gct->mutex);
 #else
-    if (recv_view(&gct->idmap, view, &metas[i], &gct->peers, &gct->pfxs,
+    if (recv_view(&gct->idmap, gct->view, &metas[i], &gct->peers, &gct->pfxs,
                   peer_cb, pfx_cb, pfx_peer_cb, client->rdk_conn) != 0) {
-      fprintf(stderr, "WARN: Failed to receive view (%d), moving on\n",
-              metas[i].time);
-      need_sync = 1;
-      goto again;
+      fprintf(stderr, "WARN: Failed to receive view for %s, skipping\n",
+              metas[i].identity);
+      if (deactivate_worker(gct) != 0) {
+        goto err;
+      }
+      // if the recv failed, then the worker has no job assigned and deactivate
+      // will set the view state to empty.
+    } else {
+      /* the recv succeeded, so we say that there is a job assigned, and the
+         worker has touched the view */
+      gct->job_state = WORKER_JOB_ASSIGNED;
+      gct->view_state = WORKER_VIEW_READY;
     }
+#endif
+  }
+
+  /* disable peers that belong to workers that have touched the view in the past
+     but are not part of this view */
+  khiter_t k;
+  gc_topics_t *gct;
+  for (k=0; k<kh_end(client->gc_state.topics); k++) {
+    if (!kh_exist(client->gc_state.topics, k)) {
+      continue;
+    }
+    gct = kh_val(client->gc_state.topics, k);
+
+#ifdef WITH_THREADS
+    pthread_mutex_lock(&gct->mutex);
+#endif
+    /* is this worker working on a view? */
+    if (gct->job_state != WORKER_JOB_IDLE) {
+#ifdef WITH_THREADS
+      pthread_mutex_unlock(&gct->mutex);
+#else
+      /* if not using threads, then we're done with this worker */
+      gct->job_state = WORKER_JOB_IDLE;
+#endif
+      continue;
+    }
+#ifdef WITH_THREADS
+    assert(gct->worker_state == WORKER_IDLE);
+#endif
+      /* has the worker contributed to the view?
+       * if so, deactivate it's peers */
+    if (gct->view_state == WORKER_VIEW_READY &&
+        deactivate_worker(gct) != 0) {
+      goto err;
+    }
+#ifdef WITH_THREADS
+    pthread_mutex_unlock(&gct->mutex);
 #endif
   }
 
 #ifdef WITH_THREADS
   /* now wait for the workers to finish */
-  int is_error = 0;
   for (i=0; i < metas_cnt; i++) {
     gc_topics_t *gct;
     if ((gct = get_gc_topics(client, metas[i].identity)) == NULL) {
@@ -941,31 +1031,27 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
               metas[i].identity);
       goto err;
     }
-
     pthread_mutex_lock(&gct->mutex);
-    while (gct->worker_ready == 0) {
-      if (gct->shutdown != 0) {
-        break;
-      }
-      pthread_cond_wait(&gct->worker_ready_cond, &gct->mutex);
+    /* this worker was not assigned a job */
+    if (gct->job_state == WORKER_JOB_IDLE) {
+      pthread_mutex_unlock(&gct->mutex);
+      continue;
     }
-    if (gct->shutdown != 0) {
-      break;
+    /* wait for the worker to finish processing */
+    while (gct->worker_state != WORKER_IDLE) {
+      pthread_cond_wait(&gct->worker_state_cond, &gct->mutex);
     }
-    if (gct->recv_error != 0) {
-      is_error = 1;
+    fprintf(stderr, "DEBUG: Worker '%s' finished.\n",
+            metas[i].identity);
+    if (gct->recv_error != 0 && deactivate_worker(gct) != 0) {
+      goto err;
     }
-    assert(gct->worker_ready != 0);
+    assert(gct->worker_state == WORKER_IDLE);
+    assert(gct->view_state == WORKER_VIEW_READY);
+    assert(gct->job_state == WORKER_JOB_COMPLETE);
+    gct->job_state = WORKER_JOB_IDLE;
     pthread_mutex_unlock(&gct->mutex);
-  }
-
-  if (is_error != 0) {
-    /* at least one of the workers failed */
-    fprintf(stderr, "WARN: Failed to receive view (%d), moving on\n",
-            metas[0].time);
-    need_sync = 1;
-    goto again;
-  }
+  } // for loop over metas
 #endif
 
   gettimeofday(&tv, NULL);
@@ -1056,10 +1142,11 @@ int bgpview_io_kafka_consumer_recv(bgpview_io_kafka_t *client, bgpview_t *view,
                   TOPIC(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
                   TOPIC(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
                   peer_cb, pfx_cb, pfx_peer_cb,
+                  client->rdk_conn
 #ifdef WITH_THREADS
-                  NULL,
+                  , NULL
 #endif
-                  client->rdk_conn) != 0) {
+                  ) != 0) {
       fprintf(stderr, "WARN: Failed to receive view (%d), moving on\n",
               meta.time);
       need_sync = 1;

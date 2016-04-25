@@ -210,7 +210,7 @@ bgpview_gc(bgpview_t *view);
  * @param src           pointer to the source view
  * @return 0 if the view was copied successfully, -1 otherwise
  *
- * The destination view will be cleared prior to copying.
+ * The destination view will **not** be cleared prior to copying.
  */
 int
 bgpview_copy(bgpview_t* dst, bgpview_t *src);
@@ -376,6 +376,15 @@ bgpview_set_pfx_peer_user_destructor(bgpview_t *view,
  */
 bgpstream_as_path_store_t *
 bgpview_get_as_path_store(bgpview_t *view);
+
+/** Get the ID of a peer given a peer signature
+ *
+ * @param view          pointer to the view to get the peer ID for
+ * @param ps            pointer to the signature of the peer
+ * @return the ID of the peer, or 0 if it does not exist
+ */
+bgpstream_peer_id_t
+bgpview_get_peer_id(bgpview_t *view, bgpstream_peer_sig_t *ps);
 
 /** @} */
 

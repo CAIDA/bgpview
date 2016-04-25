@@ -629,7 +629,6 @@ int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
                 bgpview_iter_pfx_deactivate_peer(it);
               }
             }
-
         }
 
       pfx_peers_added++;

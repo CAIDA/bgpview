@@ -2185,9 +2185,6 @@ int bgpview_copy(bgpview_t *dst, bgpview_t* src){
   bgpstream_as_path_store_path_id_t pathid;
   bgpstream_as_path_t *path;
 
-  /* first, clear the destination */
-  bgpview_clear(dst);
-
   dst->time = src->time;
 
   if(((src_iter = bgpview_iter_create(src)) == NULL) ||
@@ -2436,3 +2433,11 @@ bgpview_get_as_path_store(bgpview_t *view)
   return view->pathstore;
 }
 
+bgpstream_peer_id_t
+bgpview_get_peer_id(bgpview_t *view, bgpstream_peer_sig_t *ps)
+{
+  return bgpstream_peer_sig_map_get_id(view->peersigns,
+                                       ps->collector_str,
+                                       (bgpstream_ip_addr_t *)&ps->peer_ip_addr,
+                                       ps->peer_asnumber);
+}

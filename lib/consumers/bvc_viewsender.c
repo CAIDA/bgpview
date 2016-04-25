@@ -596,10 +596,13 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
 
       // do the create/copy
       if ((state->parent_view == NULL &&
-           (state->parent_view = bgpview_dup(view)) == NULL) ||
-          bgpview_copy(state->parent_view, view) != 0) {
-        fprintf(stderr, "ERROR: Could not copy view\n");
-        return -1;
+           (state->parent_view = bgpview_dup(view)) == NULL)) {
+          /* first, clear the destination */
+        bgpview_clear(state->parent_view);
+        if (bgpview_copy(state->parent_view, view) != 0) {
+          fprintf(stderr, "ERROR: Could not copy view\n");
+          return -1;
+        }
       }
 
       uint64_t copy_end = zclock_time()/1000;

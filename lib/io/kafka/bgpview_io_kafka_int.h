@@ -121,15 +121,25 @@ typedef struct direct_consumer_state {
 } direct_consumer_state_t;
 
 
+enum {
+  WORKER_BUSY = 0,
+  WORKER_IDLE = 1,
+  WORKER_VIEW_EMPTY = 0,
+  WORKER_VIEW_READY = 1,
+  WORKER_JOB_IDLE = 0,
+  WORKER_JOB_ASSIGNED = 1,
+  WORKER_JOB_COMPLETE = 2,
+};
+
 /** Topic state for a member */
 typedef struct gc_topics {
 
 #ifdef WITH_THREADS
+  /** Borrowed pointer to the global consumer state */
+  struct global_consumer_state *global;
+
   /** Borrowed pointer to RD Kafka connection handle */
   rd_kafka_t *rdk_conn;
-
-  /** Borrowed pointer to the view mutex */
-  pthread_mutex_t *view_mutex;
 
   /** The thread that reads data from this topic */
   pthread_t worker;
@@ -140,29 +150,30 @@ typedef struct gc_topics {
   /** Was there an error receiving the view */
   int recv_error;
 
-  /** Is there a view waiting for the worker to read? */
-  int view_waiting;
-  pthread_cond_t view_waiting_cond;
+  /** Is there a job waiting for the worker to read? */
+  pthread_cond_t job_state_cond;
 
-  /** Has the worker finished reading a view? */
-  int worker_ready;
-  pthread_cond_t worker_ready_cond;
+  /** Is the worker ready to process a view? */
+  int worker_state; /* WORKER_IDLE, WORKER_BUSY */
+  pthread_cond_t worker_state_cond;
 
   /* Mutex for the worker conditions */
   pthread_mutex_t mutex;
-
-  /* PROTECTED BY MUTEX */
-  /** Borrowed pointer to the view to deserialize into (use VIEW mutex) */
-  bgpview_t *view;
-
-  /** Borrowed pointer to the view metadata to work on receiving */
-  struct bgpview_io_kafka_md *meta;
 
   /** Filter callbacks (use VIEW mutex) */
   bgpview_io_filter_peer_cb_t *peer_cb;
   bgpview_io_filter_pfx_cb_t *pfx_cb;
   bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb;
 #endif
+
+  /** Borrowed pointer to the view metadata to work on receiving */
+  struct bgpview_io_kafka_md *meta;
+
+  /** Is this "worker" assigned a view */
+  int job_state; /* WORKER_JOB_IDLE, WORKER_JOB_ASSIGNED */
+
+  /** Has the worker touched the view? */
+  int view_state; /* WORKER_VIEW_EMPTY, WORKER_VIEW_READY */
 
   /** The peer topic for this member */
   bgpview_io_kafka_topic_t peers;
@@ -176,6 +187,9 @@ typedef struct gc_topics {
   /** The time of the last view we successfully received */
   uint32_t parent_view_time;
 
+  /** Private partial-view (only contains info from this producer) */
+  bgpview_t *view;
+
 } gc_topics_t;
 
 /** Maps a member identity string (e.g., collector name) to a topic structure */
@@ -184,12 +198,12 @@ KHASH_INIT(str_topic, char *, gc_topics_t *, 1,
 
 typedef struct global_consumer_state {
 
-#ifdef WITH_THREADS
-  /* Mutex for the view */
-  pthread_mutex_t view_mutex;
-#endif
-
   khash_t(str_topic) *topics;
+
+#ifdef WITH_THREADS
+  /** Global view mutex */
+  pthread_mutex_t mutex;
+#endif
 
 } global_consumer_state_t;
 

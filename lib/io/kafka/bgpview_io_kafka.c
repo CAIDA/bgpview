@@ -83,8 +83,8 @@ static void free_gc_topics(gc_topics_t *gct)
   gct->shutdown = 1;
   pthread_join(gct->worker, NULL);
   pthread_mutex_destroy(&gct->mutex);
-  pthread_cond_destroy(&gct->view_waiting_cond);
-  pthread_cond_destroy(&gct->worker_ready_cond);
+  pthread_cond_destroy(&gct->job_state_cond);
+  pthread_cond_destroy(&gct->worker_state_cond);
 #endif
 
   free(gct);
@@ -251,7 +251,7 @@ int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
 
   // connect to kafka
   if (topic->rkt == NULL) {
-    fprintf(stderr, "INFO: Connecting to %s (%d)\n", topic->name, id);
+    /*fprintf(stderr, "INFO: Connecting to %s (%d)\n", topic->name, id);*/
     if(topic_connect_funcs[client->mode](client, &topic->rkt,
                                          topic->name) != 0) {
       return -1;
@@ -326,7 +326,7 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
       goto err;
     }
 #ifdef WITH_THREADS
-    pthread_mutex_init(&client->gc_state.view_mutex, NULL);
+    pthread_mutex_init(&client->gc_state.mutex, NULL);
 #endif
   }
 
@@ -393,7 +393,7 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
       client->gc_state.topics = NULL;
     }
 #ifdef WITH_THREADS
-    pthread_mutex_destroy(&client->gc_state.view_mutex);
+    pthread_mutex_destroy(&client->gc_state.mutex);
 #endif
   }
 
