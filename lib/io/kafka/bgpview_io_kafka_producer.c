@@ -36,7 +36,8 @@
 #include <sys/time.h>
 #endif
 
-#define BUFFER_LEN 16384
+/** Approx half will be used for pfx messages (hence the extra *2) */
+#define BUFFER_LEN ((1024*32)*2)
 
 #define STAT(name) (client->prod_state.stats.name)
 
@@ -616,7 +617,6 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       }
     } else if (parent_exists_sent && !send_this) {
       /* remove row (parent cb) */
-      assert(ptr == buf);
       if ((s = pfx_row_serialize(client, ptr, len, 'R', parent_view_it,
                                  cb, cb_user)) < 0) {
         goto err;
@@ -627,7 +627,6 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       }
     } else if (!parent_exists_sent && send_this) {
       /* update row (current cb) */
-      assert(ptr == buf);
       if ((s = pfx_row_serialize(client, ptr, len, 'U', it,
                                  cb, cb_user)) < 0) {
         goto err;
