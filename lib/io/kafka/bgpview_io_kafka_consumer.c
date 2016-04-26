@@ -626,63 +626,72 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       break;
     }
 
-    /* this is a prefix row message */
-    pfx_rx++;
+    /* if it is not an 'END' message, then it can contain many prefix row
+       messages */
+    while (read < msg->len) {
+      /* this is a prefix row message */
+      pfx_rx++;
 
-    switch (type) {
-    case 'S':
-    case 'U':
-      /* an update row */
-      tom++;
+      switch (type) {
+      case 'S':
+      case 'U':
+        /* an update row */
+        tom++;
 #ifdef WITH_THREADS
         if (mutex != NULL) {
           pthread_mutex_lock(mutex);
         }
 #endif
-      if ((s = bgpview_io_deserialize_pfx_row(
-             ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
-             idmap->map,
-             idmap->alloc_cnt, NULL, -1,
-             BGPVIEW_FIELD_ACTIVE)) ==
-          -1) {
-        goto err;
-      }
+        if ((s =
+             bgpview_io_deserialize_pfx_row(ptr, (msg->len - read), iter,
+                                            pfx_cb, pfx_peer_cb,
+                                            idmap->map,
+                                            idmap->alloc_cnt, NULL, -1,
+                                            BGPVIEW_FIELD_ACTIVE)) == -1) {
+          goto err;
+        }
 #ifdef WITH_THREADS
         if (mutex != NULL) {
           pthread_mutex_unlock(mutex);
         }
 #endif
-      read += s;
-      ptr += s;
-      break;
+        read += s;
+        ptr += s;
+        break;
 
-    case 'R':
-      /* a remove row */
-      tor++;
+      case 'R':
+        /* a remove row */
+        tor++;
 #ifdef WITH_THREADS
         if (mutex != NULL) {
           pthread_mutex_lock(mutex);
         }
 #endif
-      if ((s = bgpview_io_deserialize_pfx_row(
-             ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
-             idmap->map,
-             idmap->alloc_cnt,
-             NULL, -1,
-             BGPVIEW_FIELD_INACTIVE)) ==
-          -1) {
-        goto err;
-      }
+        if ((s =
+             bgpview_io_deserialize_pfx_row(ptr, (msg->len - read), iter,
+                                            pfx_cb, pfx_peer_cb,
+                                            idmap->map,
+                                            idmap->alloc_cnt,
+                                            NULL, -1,
+                                            BGPVIEW_FIELD_INACTIVE)) == -1) {
+          goto err;
+        }
 #ifdef WITH_THREADS
         if (mutex != NULL) {
           pthread_mutex_unlock(mutex);
         }
 #endif
-      read += s;
-      ptr += s;
-      break;
+        read += s;
+        ptr += s;
+        break;
+      }
+
+      /* read the type of the next row */
+      if (read < msg->len) {
+        BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, type);
+      }
     }
-
+    assert(read == msg->len);
     rd_kafka_message_destroy(msg);
     msg = NULL;
   }
@@ -724,7 +733,7 @@ static int recv_view(bgpview_io_kafka_peeridmap_t *idmap,
                  , mutex
 #endif
                  ) < 0) {
-    return -1;
+    goto err;
   }
 
   if (recv_pfxs(idmap, pfxs_topic, it, pfx_cb, pfx_peer_cb,
