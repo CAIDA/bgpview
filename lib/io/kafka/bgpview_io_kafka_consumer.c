@@ -91,6 +91,9 @@ static void clear_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap)
          sizeof(bgpstream_peer_id_t) * idmap->alloc_cnt);
 }
 
+/* This check doesn't seem to work. It often reports a range that is smaller
+   than the actually valid range. I'm going to disable it completely for now. */
+#if 0
 /* returns 1 if the offset is valid, 0 if it is below "low" */
 static int check_offset(rd_kafka_t *rdk_conn, const char *topic,
                         int32_t partition, int64_t offset)
@@ -109,18 +112,22 @@ static int check_offset(rd_kafka_t *rdk_conn, const char *topic,
     fprintf(stderr, "INFO: Valid offsets are %"PRIi64" - %"PRIu64"\n",
             low, high);
   }
-  return 1;//(offset >= low);
+  return (offset >= low);
 }
+#endif
 
 static int seek_topic(rd_kafka_t *rdk_conn, rd_kafka_topic_t *rkt,
                       int32_t partition, int64_t offset)
 {
   int err;
 
+  /* see note above */
+#if 0
   if (check_offset(rdk_conn, rd_kafka_topic_name(rkt),
                    partition, offset) != 1) {
     return -1;
   }
+#endif
 
   if ((err = rd_kafka_seek(rkt, partition, offset, 1000)) != 0) {
     fprintf(stderr, "consume_seek(%s, %d, %" PRIu64 ") failed: %s\n",
@@ -753,7 +760,7 @@ static void *thread_worker(void *user)
       break;
     }
     assert(gct->job_state == WORKER_JOB_ASSIGNED);
-    gct->worker_state = WORKER_BUSY; /* hey, we're busy! */
+    assert(gct->worker_state == WORKER_BUSY);
     gct->recv_error = 0; /* so far, so good... */
     pthread_mutex_unlock(&gct->mutex);
 
@@ -771,7 +778,6 @@ static void *thread_worker(void *user)
     pthread_mutex_lock(&gct->mutex);
     gct->view_state = WORKER_VIEW_READY;
     gct->job_state = WORKER_JOB_COMPLETE;
-    fprintf(stderr, "DEBUG: %s done\n", gct->meta->identity);
 
     /* we'll now cycle through and block until we're assigned more work */
     // OUR MUTEX IS LOCKED
@@ -787,10 +793,10 @@ static int deactivate_worker(gc_topics_t *gct)
   int i;
   bgpview_iter_t *iter = bgpview_iter_create(gct->view);
 
-  fprintf(stderr, "DEBUG: Disabling view for %s...\n", gct->meta->identity);
+  /* NB: gct->meta cannot be used here */
+  /* It is safe to assume that all fields in gct are locked (except the view) */
 
   /* for each peersig in worker's map, disable the peer in the view */
-
   for (i=0; i<gct->idmap.alloc_cnt; i++) {
     bgpstream_peer_id_t peerid = gct->idmap.map[i];
     if (peerid == 0) {
@@ -810,8 +816,6 @@ static int deactivate_worker(gc_topics_t *gct)
 
   gct->parent_view_time = -1;
   gct->view_state = WORKER_VIEW_EMPTY;
-
-  fprintf(stderr, "DEBUG: Disable complete\n");
 
   return 0;
 }
@@ -853,7 +857,7 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
     gct->rdk_conn = client->rdk_conn;
     gct->global = &client->gc_state;
 
-    gct->worker_state = WORKER_IDLE;
+    gct->worker_state = WORKER_BUSY;
 
     /* spin up the worker thread */
     pthread_mutex_init(&gct->mutex, NULL);
@@ -963,6 +967,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     /* tell the worker to get cracking on this */
     pthread_mutex_lock(&gct->mutex);
     assert(gct->worker_state == WORKER_IDLE);
+    gct->worker_state = WORKER_BUSY;
     gct->job_state = WORKER_JOB_ASSIGNED;
     pthread_cond_signal(&gct->job_state_cond);
     pthread_mutex_unlock(&gct->mutex);
@@ -994,6 +999,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
       continue;
     }
     gct = kh_val(client->gc_state.topics, k);
+    /* gct->metas cannot be used */
 
 #ifdef WITH_THREADS
     pthread_mutex_lock(&gct->mutex);
@@ -1050,6 +1056,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     assert(gct->view_state == WORKER_VIEW_READY);
     assert(gct->job_state == WORKER_JOB_COMPLETE);
     gct->job_state = WORKER_JOB_IDLE;
+    gct->meta = NULL;
     pthread_mutex_unlock(&gct->mutex);
   } // for loop over metas
 #endif
