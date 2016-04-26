@@ -241,9 +241,11 @@ bgpview_io_test_t *bgpview_io_test_create(const char *opts)
     }
   }
 
+  free(local_args);
   return generator;
 
  err:
+  free(local_args);
   bgpview_io_test_destroy(generator);
   return NULL;
 }

@@ -330,9 +330,11 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
 #endif
   }
 
+  free(local_args);
   return client;
 
 err:
+  free(local_args);
   bgpview_io_kafka_destroy(client);
   return NULL;
 }
