@@ -631,6 +631,12 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       break;
     }
 
+#ifdef WITH_THREADS
+      if (mutex != NULL) {
+        pthread_mutex_lock(mutex);
+      }
+#endif
+
     /* if it is not an 'END' message, then it can contain many prefix row
        messages */
     while (read < msg->len) {
@@ -642,11 +648,6 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       case 'U':
         /* an update row */
         tom++;
-#ifdef WITH_THREADS
-        if (mutex != NULL) {
-          pthread_mutex_lock(mutex);
-        }
-#endif
         if ((s =
              bgpview_io_deserialize_pfx_row(ptr, (msg->len - read), iter,
                                             pfx_cb, pfx_peer_cb,
@@ -660,11 +661,6 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
 #endif
           goto err;
         }
-#ifdef WITH_THREADS
-        if (mutex != NULL) {
-          pthread_mutex_unlock(mutex);
-        }
-#endif
         read += s;
         ptr += s;
         break;
@@ -672,11 +668,6 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       case 'R':
         /* a remove row */
         tor++;
-#ifdef WITH_THREADS
-        if (mutex != NULL) {
-          pthread_mutex_lock(mutex);
-        }
-#endif
         if ((s =
              bgpview_io_deserialize_pfx_row(ptr, (msg->len - read), iter,
                                             pfx_cb, pfx_peer_cb,
@@ -691,11 +682,6 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
 #endif
           goto err;
         }
-#ifdef WITH_THREADS
-        if (mutex != NULL) {
-          pthread_mutex_unlock(mutex);
-        }
-#endif
         read += s;
         ptr += s;
         break;
@@ -709,6 +695,13 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
         BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, type);
       }
     }
+
+#ifdef WITH_THREADS
+        if (mutex != NULL) {
+          pthread_mutex_unlock(mutex);
+        }
+#endif
+
     assert(read == msg->len);
     rd_kafka_message_destroy(msg);
     msg = NULL;
