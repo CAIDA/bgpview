@@ -74,6 +74,11 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
   if ((local_id = bgpview_iter_add_peer(
            it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
            sig->peer_asnumber)) == 0) {
+#ifdef WITH_THREADS
+    if (mutex != NULL) {
+      pthread_mutex_unlock(mutex);
+    }
+#endif
     return -1;
   }
   /* ensure the peer is active */
@@ -648,6 +653,11 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
                                             idmap->map,
                                             idmap->alloc_cnt, NULL, -1,
                                             BGPVIEW_FIELD_ACTIVE)) == -1) {
+#ifdef WITH_THREADS
+          if (mutex != NULL) {
+            pthread_mutex_unlock(mutex);
+          }
+#endif
           goto err;
         }
 #ifdef WITH_THREADS
@@ -674,6 +684,11 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
                                             idmap->alloc_cnt,
                                             NULL, -1,
                                             BGPVIEW_FIELD_INACTIVE)) == -1) {
+#ifdef WITH_THREADS
+          if (mutex != NULL) {
+            pthread_mutex_unlock(mutex);
+          }
+#endif
           goto err;
         }
 #ifdef WITH_THREADS
@@ -684,6 +699,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
         read += s;
         ptr += s;
         break;
+
+      default:
+        assert(0);
       }
 
       /* read the type of the next row */
@@ -1070,11 +1088,18 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     }
     fprintf(stderr, "DEBUG: Worker '%s' finished.\n",
             metas[i].identity);
-    if (gct->recv_error != 0 && deactivate_worker(gct) != 0) {
+    if (gct->recv_error != 0) {
+      fprintf(stderr, "DEBUG: %s could not receive view. Deactivating...\n",
+              metas[i].identity);
+      // DEBUG REMOVE ME
       goto err;
+      if (deactivate_worker(gct) != 0) {
+        goto err;
+      }
+    } else {
+      assert(gct->view_state == WORKER_VIEW_READY);
     }
     assert(gct->worker_state == WORKER_IDLE);
-    assert(gct->view_state == WORKER_VIEW_READY);
     assert(gct->job_state == WORKER_JOB_COMPLETE);
     gct->job_state = WORKER_JOB_IDLE;
     gct->meta = NULL;

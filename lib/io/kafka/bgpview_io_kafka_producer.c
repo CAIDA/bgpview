@@ -63,7 +63,7 @@
 #define SEND_IF_FULL(topic_id, partition, buf, written, ptr, len)       \
   do {                                                                  \
     if (written > ((len)/2)) {                                          \
-      SEND_MSG(topic_id, partition, buf, len);                          \
+      SEND_MSG(topic_id, partition, buf, written);                      \
       RESET_BUF(buf, ptr, written);                                     \
     }                                                                   \
   } while (0)
