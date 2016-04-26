@@ -632,9 +632,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
     }
 
 #ifdef WITH_THREADS
-      if (mutex != NULL) {
-        pthread_mutex_lock(mutex);
-      }
+    if (mutex != NULL) {
+      pthread_mutex_lock(mutex);
+    }
 #endif
 
     /* if it is not an 'END' message, then it can contain many prefix row
@@ -1084,8 +1084,6 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     if (gct->recv_error != 0) {
       fprintf(stderr, "DEBUG: %s could not receive view. Deactivating...\n",
               metas[i].identity);
-      // DEBUG REMOVE ME
-      goto err;
       if (deactivate_worker(gct) != 0) {
         goto err;
       }
