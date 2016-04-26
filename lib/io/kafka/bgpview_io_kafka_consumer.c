@@ -67,7 +67,9 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
 
   /* just blindly add the peer */
 #ifdef WITH_THREADS
-  pthread_mutex_lock(mutex);
+  if (mutex != NULL) {
+    pthread_mutex_lock(mutex);
+  }
 #endif
   if ((local_id = bgpview_iter_add_peer(
            it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
@@ -77,7 +79,9 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
   /* ensure the peer is active */
   bgpview_iter_activate_peer(it);
 #ifdef WITH_THREADS
-  pthread_mutex_unlock(mutex);
+  if (mutex != NULL) {
+    pthread_mutex_unlock(mutex);
+  }
 #endif
   idmap->map[remote_id] = local_id;
 
@@ -631,7 +635,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       /* an update row */
       tom++;
 #ifdef WITH_THREADS
-      pthread_mutex_lock(mutex);
+        if (mutex != NULL) {
+          pthread_mutex_lock(mutex);
+        }
 #endif
       if ((s = bgpview_io_deserialize_pfx_row(
              ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
@@ -642,7 +648,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
         goto err;
       }
 #ifdef WITH_THREADS
-      pthread_mutex_unlock(mutex);
+        if (mutex != NULL) {
+          pthread_mutex_unlock(mutex);
+        }
 #endif
       read += s;
       ptr += s;
@@ -652,7 +660,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       /* a remove row */
       tor++;
 #ifdef WITH_THREADS
-      pthread_mutex_lock(mutex);
+        if (mutex != NULL) {
+          pthread_mutex_lock(mutex);
+        }
 #endif
       if ((s = bgpview_io_deserialize_pfx_row(
              ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb,
@@ -664,7 +674,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
         goto err;
       }
 #ifdef WITH_THREADS
-      pthread_mutex_unlock(mutex);
+        if (mutex != NULL) {
+          pthread_mutex_unlock(mutex);
+        }
 #endif
       read += s;
       ptr += s;
