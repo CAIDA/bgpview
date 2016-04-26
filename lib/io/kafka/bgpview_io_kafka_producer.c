@@ -593,6 +593,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
         SEND_IF_FULL(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
                      BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                      buf, written, ptr, len);
+        s = 0;
       }
       continue;
     }
@@ -647,6 +648,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       SEND_IF_FULL(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
                    BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                    buf, written, ptr, len);
+      s = 0;
       STAT(pfx_cnt)++;
     }
   }
@@ -678,6 +680,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
           SEND_IF_FULL(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
                        BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                        buf, written, ptr, len);
+          s = 0;
           STAT(removed_pfxs_cnt)++;
           STAT(pfx_cnt)++;
         }
