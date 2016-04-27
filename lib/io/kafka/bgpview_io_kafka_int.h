@@ -256,6 +256,9 @@ typedef struct bgpview_io_kafka_md {
   /** The time of the the view */
   uint32_t time;
 
+  /** The number of peers in this view */
+  uint32_t peers_cnt;
+
   /** The type of this view dump (S[ync]/D[iff]) */
   char type;
 

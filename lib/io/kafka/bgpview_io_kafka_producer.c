@@ -245,6 +245,9 @@ static int send_metadata(bgpview_io_kafka_t *client,
   /* Time */
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, meta->time);
 
+  /* Peers count */
+  BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, meta->peers_cnt);
+
   /* Prefixes offset */
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, meta->pfxs_offset);
 
@@ -343,6 +346,8 @@ static int send_peers(bgpview_io_kafka_t *client,
              buf, written);
     RESET_BUF(buf, ptr, written);
   }
+
+  meta->peers_cnt = peers_tx;
 
   /* End message */
   type = 'E';

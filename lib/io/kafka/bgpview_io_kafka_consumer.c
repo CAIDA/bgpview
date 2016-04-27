@@ -168,6 +168,9 @@ static int deserialize_metadata(bgpview_io_kafka_md_t *meta,
   /* Time */
   BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, meta->time);
 
+  /* Peers count */
+  BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, meta->peers_cnt);
+
   /* Prefixes offset */
   BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, meta->pfxs_offset);
 
