@@ -517,8 +517,7 @@ void remove_old_prefixes(bgpstream_patricia_tree_t *pt,
 }
 
 
-int bvc_routedspace_process_view(bvc_t *consumer, uint8_t interests,
-                                        bgpview_t *view)
+int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_routedspace_state_t *state = STATE;
   bgpview_iter_t *it;

@@ -640,7 +640,7 @@ int main(int argc, char **argv)
   while(prevoptind = optind,
 	(opt = getopt(argc, argv, ":f:i:m:N:b:c:I:v?")) >= 0)
     {
-      if (optind == prevoptind + 2 && *optarg == '-' ) {
+      if (optind == prevoptind + 2 && (optarg == NULL || *optarg == '-')) {
         opt = ':';
         -- optind;
       }

@@ -162,9 +162,6 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   NULL,
 #endif
 
-  /** Pointer to myviewprocess alloc function */
-  bvc_myviewprocess_alloc,
-
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
   /*
