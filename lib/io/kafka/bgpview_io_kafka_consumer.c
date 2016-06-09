@@ -647,6 +647,7 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       pfx_rx++;
 
       switch (type) {
+      /* a sync row*/
       case 'S':
       case 'U':
         /* an update row */
