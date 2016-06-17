@@ -1135,7 +1135,7 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client)
   rd_kafka_conf_t *conf = rd_kafka_conf_new();
   char errstr[512];
 
-  if (rd_kafka_conf_set(conf, "queued.min.messages", "1000", errstr,
+  if (rd_kafka_conf_set(conf, "queued.min.messages", "100", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
