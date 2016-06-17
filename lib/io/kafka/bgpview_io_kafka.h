@@ -184,7 +184,7 @@ int bgpview_io_kafka_start(bgpview_io_kafka_t *client);
  * @return 0 if successful, -1 otherwise
  */
 int bgpview_io_kafka_set_broker_addresses(bgpview_io_kafka_t *client,
-                                          const char *addresses);
+                                          const char *uri);
 
 /** Set the topic namespace to use
  *
@@ -211,6 +211,7 @@ int bgpview_io_kafka_set_namespace(bgpview_io_kafka_t *client,
  * @param view          pointer to the view to transmit
  * @param parent_view   pointer to the parent view to diff agains (may be NULL)
  * @param cb            callback function to use to filter entries (may be NULL)
+ * @param cb_user       pointer past to the callback function (may be NULL)
  * @return 0 if the view was transmitted successfully, -1 otherwise
  *
  * This function only sends 'active' fields. Any fields that are 'inactive' in
