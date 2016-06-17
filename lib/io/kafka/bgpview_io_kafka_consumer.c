@@ -592,6 +592,8 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
 
   rd_kafka_message_t *msg = NULL;
 
+  fprintf(stderr, "DEBUG: seek %s to %"PRIi64"\n", topic->name, offset);
+
   if (seek_topic(rdk_conn, topic->rkt,
                  BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                  offset) != 0) {
@@ -601,6 +603,8 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
   if (iter != NULL) {
     view = bgpview_iter_get_view(iter);
   }
+
+  int msg_cnt = 0;
 
   while (1) {
     msg = rd_kafka_consume(topic->rkt,
@@ -612,6 +616,7 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
     if (msg->payload == NULL) {
       goto err;
     }
+    msg_cnt++;
 
     ptr = msg->payload;
     read = 0;
@@ -626,7 +631,12 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       }
       assert(view_time == exp_time);
       BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, pfx_cnt);
+      fprintf(stderr, "DEBUG: Time: %"PRIu32"\n", view_time);
+      fprintf(stderr, "DEBUG: MSG CNT %s: %d\n", topic->name, msg_cnt);
+      fprintf(stderr, "DEBUG: pfx_cnt: %"PRIu32", pfx_rx: %"PRIu32"\n",
+              pfx_cnt, pfx_rx);
       assert(pfx_rx == pfx_cnt);
+      fprintf(stderr, "DEBUG: %s OK\n", topic->name);
       assert(read == msg->len);
 
       rd_kafka_message_destroy(msg);
@@ -1162,7 +1172,10 @@ int bgpview_io_kafka_consumer_topic_connect(bgpview_io_kafka_t *client,
     return -1;
   }
 
-  if (rd_kafka_consume_start(*rkt, 0, RD_KAFKA_OFFSET_TAIL(1)) == -1) {
+  // gmd: 36
+  // single: 2556
+  // RD_KAFKA_OFFSET_BEGINNING
+  if (rd_kafka_consume_start(*rkt, 0, 2556) == -1) {
     fprintf(stderr, "ERROR: Failed to start consuming: %s\n",
             rd_kafka_err2str(rd_kafka_errno2err(errno)));
     return -1;

@@ -842,7 +842,7 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
   }
 
   // Since our prefix table is a flood of messages, batch them up
-  if (rd_kafka_conf_set(conf, "batch.num.messages", "10000", errstr,
+  if (rd_kafka_conf_set(conf, "batch.num.messages", "100", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
@@ -854,7 +854,7 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
     goto err;
   }
   // And allow the queue to hold a full pfx table
-  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "7000000", errstr,
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "7000", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
