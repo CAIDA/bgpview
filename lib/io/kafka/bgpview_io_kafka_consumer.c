@@ -1135,6 +1135,15 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client)
   rd_kafka_conf_t *conf = rd_kafka_conf_new();
   char errstr[512];
 
+  // Disable logging of connection close/idle timeouts caused by Kafka 0.9.x
+  //   See https://github.com/edenhill/librdkafka/issues/437 for more details.
+  // TODO: change this when librdkafka has better handling of idle disconnects
+  if (rd_kafka_conf_set(conf, "log.connection.close", "false", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
   if (rd_kafka_conf_set(conf, "queued.min.messages", "100", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
