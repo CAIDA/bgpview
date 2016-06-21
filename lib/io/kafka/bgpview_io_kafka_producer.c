@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <librdkafka/rdkafka.h>
 #include <string.h>
+#include <unistd.h>
 #ifdef HAVE_TIME_H
 #include <time.h>
 #endif
@@ -43,16 +44,26 @@
 
 #define SEND_MSG(topic_id, partition, buf, len)                         \
   do {                                                                  \
-    if (rd_kafka_produce(RKT(topic_id), (partition),                    \
-                         RD_KAFKA_MSG_F_COPY, (buf), (len),             \
-                         NULL, 0, NULL) == -1) {                        \
-      fprintf(stderr,                                                   \
-              "ERROR: Failed to produce to topic %s partition %i: %s\n", \
-              rd_kafka_topic_name(RKT(topic_id)),                       \
-              (partition),                                              \
-              rd_kafka_err2str(rd_kafka_errno2err(errno)));             \
-      rd_kafka_poll(client->rdk_conn, 0);                               \
-      goto err;                                                         \
+    int success = 0;                                                    \
+    while (success == 0) {                                              \
+      if (rd_kafka_produce(RKT(topic_id), (partition),                  \
+                           RD_KAFKA_MSG_F_COPY, (buf), (len),           \
+                           NULL, 0, NULL) == -1) {                      \
+        if (errno == RD_KAFKA_RESP_ERR__QUEUE_FULL) {                   \
+          fprintf(stderr, "WARN: producer queue full, retrying...\n");  \
+          if (sleep(1) != 0) { goto err; }                              \
+        } else {                                                        \
+          fprintf(stderr,                                               \
+                  "ERROR: Failed to produce to topic %s partition %i: %s\n", \
+                  rd_kafka_topic_name(RKT(topic_id)),                   \
+                  (partition),                                          \
+                  rd_kafka_err2str(rd_kafka_errno2err(errno)));         \
+          rd_kafka_poll(client->rdk_conn, 0);                           \
+          goto err;                                                     \
+        }                                                               \
+      } else {                                                          \
+        success = 1;                                                    \
+      }                                                                 \
     }                                                                   \
   } while (0)
 
@@ -851,7 +862,7 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
   }
-  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "100", errstr,
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "500", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
