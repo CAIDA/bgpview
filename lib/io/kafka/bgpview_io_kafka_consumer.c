@@ -1194,10 +1194,7 @@ int bgpview_io_kafka_consumer_topic_connect(bgpview_io_kafka_t *client,
     return -1;
   }
 
-  // gmd: 36
-  // single: 2556
-  // RD_KAFKA_OFFSET_BEGINNING
-  if (rd_kafka_consume_start(*rkt, 0, 2556) == -1) {
+  if (rd_kafka_consume_start(*rkt, 0, RD_KAFKA_OFFSET_TAIL(1)) == -1) {
     fprintf(stderr, "ERROR: Failed to start consuming: %s\n",
             rd_kafka_err2str(rd_kafka_errno2err(errno)));
     return -1;
