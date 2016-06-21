@@ -874,6 +874,8 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
   khiter_t k;
   int khret;
 
+  fprintf(stderr, "DEBUG: Getting GCT for %s\n", identity);
+
   /* is there already a record for this identity? */
   if ((k = kh_get(str_topic, client->gc_state.topics, identity))
       == kh_end(client->gc_state.topics)) {
@@ -928,9 +930,13 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
     pthread_mutex_unlock(&gct->mutex);
 #endif
 
+    fprintf(stderr, "DEBUG: Created new GCT for %s\n", identity);
+
   } else {
     gct = kh_val(client->gc_state.topics, k);
   }
+
+  fprintf(stderr, "DEBUG: RKT Name: %s\n", gct->pfxs.name);
 
   return gct;
 
@@ -983,6 +989,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
               metas[i].identity);
       goto err;
     }
+    assert(gct->job_state == WORKER_JOB_IDLE);
 
     /* if this is a diff, can it be applied correctly? */
     if (metas[i].type == 'D' &&
@@ -993,7 +1000,6 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
       continue;
     }
     gct->parent_view_time = metas[i].time;
-    assert(gct->job_state == WORKER_JOB_IDLE);
     gct->meta = &metas[i];
     gct->view = view;
 
@@ -1017,6 +1023,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     gct->job_state = WORKER_JOB_ASSIGNED;
     pthread_cond_signal(&gct->job_state_cond);
     pthread_mutex_unlock(&gct->mutex);
+    fprintf(stderr, "DEBUG: assigned job to %s\n", metas[i].identity);
 #else
     if (recv_view(&gct->idmap, gct->view, &metas[i], &gct->peers, &gct->pfxs,
                   peer_cb, pfx_cb, pfx_peer_cb, client->rdk_conn) != 0) {
@@ -1025,6 +1032,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
       if (deactivate_worker(gct) != 0) {
         goto err;
       }
+      gct->job_state = WORKER_JOB_IDLE;
       // if the recv failed, then the worker has no job assigned and deactivate
       // will set the view state to empty.
     } else {
@@ -1047,6 +1055,9 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     gct = kh_val(client->gc_state.topics, k);
     /* gct->metas cannot be used */
 
+    fprintf(stderr, "DEBUG: checking whether %s should be disabled\n",
+            gct->pfxs.name);
+
 #ifdef WITH_THREADS
     pthread_mutex_lock(&gct->mutex);
 #endif
@@ -1058,6 +1069,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
       /* if not using threads, then we're done with this worker */
       gct->job_state = WORKER_JOB_IDLE;
 #endif
+      fprintf(stderr, "DEBUG: not disabling busy worker %s\n", gct->pfxs.name);
       continue;
     }
 #ifdef WITH_THREADS
@@ -1091,6 +1103,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     }
     /* wait for the worker to finish processing */
     while (gct->worker_state != WORKER_IDLE) {
+      fprintf(stderr, "DEBUG: waiting for worker %s\n", metas[i].identity);
       pthread_cond_wait(&gct->worker_state_cond, &gct->mutex);
     }
     fprintf(stderr, "DEBUG: Worker '%s' finished.\n",
