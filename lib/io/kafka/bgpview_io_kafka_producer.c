@@ -49,7 +49,7 @@
       if (rd_kafka_produce(RKT(topic_id), (partition),                  \
                            RD_KAFKA_MSG_F_COPY, (buf), (len),           \
                            NULL, 0, NULL) == -1) {                      \
-        if (errno == RD_KAFKA_RESP_ERR__QUEUE_FULL) {                   \
+        if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) { \
           fprintf(stderr, "WARN: producer queue full, retrying...\n");  \
           if (sleep(1) != 0) { goto err; }                              \
         } else {                                                        \
@@ -862,7 +862,7 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
   }
-  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "500", errstr,
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "1000", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
