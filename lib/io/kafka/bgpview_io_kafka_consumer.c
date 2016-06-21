@@ -963,6 +963,10 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
   gettimeofday(&tv, NULL);
   uint32_t start = tv.tv_sec;
 
+  /* one way or another we will yield this view to the user (or we will die
+     trying) so set the view time now */
+  bgpview_set_time(view, metas[0].time);
+
   fprintf(stderr, "DEBUG: %d members:\n", metas_cnt);
   for (i = 0; i < metas_cnt; i++) {
     fprintf(stderr,
