@@ -635,9 +635,12 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       fprintf(stderr, "DEBUG: MSG CNT %s: %d\n", topic->name, msg_cnt);
       fprintf(stderr, "DEBUG: pfx_cnt: %"PRIu32", pfx_rx: %"PRIu32"\n",
               pfx_cnt, pfx_rx);
-      assert(pfx_rx == pfx_cnt);
-      fprintf(stderr, "DEBUG: %s OK\n", topic->name);
-      assert(read == msg->len);
+
+      if (pfx_rx != pfx_cnt || read != msg->len) {
+        fprintf(stderr, "WARN: Invalid prefix table received from %s\n",
+                topic->name);
+        goto err;
+      }
 
       rd_kafka_message_destroy(msg);
       msg = NULL;
