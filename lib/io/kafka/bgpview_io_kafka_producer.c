@@ -862,7 +862,7 @@ int bgpview_io_kafka_producer_connect(bgpview_io_kafka_t *client)
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
   }
-  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "1000", errstr,
+  if (rd_kafka_conf_set(conf, "queue.buffering.max.messages", "2000", errstr,
                         sizeof(errstr)) != RD_KAFKA_CONF_OK) {
     fprintf(stderr, "ERROR: %s\n", errstr);
     goto err;
