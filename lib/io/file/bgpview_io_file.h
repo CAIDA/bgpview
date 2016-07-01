@@ -37,8 +37,7 @@
  * @return 0 if the view was written successfully, -1 otherwise
  */
 int bgpview_io_file_write(iow_t *outfile, bgpview_t *view,
-                          bgpview_io_filter_cb_t *cb,
-                          void *cb_user);
+                          bgpview_io_filter_cb_t *cb, void *cb_user);
 
 /** Receive a view from the given file
  *
@@ -49,9 +48,9 @@ int bgpview_io_file_write(iow_t *outfile, bgpview_t *view,
  * error occurred
  */
 int bgpview_io_file_read(io_t *infile, bgpview_t *view,
-                    bgpview_io_filter_peer_cb_t *peer_cb,
-                    bgpview_io_filter_pfx_cb_t *pfx_cb,
-                    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+                         bgpview_io_filter_peer_cb_t *peer_cb,
+                         bgpview_io_filter_pfx_cb_t *pfx_cb,
+                         bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 /** Print the given view to the given file (in ASCII format)
  *
@@ -65,7 +64,6 @@ int bgpview_io_file_print(iow_t *outfile, bgpview_t *view);
  *
  * @param view        pointer to a view structure
  */
-void
-bgpview_io_file_dump(bgpview_t *view);
+void bgpview_io_file_dump(bgpview_t *view);
 
 #endif /* __BGPVIEW_IO_FILE_H */

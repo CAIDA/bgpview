@@ -21,12 +21,12 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bgpview_io_zmq.h"
 #include "bgpview_io_zmq_client_int.h"
 #include "bgpview_io_zmq_client_broker.h"
-#include "bgpview_io_zmq.h"
 #include "khash.h"
-#include "parse_cmd.h"
 #include "utils.h"
+#include "parse_cmd.h"
 #include <stdint.h>
 
 #define BCFG (client->broker_config)
@@ -37,79 +37,79 @@
 
 #define METRIC_PREFIX "bgp.meta.bgpview.client"
 
-#define DUMP_METRIC(value, time, fmt, ...)                              \
-  do {                                                                  \
-    fprintf(stdout, METRIC_PREFIX"."fmt" %"PRIu64" %"PRIu32"\n",        \
-            __VA_ARGS__, value, time);                                  \
-  } while(0)                                                            \
+#define DUMP_METRIC(value, time, fmt, ...)                                     \
+  do {                                                                         \
+    fprintf(stdout, METRIC_PREFIX "." fmt " %" PRIu64 " %" PRIu32 "\n",        \
+            __VA_ARGS__, value, time);                                         \
+  } while (0)
 
 /* create and send headers for a data message */
 int send_view_hdrs(bgpview_io_zmq_client_t *client, bgpview_t *view)
 {
-  uint8_t   type_b = BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW;
+  uint8_t type_b = BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW;
   seq_num_t seq_num = client->seq_num++;
   uint32_t u32;
 
   /* message type */
-  if(zmq_send(client->broker_zocket, &type_b,
-              bgpview_io_zmq_msg_type_size_t, ZMQ_SNDMORE)
-     != bgpview_io_zmq_msg_type_size_t)
-    {
-      fprintf(stderr, "Could not add request type to message\n");
-      goto err;
-    }
+  if (zmq_send(client->broker_zocket, &type_b, bgpview_io_zmq_msg_type_size_t,
+               ZMQ_SNDMORE) != bgpview_io_zmq_msg_type_size_t) {
+    fprintf(stderr, "Could not add request type to message\n");
+    goto err;
+  }
 
   /* sequence number */
-  if(zmq_send(client->broker_zocket, &seq_num, sizeof(seq_num_t), ZMQ_SNDMORE)
-     != sizeof(seq_num_t))
-    {
-      fprintf(stderr, "Could not add sequence number to message\n");
-      goto err;
-    }
+  if (zmq_send(client->broker_zocket, &seq_num, sizeof(seq_num_t),
+               ZMQ_SNDMORE) != sizeof(seq_num_t)) {
+    fprintf(stderr, "Could not add sequence number to message\n");
+    goto err;
+  }
 
   /* view time */
   u32 = htonl(bgpview_get_time(view));
-  if(zmq_send(client->broker_zocket, &u32, sizeof(u32), ZMQ_SNDMORE)
-     != sizeof(u32))
-    {
-      fprintf(stderr, "Could not send view time header\n");
-      goto err;
-    }
+  if (zmq_send(client->broker_zocket, &u32, sizeof(u32), ZMQ_SNDMORE) !=
+      sizeof(u32)) {
+    fprintf(stderr, "Could not send view time header\n");
+    goto err;
+  }
 
   return 0;
 
- err:
+err:
   return -1;
 }
 
 static void usage()
 {
-  fprintf(stderr,
-          "ZMQ Client Options:\n"
-	  "       -i <interval-ms>      Time in ms between heartbeats to server\n"
-	  "                               (default: %d)\n"
-	  "       -l <beats>            Number of heartbeats that can go by before the\n"
-	  "                               server is declared dead (default: %d)\n"
-	  "       -n <identity>         Globally unique client name (default: random)\n"
-	  "       -r <retry-min>        Min wait time (in msec) before reconnecting server\n"
+  fprintf(
+      stderr,
+      "ZMQ Client Options:\n"
+      "       -i <interval-ms>      Time in ms between heartbeats to server\n"
+      "                               (default: %d)\n"
+      "       -l <beats>            Number of heartbeats that can go by before "
+      "the\n"
+      "                               server is declared dead (default: %d)\n"
+      "       -n <identity>         Globally unique client name (default: "
+      "random)\n"
+      "       -r <retry-min>        Min wait time (in msec) before "
+      "reconnecting server\n"
 
-	  "                               (default: %d)\n"
-	  "       -R <retry-max>        Max wait time (in msec) before reconnecting server\n"
-	  "                               (default: %d)\n"
-	  "       -s <server-uri>       0MQ-style URI to connect to server on\n"
-	  "                               (default: %s)\n"
-          "       -S <server-sub-uri>   0MQ-style URI to subscribe to tables on\n"
-          "                               (default: %s)\n",
-	  BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
-	  BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
-	  BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN,
-	  BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX,
-	  BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT,
-	  BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT);
+      "                               (default: %d)\n"
+      "       -R <retry-max>        Max wait time (in msec) before "
+      "reconnecting server\n"
+      "                               (default: %d)\n"
+      "       -s <server-uri>       0MQ-style URI to connect to server on\n"
+      "                               (default: %s)\n"
+      "       -S <server-sub-uri>   0MQ-style URI to subscribe to tables on\n"
+      "                               (default: %s)\n",
+      BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
+      BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
+      BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN,
+      BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX,
+      BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT,
+      BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT);
 }
 
-static int parse_args(bgpview_io_zmq_client_t *client,
-                      int argc, char **argv)
+static int parse_args(bgpview_io_zmq_client_t *client, int argc, char **argv)
 {
   int opt;
   assert(argc > 0 && argv != NULL);
@@ -117,48 +117,43 @@ static int parse_args(bgpview_io_zmq_client_t *client,
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while((opt = getopt(argc, argv, ":i:l:n:r:R:s:S:?")) >= 0)
-    {
-      switch(opt)
-        {
-        case 'i':
-            bgpview_io_zmq_client_set_heartbeat_interval(client,
-                                                         atoi(optarg));
-	  break;
+  while ((opt = getopt(argc, argv, ":i:l:n:r:R:s:S:?")) >= 0) {
+    switch (opt) {
+    case 'i':
+      bgpview_io_zmq_client_set_heartbeat_interval(client, atoi(optarg));
+      break;
 
-	case 'l':
-	  bgpview_io_zmq_client_set_heartbeat_liveness(client, atoi(optarg));
-	  break;
+    case 'l':
+      bgpview_io_zmq_client_set_heartbeat_liveness(client, atoi(optarg));
+      break;
 
-	case 'n':
-	  bgpview_io_zmq_client_set_identity(client, optarg);
-	  break;
+    case 'n':
+      bgpview_io_zmq_client_set_identity(client, optarg);
+      break;
 
-	case 'r':
-	  bgpview_io_zmq_client_set_reconnect_interval_min(client,
-                                                           atoi(optarg));
-	  break;
+    case 'r':
+      bgpview_io_zmq_client_set_reconnect_interval_min(client, atoi(optarg));
+      break;
 
-	case 'R':
-	  bgpview_io_zmq_client_set_reconnect_interval_max(client,
-                                                           atoi(optarg));
-	  break;
+    case 'R':
+      bgpview_io_zmq_client_set_reconnect_interval_max(client, atoi(optarg));
+      break;
 
-	case 's':
-	  bgpview_io_zmq_client_set_server_uri(client, optarg);
-	  break;
+    case 's':
+      bgpview_io_zmq_client_set_server_uri(client, optarg);
+      break;
 
-	case 'S':
-	  bgpview_io_zmq_client_set_server_sub_uri(client, optarg);
-	  break;
+    case 'S':
+      bgpview_io_zmq_client_set_server_sub_uri(client, optarg);
+      break;
 
-        case '?':
-        case ':':
-        default:
-          usage();
-          return -1;
-        }
+    case '?':
+    case ':':
+    default:
+      usage();
+      return -1;
     }
+  }
   return 0;
 }
 
@@ -167,11 +162,10 @@ static int parse_args(bgpview_io_zmq_client_t *client,
 bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t intents)
 {
   bgpview_io_zmq_client_t *client;
-  if((client = malloc_zero(sizeof(bgpview_io_zmq_client_t))) == NULL)
-    {
-      /* cannot set an err at this point */
-      return NULL;
-    }
+  if ((client = malloc_zero(sizeof(bgpview_io_zmq_client_t))) == NULL) {
+    /* cannot set an err at this point */
+    return NULL;
+  }
   /* now we are ready to set errors... */
 
   /* now init the shared state for our broker */
@@ -181,25 +175,22 @@ bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t intents)
   BCFG.intents = intents;
 
   /* init czmq */
-  if((BCFG.ctx = zctx_new()) == NULL)
-    {
-      fprintf(stderr, "Failed to create 0MQ context\n");
-      goto err;
-    }
+  if ((BCFG.ctx = zctx_new()) == NULL) {
+    fprintf(stderr, "Failed to create 0MQ context\n");
+    goto err;
+  }
 
-  if((BCFG.server_uri =
-      strdup(BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT)) == NULL)
-    {
-      fprintf(stderr, "Failed to duplicate server uri string\n");
-      goto err;
-    }
+  if ((BCFG.server_uri = strdup(BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT)) ==
+      NULL) {
+    fprintf(stderr, "Failed to duplicate server uri string\n");
+    goto err;
+  }
 
-  if((BCFG.server_sub_uri =
-      strdup(BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT)) == NULL)
-    {
-      fprintf(stderr, "Failed to duplicate server SUB uri string\n");
-      goto err;
-    }
+  if ((BCFG.server_sub_uri =
+           strdup(BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT)) == NULL) {
+    fprintf(stderr, "Failed to duplicate server SUB uri string\n");
+    goto err;
+  }
 
   BCFG.heartbeat_interval = BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT;
 
@@ -215,55 +206,48 @@ bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t intents)
   BCFG.request_retries = BGPVIEW_IO_ZMQ_CLIENT_REQUEST_RETRIES_DEFAULT;
 
   /* establish a pipe between us and the broker */
-  if((client->broker_sock = zsock_new(ZMQ_PAIR)) == NULL)
-    {
-      fprintf(stderr, "Failed to create socket end\n");
-      goto err;
-    }
-  if((BCFG.master_pipe = zsock_new(ZMQ_PAIR)) == NULL)
-    {
-      fprintf(stderr, "Failed to create socket end\n");
-      goto err;
-    }
+  if ((client->broker_sock = zsock_new(ZMQ_PAIR)) == NULL) {
+    fprintf(stderr, "Failed to create socket end\n");
+    goto err;
+  }
+  if ((BCFG.master_pipe = zsock_new(ZMQ_PAIR)) == NULL) {
+    fprintf(stderr, "Failed to create socket end\n");
+    goto err;
+  }
   /* bind and connect pipe ends */
-  if(zsock_bind(client->broker_sock, "inproc://client-broker") != 0)
-    {
-      fprintf(stderr, "Failed to bind broker socket\n");
-      goto err;
-    }
-  if(zsock_connect(BCFG.master_pipe, "inproc://client-broker") != 0)
-    {
-      fprintf(stderr, "Failed to connect broker socket\n");
-      goto err;
-    }
+  if (zsock_bind(client->broker_sock, "inproc://client-broker") != 0) {
+    fprintf(stderr, "Failed to bind broker socket\n");
+    goto err;
+  }
+  if (zsock_connect(BCFG.master_pipe, "inproc://client-broker") != 0) {
+    fprintf(stderr, "Failed to connect broker socket\n");
+    goto err;
+  }
 
   return client;
 
- err:
-  if(client != NULL)
-    {
-      bgpview_io_zmq_client_free(client);
-    }
+err:
+  if (client != NULL) {
+    bgpview_io_zmq_client_free(client);
+  }
   return NULL;
 }
 
 int bgpview_io_zmq_client_start(bgpview_io_zmq_client_t *client)
 {
   /* crank up the broker */
-  if((client->broker =
-      zactor_new(bgpview_io_zmq_client_broker_run, &BCFG)) == NULL)
-    {
-      fprintf(stderr, "Failed to start broker\n");
-      return -1;
-    }
+  if ((client->broker = zactor_new(bgpview_io_zmq_client_broker_run, &BCFG)) ==
+      NULL) {
+    fprintf(stderr, "Failed to start broker\n");
+    return -1;
+  }
 
   /* by the time the zactor_new function returns, the broker has been
      initialized, so lets check for any error messages that it has signaled */
-  if(BCFG.err != 0)
-    {
-      client->shutdown = 1;
-      return -1;
-    }
+  if (BCFG.err != 0) {
+    client->shutdown = 1;
+    return -1;
+  }
 
   /* store a pointer to the socket we will use to talk with the broker */
   client->broker_zocket = zsock_resolve(client->broker_sock);
@@ -275,54 +259,47 @@ int bgpview_io_zmq_client_start(bgpview_io_zmq_client_t *client)
 #define ASSERT_INTENT(intent) assert((BCFG.intents & intent) != 0);
 
 int bgpview_io_zmq_client_send_view(bgpview_io_zmq_client_t *client,
-                                    bgpview_t *view,
-                                    bgpview_io_filter_cb_t *cb,
+                                    bgpview_t *view, bgpview_io_filter_cb_t *cb,
                                     void *cb_user)
 {
-  if(send_view_hdrs(client, view) != 0)
-    {
-      goto err;
-    }
+  if (send_view_hdrs(client, view) != 0) {
+    goto err;
+  }
 
   /* now just transmit the view */
-  if(bgpview_io_zmq_send(client->broker_zocket, view, cb, cb_user) != 0)
-    {
-      goto err;
-    }
+  if (bgpview_io_zmq_send(client->broker_zocket, view, cb, cb_user) != 0) {
+    goto err;
+  }
 
   return 0;
 
- err:
+err:
   return -1;
 }
 
-int bgpview_io_zmq_client_recv_view(bgpview_io_zmq_client_t *client,
-                                    bgpview_io_zmq_client_recv_mode_t blocking,
-                                    bgpview_t *view,
-                                    bgpview_io_filter_peer_cb_t *peer_cb,
-                                    bgpview_io_filter_pfx_cb_t *pfx_cb,
-                                    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
+int bgpview_io_zmq_client_recv_view(
+    bgpview_io_zmq_client_t *client, bgpview_io_zmq_client_recv_mode_t blocking,
+    bgpview_t *view, bgpview_io_filter_peer_cb_t *peer_cb,
+    bgpview_io_filter_pfx_cb_t *pfx_cb,
+    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 
 {
   assert(view != NULL);
 
   /* attempt to get the empty prefix message */
-  if(zmq_recv(client->broker_zocket,
-	      NULL, 0,
-	      (blocking == BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_NONBLOCK) ?
-              ZMQ_DONTWAIT : 0
-	      ) != 0)
-    {
-      /* likely this means that we have shut the broker down */
-      return -1;
-    }
+  if (zmq_recv(client->broker_zocket, NULL, 0,
+               (blocking == BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_NONBLOCK)
+                   ? ZMQ_DONTWAIT
+                   : 0) != 0) {
+    /* likely this means that we have shut the broker down */
+    return -1;
+  }
 
-  if(bgpview_io_zmq_recv(client->broker_zocket, view,
-                         peer_cb, pfx_cb, pfx_peer_cb) != 0)
-    {
-      fprintf(stderr, "Failed to receive view\n");
-      return -1;
-    }
+  if (bgpview_io_zmq_recv(client->broker_zocket, view, peer_cb, pfx_cb,
+                          pfx_peer_cb) != 0) {
+    fprintf(stderr, "Failed to receive view\n");
+    return -1;
+  }
 
   return 0;
 }
@@ -341,10 +318,9 @@ void bgpview_io_zmq_client_free(bgpview_io_zmq_client_t *client)
   assert(client != NULL);
 
   /* @todo figure out a more elegant way to deal with this */
-  if(client->shutdown == 0)
-    {
-      bgpview_io_zmq_client_stop(client);
-    }
+  if (client->shutdown == 0) {
+    bgpview_io_zmq_client_stop(client);
+  }
 
   free(BCFG.server_uri);
   BCFG.server_uri = NULL;
@@ -365,9 +341,8 @@ void bgpview_io_zmq_client_free(bgpview_io_zmq_client_t *client)
   return;
 }
 
-int
-bgpview_io_zmq_client_set_opts(bgpview_io_zmq_client_t *client,
-                               const char *opts)
+int bgpview_io_zmq_client_set_opts(bgpview_io_zmq_client_t *client,
+                                   const char *opts)
 {
 #define MAXOPTS 1024
   char *local_args = NULL;
@@ -393,19 +368,17 @@ int bgpview_io_zmq_client_set_server_uri(bgpview_io_zmq_client_t *client,
 {
   assert(client != NULL);
 
-  if(client->broker != NULL)
-    {
-      fprintf(stderr, "Could not set server uri (broker started)\n");
-      return -1;
-    }
+  if (client->broker != NULL) {
+    fprintf(stderr, "Could not set server uri (broker started)\n");
+    return -1;
+  }
 
   free(BCFG.server_uri);
 
-  if((BCFG.server_uri = strdup(uri)) == NULL)
-    {
-      fprintf(stderr, "Could not set server uri\n");
-      return -1;
-    }
+  if ((BCFG.server_uri = strdup(uri)) == NULL) {
+    fprintf(stderr, "Could not set server uri\n");
+    return -1;
+  }
 
   return 0;
 }
@@ -415,77 +388,69 @@ int bgpview_io_zmq_client_set_server_sub_uri(bgpview_io_zmq_client_t *client,
 {
   assert(client != NULL);
 
-  if(client->broker != NULL)
-    {
-      fprintf(stderr, "Could not set server SUB uri (broker started)\n");
-      return -1;
-    }
+  if (client->broker != NULL) {
+    fprintf(stderr, "Could not set server SUB uri (broker started)\n");
+    return -1;
+  }
 
   free(BCFG.server_sub_uri);
 
-  if((BCFG.server_sub_uri = strdup(uri)) == NULL)
-    {
-      fprintf(stderr, "Could not set server SUB uri\n");
-      return -1;
-    }
+  if ((BCFG.server_sub_uri = strdup(uri)) == NULL) {
+    fprintf(stderr, "Could not set server SUB uri\n");
+    return -1;
+  }
 
   return 0;
 }
 
-void bgpview_io_zmq_client_set_heartbeat_interval(bgpview_io_zmq_client_t *client,
-                                                  uint64_t interval_ms)
+void bgpview_io_zmq_client_set_heartbeat_interval(
+    bgpview_io_zmq_client_t *client, uint64_t interval_ms)
 {
   assert(client != NULL);
 
-  if(client->broker != NULL)
-    {
-      fprintf(stderr, "Could not set heartbeat interval (broker started)\n");
-      return;
-    }
+  if (client->broker != NULL) {
+    fprintf(stderr, "Could not set heartbeat interval (broker started)\n");
+    return;
+  }
 
   BCFG.heartbeat_interval = interval_ms;
 }
 
-void bgpview_io_zmq_client_set_heartbeat_liveness(bgpview_io_zmq_client_t *client,
-                                                  int beats)
+void bgpview_io_zmq_client_set_heartbeat_liveness(
+    bgpview_io_zmq_client_t *client, int beats)
 {
   assert(client != NULL);
 
-  if(client->broker != NULL)
-    {
-      fprintf(stderr, "Could not set heartbeat liveness (broker started)\n");
-      return;
-    }
+  if (client->broker != NULL) {
+    fprintf(stderr, "Could not set heartbeat liveness (broker started)\n");
+    return;
+  }
 
   BCFG.heartbeat_liveness = beats;
 }
 
-void bgpview_io_zmq_client_set_reconnect_interval_min(bgpview_io_zmq_client_t *client,
-                                                      uint64_t reconnect_interval_min)
+void bgpview_io_zmq_client_set_reconnect_interval_min(
+    bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_min)
 {
   assert(client != NULL);
 
-  if(client->broker != NULL)
-    {
-      fprintf(stderr,
-              "Could not set min reconnect interval (broker started)\n");
-      return;
-    }
+  if (client->broker != NULL) {
+    fprintf(stderr, "Could not set min reconnect interval (broker started)\n");
+    return;
+  }
 
   BCFG.reconnect_interval_min = reconnect_interval_min;
 }
 
-void bgpview_io_zmq_client_set_reconnect_interval_max(bgpview_io_zmq_client_t *client,
-                                                      uint64_t reconnect_interval_max)
+void bgpview_io_zmq_client_set_reconnect_interval_max(
+    bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_max)
 {
   assert(client != NULL);
 
-  if(client->broker != NULL)
-    {
-      fprintf(stderr,
-              "Could not set max reconnect interval (broker started)\n");
-      return;
-    }
+  if (client->broker != NULL) {
+    fprintf(stderr, "Could not set max reconnect interval (broker started)\n");
+    return;
+  }
 
   BCFG.reconnect_interval_max = reconnect_interval_max;
 }
@@ -519,19 +484,17 @@ int bgpview_io_zmq_client_set_identity(bgpview_io_zmq_client_t *client,
 {
   assert(client != NULL);
 
-  if(client->broker != NULL)
-    {
-      fprintf(stderr, "Could not set identity (broker started)\n");
-      return -1;
-    }
+  if (client->broker != NULL) {
+    fprintf(stderr, "Could not set identity (broker started)\n");
+    return -1;
+  }
 
   free(BCFG.identity);
 
-  if((BCFG.identity = strdup(identity)) == NULL)
-    {
-      fprintf(stderr, "Could not set client identity\n");
-      return -1;
-    }
+  if ((BCFG.identity = strdup(identity)) == NULL) {
+    fprintf(stderr, "Could not set client identity\n");
+    return -1;
+  }
 
   return 0;
 }

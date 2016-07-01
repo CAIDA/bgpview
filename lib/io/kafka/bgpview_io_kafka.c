@@ -24,8 +24,8 @@
 #include "bgpview.h"
 #include "bgpview_io_kafka_int.h"
 #include "config.h"
-#include "parse_cmd.h"
 #include "utils.h"
+#include "parse_cmd.h"
 #include <assert.h>
 #include <errno.h>
 #include <librdkafka/rdkafka.h>
@@ -40,20 +40,19 @@
 
 /* ========== PRIVATE FUNCTIONS ========== */
 
-static void kafka_error_callback(rd_kafka_t *rk, int err,
-                                 const char *reason,
+static void kafka_error_callback(rd_kafka_t *rk, int err, const char *reason,
                                  void *opaque)
 {
   bgpview_io_kafka_t *client = (bgpview_io_kafka_t *)opaque;
 
   switch (err) {
-    // fatal errors:
+  // fatal errors:
   case RD_KAFKA_RESP_ERR__BAD_COMPRESSION:
   case RD_KAFKA_RESP_ERR__RESOLVE:
     client->fatal_error = 1;
-    // fall through
+  // fall through
 
-    // recoverable? errors:
+  // recoverable? errors:
   case RD_KAFKA_RESP_ERR__DESTROY:
   case RD_KAFKA_RESP_ERR__FAIL:
   case RD_KAFKA_RESP_ERR__TRANSPORT:
@@ -96,7 +95,7 @@ static int kafka_topic_connect(bgpview_io_kafka_t *client)
 
   fprintf(stderr, "INFO: Checking topic connections...\n");
 
-  for (id=0; id<BGPVIEW_IO_KAFKA_TOPIC_ID_CNT; id++) {
+  for (id = 0; id < BGPVIEW_IO_KAFKA_TOPIC_ID_CNT; id++) {
 
     // producer gets: pfxs, peers, meta, members
     // direct consumer gets: pfxs, peers, meta
@@ -113,8 +112,8 @@ static int kafka_topic_connect(bgpview_io_kafka_t *client)
 
     assert(client->namespace != NULL);
 
-    if (bgpview_io_kafka_single_topic_connect(client, client->identity,
-                                              id, TOPIC(id)) != 0) {
+    if (bgpview_io_kafka_single_topic_connect(client, client->identity, id,
+                                              TOPIC(id)) != 0) {
       return -1;
     }
   }
@@ -124,14 +123,16 @@ static int kafka_topic_connect(bgpview_io_kafka_t *client)
 
 static void usage()
 {
-  fprintf(stderr,
-          "Kafka Consumer Options:\n"
-          "       -i <identity>         Consume directly from the given producer\n"
-          "                             (rather than a global view from all producers)\n"
-	  "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
-          "       -n <namespace>        Kafka topic namespace to use (default: %s)\n",
-          BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT,
-          BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
+  fprintf(
+      stderr,
+      "Kafka Consumer Options:\n"
+      "       -i <identity>         Consume directly from the given producer\n"
+      "                             (rather than a global view from all "
+      "producers)\n"
+      "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
+      "       -n <namespace>        Kafka topic namespace to use (default: "
+      "%s)\n",
+      BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT, BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
 }
 
 static int parse_args(bgpview_io_kafka_t *client, int argc, char **argv)
@@ -142,33 +143,31 @@ static int parse_args(bgpview_io_kafka_t *client, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while((opt = getopt(argc, argv, ":i:k:n:?")) >= 0)
-    {
-      switch(opt)
-        {
-        case 'i':
-          client->identity = strdup(optarg);
-          break;
+  while ((opt = getopt(argc, argv, ":i:k:n:?")) >= 0) {
+    switch (opt) {
+    case 'i':
+      client->identity = strdup(optarg);
+      break;
 
-        case 'k':
-          if (bgpview_io_kafka_set_broker_addresses(client, optarg) != 0) {
-            return -1;
-          }
-	  break;
+    case 'k':
+      if (bgpview_io_kafka_set_broker_addresses(client, optarg) != 0) {
+        return -1;
+      }
+      break;
 
-        case 'n':
-          if (bgpview_io_kafka_set_namespace(client, optarg) != 0) {
-            return -1;
-          }
-          break;
+    case 'n':
+      if (bgpview_io_kafka_set_namespace(client, optarg) != 0) {
+        return -1;
+      }
+      break;
 
-        case '?':
-        case ':':
-        default:
-          usage();
-          return -1;
-        }
+    case '?':
+    case ':':
+    default:
+      usage();
+      return -1;
     }
+  }
   return 0;
 }
 
@@ -196,7 +195,7 @@ int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
 
   return 0;
 
- err:
+err:
   return -1;
 }
 
@@ -206,29 +205,24 @@ int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
                                           bgpview_io_kafka_topic_t *topic)
 {
   static char *names[] = {
-    "pfxs",
-    "peers",
-    "meta",
-    "members",
-    "globalmeta",
+      "pfxs", "peers", "meta", "members", "globalmeta",
   };
 
-  typedef int (topic_connect_func_t)(bgpview_io_kafka_t *client,
-                                     rd_kafka_topic_t **rkt,
-                                     char *topic);
+  typedef int(topic_connect_func_t)(bgpview_io_kafka_t * client,
+                                    rd_kafka_topic_t * *rkt, char *topic);
 
   topic_connect_func_t *topic_connect_funcs[] = {
-    // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
-    bgpview_io_kafka_consumer_topic_connect,
+      // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
+      bgpview_io_kafka_consumer_topic_connect,
 
-    // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
-    bgpview_io_kafka_consumer_topic_connect,
+      // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
+      bgpview_io_kafka_consumer_topic_connect,
 
-    // AUTO CONSUMER
-    NULL,
+      // AUTO CONSUMER
+      NULL,
 
-    // BGPVIEW_IO_KAFKA_MODE_PRODUCER
-    bgpview_io_kafka_producer_topic_connect,
+      // BGPVIEW_IO_KAFKA_MODE_PRODUCER
+      bgpview_io_kafka_producer_topic_connect,
   };
 
   // build the name
@@ -252,8 +246,8 @@ int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
   // connect to kafka
   if (topic->rkt == NULL) {
     /*fprintf(stderr, "INFO: Connecting to %s (%d)\n", topic->name, id);*/
-    if(topic_connect_funcs[client->mode](client, &topic->rkt,
-                                         topic->name) != 0) {
+    if (topic_connect_funcs[client->mode](client, &topic->rkt, topic->name) !=
+        0) {
       return -1;
     }
   }
@@ -280,7 +274,8 @@ bgpview_io_kafka_t *bgpview_io_kafka_init(bgpview_io_kafka_mode_t mode,
   client->mode = mode;
 
   /* set defaults */
-  if ((client->namespace = strdup(BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT)) == NULL) {
+  if ((client->namespace = strdup(BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT)) ==
+      NULL) {
     fprintf(stderr, "Failed to duplicate namespace string\n");
     goto err;
   }
@@ -348,9 +343,10 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
   if (client->rdk_conn != NULL) {
     int drain_wait_cnt = 12;
     while (rd_kafka_outq_len(client->rdk_conn) > 0 && drain_wait_cnt > 0) {
-      fprintf(stderr,
-              "INFO: Waiting for Kafka queue to drain (currently %d messages)\n",
-              rd_kafka_outq_len(client->rdk_conn));
+      fprintf(
+          stderr,
+          "INFO: Waiting for Kafka queue to drain (currently %d messages)\n",
+          rd_kafka_outq_len(client->rdk_conn));
       rd_kafka_poll(client->rdk_conn, 5000);
       drain_wait_cnt--;
     }
@@ -371,7 +367,7 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
   client->namespace = NULL;
 
   bgpview_io_kafka_topic_id_t id;
-  for (id=0; id<BGPVIEW_IO_KAFKA_TOPIC_ID_CNT; id++) {
+  for (id = 0; id < BGPVIEW_IO_KAFKA_TOPIC_ID_CNT; id++) {
     if (RKT(id) != NULL) {
       rd_kafka_topic_destroy(RKT(id));
       RKT(id) = NULL;
@@ -403,20 +399,20 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
   return;
 }
 
-typedef int (kafka_connect_func_t)(bgpview_io_kafka_t *client);
+typedef int(kafka_connect_func_t)(bgpview_io_kafka_t *client);
 
 static kafka_connect_func_t *kafka_connect_funcs[] = {
-  // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
-  bgpview_io_kafka_consumer_connect,
+    // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
+    bgpview_io_kafka_consumer_connect,
 
-  // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
-  bgpview_io_kafka_consumer_connect,
+    // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
+    bgpview_io_kafka_consumer_connect,
 
-  // AUTO CONSUMER
-  NULL,
+    // AUTO CONSUMER
+    NULL,
 
-  // BGPVIEW_IO_KAFKA_MODE_PRODUCER
-  bgpview_io_kafka_producer_connect,
+    // BGPVIEW_IO_KAFKA_MODE_PRODUCER
+    bgpview_io_kafka_producer_connect,
 };
 
 int bgpview_io_kafka_start(bgpview_io_kafka_t *client)
@@ -496,11 +492,9 @@ int bgpview_io_kafka_set_namespace(bgpview_io_kafka_t *client,
   return 0;
 }
 
-int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
-                               bgpview_t *view,
+int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client, bgpview_t *view,
                                bgpview_t *parent_view,
-                               bgpview_io_filter_cb_t *cb,
-                               void *cb_user)
+                               bgpview_io_filter_cb_t *cb, void *cb_user)
 {
   // first, ensure all topics are connected
   if (kafka_topic_connect(client) != 0) {
@@ -523,8 +517,7 @@ int bgpview_io_kafka_recv_view(bgpview_io_kafka_t *client, bgpview_t *view,
                                         pfx_peer_cb);
 }
 
-bgpview_io_kafka_stats_t *
-bgpview_io_kafka_get_stats(bgpview_io_kafka_t *client)
+bgpview_io_kafka_stats_t *bgpview_io_kafka_get_stats(bgpview_io_kafka_t *client)
 {
   return &client->prod_state.stats;
 }

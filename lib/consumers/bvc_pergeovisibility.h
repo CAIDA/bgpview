@@ -21,7 +21,6 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BVC_PERGEOVISIBILITY_H
 #define __BVC_PERGEOVISIBILITY_H
 

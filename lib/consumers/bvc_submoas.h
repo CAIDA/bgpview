@@ -21,13 +21,12 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BVC_SUBMOAS_H
 #define __BVC_SUBMOAS_H
 
 /** @file
  *
- * @brief Header file that exposes the public interface of the bgpview 
+ * @brief Header file that exposes the public interface of the bgpview
 
  *
  * @author Alistair King, Chiara Orsini, Ruwaifa Anwar

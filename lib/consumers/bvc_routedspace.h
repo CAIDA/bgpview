@@ -21,13 +21,12 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BVC_ROUTEDSPACE_H
 #define __BVC_ROUTEDSPACE_H
 
 /** @file
  *
- * @brief Header file that exposes the public interface of the bgpview 
+ * @brief Header file that exposes the public interface of the bgpview
  *  Route Space Monitor consumer
  *
  * @author Chiara Orsini, Pierre-Antoine Vervier

@@ -21,17 +21,15 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BGPVIEW_CONSUMER_MANAGER_H
 #define __BGPVIEW_CONSUMER_MANAGER_H
 
-#include "config.h"
-#include <stdlib.h>
-#include <stdint.h>
-#include <timeseries.h>
 #include "bgpstream_utils_id_set.h"
 #include "bgpview.h"
-
+#include "config.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <timeseries.h>
 
 /** @file
  *
@@ -114,73 +112,71 @@ typedef struct bvc_chain_state {
 
 /** A unique identifier for each bgpview consumer that bgpview supports
  */
-typedef enum bvc_id
-  {
-    /** Dumps debugging information about the views to stdout */
-    BVC_ID_TEST               = 1,
+typedef enum bvc_id {
+  /** Dumps debugging information about the views to stdout */
+  BVC_ID_TEST = 1,
 
-    BVC_ID_PERFMONITOR        = 2,
+  BVC_ID_PERFMONITOR = 2,
 
-    /** Computes visibility information for each view (used by per-as and
-        per-geo consumers) */
-    BVC_ID_VISIBILITY         = 3,
+  /** Computes visibility information for each view (used by per-as and
+      per-geo consumers) */
+  BVC_ID_VISIBILITY = 3,
 
-    /** Writes information about per-AS visibility information to Charthouse */
-    BVC_ID_PERASVISIBILITY    = 4,
+  /** Writes information about per-AS visibility information to Charthouse */
+  BVC_ID_PERASVISIBILITY = 4,
 
-    /** Writes information about per-Geo visibility information to Charthouse */
-    BVC_ID_PERGEOVISIBILITY   = 5,
+  /** Writes information about per-Geo visibility information to Charthouse */
+  BVC_ID_PERGEOVISIBILITY = 5,
 
-    /** Writes information about prefixes that have been visible in a given time
-     *  window */
-    BVC_ID_ANNOUNCEDPFXS      = 6,
+  /** Writes information about prefixes that have been visible in a given time
+   *  window */
+  BVC_ID_ANNOUNCEDPFXS = 6,
 
-    /** Writes information about prefixes that have been announced by multiple
-     *  origin ASns, i.e. MOAS */
-    BVC_ID_MOAS               = 7,
+  /** Writes information about prefixes that have been announced by multiple
+   *  origin ASns, i.e. MOAS */
+  BVC_ID_MOAS = 7,
 
 #ifdef WITH_BGPVIEW_IO_FILE
-    /** Writes views to files */
-    BVC_ID_ARCHIVER           = 8,
+  /** Writes views to files */
+  BVC_ID_ARCHIVER = 8,
 #endif
 
-    /** Writes information about prefixes whose more specific prefixes are
-        announced by different ASNs */
-    BVC_ID_SUBMOAS            = 9,
+  /** Writes information about prefixes whose more specific prefixes are
+      announced by different ASNs */
+  BVC_ID_SUBMOAS = 9,
 
-    /** Writes information about prefixes that are reachable through new
-        edges */
-    BVC_ID_EDGES              = 10,
+  /** Writes information about prefixes that are reachable through new
+      edges */
+  BVC_ID_EDGES = 10,
 
-    /** Writes information about prefixes that are reachable through triplets */
-    BVC_ID_TRIPLETS           = 11,
+  /** Writes information about prefixes that are reachable through triplets */
+  BVC_ID_TRIPLETS = 11,
 
-    /** Outputs the current origin ASns observed for each routed prefix */
-    BVC_ID_PFXORIGINS         = 12,
+  /** Outputs the current origin ASns observed for each routed prefix */
+  BVC_ID_PFXORIGINS = 12,
 
-    /** Generates information about routed prefixes in a given time window  */
-    BVC_ID_ROUTEDSPACE        = 13,
+  /** Generates information about routed prefixes in a given time window  */
+  BVC_ID_ROUTEDSPACE = 13,
 
-    /** It can be used as a template, it writes generic information about the
-     *  number of view processed and the number of elements in the current
-     *  view */
-    BVC_ID_MYVIEWPROCESS      = 14,
+  /** It can be used as a template, it writes generic information about the
+   *  number of view processed and the number of elements in the current
+   *  view */
+  BVC_ID_MYVIEWPROCESS = 14,
 
 #if defined(WITH_BGPVIEW_IO_KAFKA) || defined(WITH_BGPVIEW_IO_ZMQ)
-    /** Sends views to Kafka or ZMQ-Server */
-    BVC_ID_VIEWSENDER         = 15,
+  /** Sends views to Kafka or ZMQ-Server */
+  BVC_ID_VIEWSENDER = 15,
 #endif
 
-    /** @todo add more consumers here */
+  /** @todo add more consumers here */
 
-    /** Lowest numbered bgpview consumer ID */
-    BVC_ID_FIRST      = BVC_ID_TEST,
+  /** Lowest numbered bgpview consumer ID */
+  BVC_ID_FIRST = BVC_ID_TEST,
 
-    /** Highest numbered bgpview consumer ID */
-    BVC_ID_LAST       = BVC_ID_VIEWSENDER,
+  /** Highest numbered bgpview consumer ID */
+  BVC_ID_LAST = BVC_ID_VIEWSENDER,
 
-  } bvc_id_t;
-
+} bvc_id_t;
 
 /** @} */
 
@@ -192,15 +188,16 @@ typedef enum bvc_id
  *
  * @return the consumer manager instance created, NULL if an error occurs
  */
-bgpview_consumer_manager_t *bgpview_consumer_manager_create(timeseries_t *timeseries);
+bgpview_consumer_manager_t *
+bgpview_consumer_manager_create(timeseries_t *timeseries);
 
 /** Set the metric prefix to prepend to all consumers' output
  *
  * @param  mgr            pointer to consumer manager instance
  * @param  metric_prefix  metric prefix string
  */
-void
-bgpview_consumer_manager_set_metric_prefix(bgpview_consumer_manager_t *mgr, char *metric_prefix);
+void bgpview_consumer_manager_set_metric_prefix(bgpview_consumer_manager_t *mgr,
+                                                char *metric_prefix);
 
 /** Free a consumer manager instance
  *
@@ -236,7 +233,8 @@ int bgpview_consumer_manager_enable_consumer(bvc_t *consumer,
 /** Attempt to enable a consumer based on the given command string
  *
  * @param mgr           The manager object to enable the consumer for
- * @param cmd           The command string to parse for consumer name and options
+ * @param cmd           The command string to parse for consumer name and
+ * options
  * @return an enabled consumer if successful, NULL otherwise
  *
  * The `cmd` string is separated at the first space. The first token is taken to
@@ -244,8 +242,8 @@ int bgpview_consumer_manager_enable_consumer(bvc_t *consumer,
  * example, the command: `test -a all` will attempt to enable the `test`
  * consumer and will pass `-a all` as options.
  */
-bvc_t *bgpview_consumer_manager_enable_consumer_from_str(bgpview_consumer_manager_t *mgr,
-                                                         const char *cmd);
+bvc_t *bgpview_consumer_manager_enable_consumer_from_str(
+    bgpview_consumer_manager_t *mgr, const char *cmd);
 
 /** Retrieve the consumer object for the given consumer ID
  *
@@ -253,9 +251,9 @@ bvc_t *bgpview_consumer_manager_enable_consumer_from_str(bgpview_consumer_manage
  * @param id            The ID of the consumer to retrieve
  * @return the consumer object for the given ID, NULL if there are no matches
  */
-bvc_t *bgpview_consumer_manager_get_consumer_by_id(bgpview_consumer_manager_t *mgr,
-                                                   bvc_id_t id);
-
+bvc_t *
+bgpview_consumer_manager_get_consumer_by_id(bgpview_consumer_manager_t *mgr,
+                                            bvc_id_t id);
 
 /** Retrieve the consumer object for the given consumer name
  *
@@ -263,8 +261,9 @@ bvc_t *bgpview_consumer_manager_get_consumer_by_id(bgpview_consumer_manager_t *m
  * @param name          The consumer name to retrieve
  * @return the consumer object for the given name, NULL if there are no matches
  */
-bvc_t *bgpview_consumer_manager_get_consumer_by_name(bgpview_consumer_manager_t *mgr,
-                                                     const char *name);
+bvc_t *
+bgpview_consumer_manager_get_consumer_by_name(bgpview_consumer_manager_t *mgr,
+                                              const char *name);
 
 /** Get an array of available consumers
  *
@@ -276,7 +275,8 @@ bvc_t *bgpview_consumer_manager_get_consumer_by_name(bgpview_consumer_manager_t 
  * @note not all consumers in the list may be present (i.e. there may be NULL
  * pointers), or some may not be enabled. use bvc_is_enabled to check.
  */
-bvc_t **bgpview_consumer_manager_get_all_consumers(bgpview_consumer_manager_t *mgr);
+bvc_t **
+bgpview_consumer_manager_get_all_consumers(bgpview_consumer_manager_t *mgr);
 
 /** Process the given view using each enabled consumer
  *

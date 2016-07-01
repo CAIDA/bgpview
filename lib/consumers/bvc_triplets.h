@@ -21,13 +21,12 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BVC_TRIPLETS_H
 #define __BVC_TRIPLETS_H
 
 /** @file
  *
- * @brief Header file that exposes the public interface of the bgpview 
+ * @brief Header file that exposes the public interface of the bgpview
  *  Triplets consumer
  *
  * @author Alistair King, Chiara Orsini, Ruwaifa Anwar

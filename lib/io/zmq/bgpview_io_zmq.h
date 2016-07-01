@@ -95,7 +95,7 @@ typedef enum {
 
 } bgpview_producer_intent_t;
 
-#include "bgpview_io_zmq_server.h"
 #include "bgpview_io_zmq_client.h"
+#include "bgpview_io_zmq_server.h"
 
 #endif /* __BGPVIEW_IO_ZMQ_H */

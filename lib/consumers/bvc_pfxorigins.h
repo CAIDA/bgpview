@@ -21,13 +21,12 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BVC_PFXORIGINS_H
 #define __BVC_PFXORIGINS_H
 
 /** @file
  *
- * @brief Header file that exposes the public interface of the bgpview 
+ * @brief Header file that exposes the public interface of the bgpview
  *  Announced Prefixes consumer
  *
  * @author Alistair King, Chiara Orsini

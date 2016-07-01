@@ -82,7 +82,7 @@ typedef struct bgpview_io_zmq_server_client_info {
   /** Client name */
   char *name;
 
- /** Producer Intents (bgpview_consumer_intent_t flags) */
+  /** Producer Intents (bgpview_consumer_intent_t flags) */
   uint8_t intents;
 
 } bgpview_io_zmq_server_client_info_t;
@@ -101,7 +101,8 @@ bgpview_io_zmq_server_t *bgpview_io_zmq_server_init();
  * @param server        pointer to a bgpview server instance
  * @param metric_prefix string that represents the prefix to prepend to metrics
  */
-void bgpview_io_zmq_server_set_metric_prefix(bgpview_io_zmq_server_t *server, char *metric_prefix);
+void bgpview_io_zmq_server_set_metric_prefix(bgpview_io_zmq_server_t *server,
+                                             char *metric_prefix);
 
 /** Start the given bgpview server instance
  *
@@ -166,8 +167,8 @@ int bgpview_io_zmq_server_set_client_pub_uri(bgpview_io_zmq_server_t *server,
  *
  * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT
  */
-void bgpview_io_zmq_server_set_heartbeat_interval(bgpview_io_zmq_server_t *server,
-                                                  uint64_t interval_ms);
+void bgpview_io_zmq_server_set_heartbeat_interval(
+    bgpview_io_zmq_server_t *server, uint64_t interval_ms);
 
 /** Set the heartbeat liveness
  *
@@ -177,8 +178,7 @@ void bgpview_io_zmq_server_set_heartbeat_interval(bgpview_io_zmq_server_t *serve
  *
  * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT
  */
-void bgpview_io_zmq_server_set_heartbeat_liveness(bgpview_io_zmq_server_t *server,
-                                                  int beats);
-
+void bgpview_io_zmq_server_set_heartbeat_liveness(
+    bgpview_io_zmq_server_t *server, int beats);
 
 #endif

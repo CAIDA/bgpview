@@ -17,7 +17,6 @@
  *
  */
 
-
 #ifndef __BVC_ARCHIVER_H
 #define __BVC_ARCHIVER_H
 

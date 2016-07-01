@@ -38,46 +38,47 @@
 #endif
 
 /** Approx half will be used for pfx messages (hence the extra *2) */
-#define BUFFER_LEN ((1024*32)*2)
+#define BUFFER_LEN ((1024 * 32) * 2)
 
 #define STAT(name) (client->prod_state.stats.name)
 
-#define SEND_MSG(topic_id, partition, buf, len)                         \
-  do {                                                                  \
-    int success = 0;                                                    \
-    while (success == 0) {                                              \
-      if (rd_kafka_produce(RKT(topic_id), (partition),                  \
-                           RD_KAFKA_MSG_F_COPY, (buf), (len),           \
-                           NULL, 0, NULL) == -1) {                      \
-        if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) { \
-          fprintf(stderr, "WARN: producer queue full, retrying...\n");  \
-          if (sleep(1) != 0) { goto err; }                              \
-        } else {                                                        \
-          fprintf(stderr,                                               \
-                  "ERROR: Failed to produce to topic %s partition %i: %s\n", \
-                  rd_kafka_topic_name(RKT(topic_id)),                   \
-                  (partition),                                          \
-                  rd_kafka_err2str(rd_kafka_errno2err(errno)));         \
-          rd_kafka_poll(client->rdk_conn, 0);                           \
-          goto err;                                                     \
-        }                                                               \
-      } else {                                                          \
-        success = 1;                                                    \
-      }                                                                 \
-    }                                                                   \
+#define SEND_MSG(topic_id, partition, buf, len)                                \
+  do {                                                                         \
+    int success = 0;                                                           \
+    while (success == 0) {                                                     \
+      if (rd_kafka_produce(RKT(topic_id), (partition), RD_KAFKA_MSG_F_COPY,    \
+                           (buf), (len), NULL, 0, NULL) == -1) {               \
+        if (rd_kafka_errno2err(errno) == RD_KAFKA_RESP_ERR__QUEUE_FULL) {      \
+          fprintf(stderr, "WARN: producer queue full, retrying...\n");         \
+          if (sleep(1) != 0) {                                                 \
+            goto err;                                                          \
+          }                                                                    \
+        } else {                                                               \
+          fprintf(stderr,                                                      \
+                  "ERROR: Failed to produce to topic %s partition %i: %s\n",   \
+                  rd_kafka_topic_name(RKT(topic_id)), (partition),             \
+                  rd_kafka_err2str(rd_kafka_errno2err(errno)));                \
+          rd_kafka_poll(client->rdk_conn, 0);                                  \
+          goto err;                                                            \
+        }                                                                      \
+      } else {                                                                 \
+        success = 1;                                                           \
+      }                                                                        \
+    }                                                                          \
   } while (0)
 
-#define RESET_BUF(buf, ptr, written)            \
-  do {                                          \
-    (ptr) = (buf); (written) = 0;               \
+#define RESET_BUF(buf, ptr, written)                                           \
+  do {                                                                         \
+    (ptr) = (buf);                                                             \
+    (written) = 0;                                                             \
   } while (0)
 
-#define SEND_IF_FULL(topic_id, partition, buf, written, ptr, len)       \
-  do {                                                                  \
-    if (written > ((len)/2)) {                                          \
-      SEND_MSG(topic_id, partition, buf, written);                      \
-      RESET_BUF(buf, ptr, written);                                     \
-    }                                                                   \
+#define SEND_IF_FULL(topic_id, partition, buf, written, ptr, len)              \
+  do {                                                                         \
+    if (written > ((len) / 2)) {                                               \
+      SEND_MSG(topic_id, partition, buf, written);                             \
+      RESET_BUF(buf, ptr, written);                                            \
+    }                                                                          \
   } while (0)
 
 static int64_t get_offset(bgpview_io_kafka_t *client, char *topic,
@@ -95,11 +96,9 @@ static int64_t get_offset(bgpview_io_kafka_t *client, char *topic,
   return -1;
 }
 
-static int pfx_row_serialize(bgpview_io_kafka_t *client,
-                             uint8_t *buf, size_t len, char operation,
-                             bgpview_iter_t *it,
-                             bgpview_io_filter_cb_t *cb,
-                             void *cb_user)
+static int pfx_row_serialize(bgpview_io_kafka_t *client, uint8_t *buf,
+                             size_t len, char operation, bgpview_iter_t *it,
+                             bgpview_io_filter_cb_t *cb, void *cb_user)
 {
   size_t written = 0;
   ssize_t s;
@@ -109,16 +108,14 @@ static int pfx_row_serialize(bgpview_io_kafka_t *client,
   // serialize the operation that must be done with this row
   // "Update" or "Remove"
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, operation);
-  if ((s =
-       bgpview_io_serialize_pfx_row(buf, (len - written), it,
-                                    operation == 'S' ? NULL : &cells_tx,
-                                    cb, cb_user,
-                                    operation == 'R' ? -1 : 0)) == -1) {
+  if ((s = bgpview_io_serialize_pfx_row(
+           buf, (len - written), it, operation == 'S' ? NULL : &cells_tx, cb,
+           cb_user, operation == 'R' ? -1 : 0)) == -1) {
     goto err;
   }
 
   /* update stats */
-  switch(operation) {
+  switch (operation) {
   case 'S':
     break;
 
@@ -152,8 +149,7 @@ static int pfx_row_start(uint8_t *buf, size_t len, char operation,
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, operation);
 
   // send the prefix
-  if ((s = bgpview_io_serialize_pfx(buf, (len - written), pfx))
-      == -1) {
+  if ((s = bgpview_io_serialize_pfx(buf, (len - written), pfx)) == -1) {
     goto err;
   }
   written += s;
@@ -161,7 +157,7 @@ static int pfx_row_start(uint8_t *buf, size_t len, char operation,
 
   return written;
 
- err:
+err:
   return -1;
 }
 
@@ -185,9 +181,9 @@ static int pfx_row_end(uint8_t *buf, size_t len, uint16_t peer_cnt)
 static int diff_cells(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
 {
   bgpstream_as_path_store_path_id_t idxH =
-    bgpview_iter_pfx_peer_get_as_path_store_path_id(parent_view_it);
+      bgpview_iter_pfx_peer_get_as_path_store_path_id(parent_view_it);
   bgpstream_as_path_store_path_id_t idxC =
-    bgpview_iter_pfx_peer_get_as_path_store_path_id(itC);
+      bgpview_iter_pfx_peer_get_as_path_store_path_id(itC);
 
   return bcmp(&idxH, &idxC, sizeof(bgpstream_as_path_store_path_id_t)) != 0;
 }
@@ -209,7 +205,7 @@ int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
   /* Identity */
   uint16_t ident_len = strlen(client->identity);
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, ident_len);
-  assert((len-written) >= ident_len);
+  assert((len - written) >= ident_len);
   memcpy(ptr, client->identity, ident_len);
   ptr += ident_len;
   written += ident_len;
@@ -218,11 +214,10 @@ int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, time_now);
 
   SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS,
-           BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT,
-           buf, written);
+           BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT, buf, written);
 
   client->prod_state.next_members_update =
-    time_now + BGPVIEW_IO_KAFKA_MEMBERS_UPDATE_INTERVAL_DEFAULT;
+      time_now + BGPVIEW_IO_KAFKA_MEMBERS_UPDATE_INTERVAL_DEFAULT;
 
   /* Wait for messages to be delivered */
   while (rd_kafka_outq_len(client->rdk_conn) > 0) {
@@ -231,7 +226,7 @@ int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
 
   return 0;
 
- err:
+err:
   return -1;
 }
 
@@ -248,7 +243,7 @@ static int send_metadata(bgpview_io_kafka_t *client,
   /* Identity */
   uint16_t ident_len = strlen(client->identity);
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, ident_len);
-  assert((len-written) >= ident_len);
+  assert((len - written) >= ident_len);
   memcpy(ptr, client->identity, ident_len);
   ptr += ident_len;
   written += ident_len;
@@ -287,8 +282,7 @@ static int send_metadata(bgpview_io_kafka_t *client,
   }
 
   SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_META,
-           BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
-           buf, written);
+           BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT, buf, written);
 
   /* Wait for messages to be delivered */
   while (rd_kafka_outq_len(client->rdk_conn) > 0) {
@@ -301,13 +295,10 @@ err:
   return -1;
 }
 
-static int send_peers(bgpview_io_kafka_t *client,
-                      bgpview_io_kafka_md_t *meta,
-                      bgpview_t *view,
-                      bgpview_iter_t *it,
+static int send_peers(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
+                      bgpview_t *view, bgpview_iter_t *it,
                       bgpview_iter_t *parent_view_it,
-                      bgpview_io_filter_cb_t *cb,
-                      void *cb_user)
+                      bgpview_io_filter_cb_t *cb, void *cb_user)
 {
   uint8_t buf[BUFFER_LEN];
   uint8_t *ptr = buf;
@@ -319,18 +310,17 @@ static int send_peers(bgpview_io_kafka_t *client,
   uint16_t peers_tx = 0;
   int filter;
 
- again:
+again:
   /* find our current offset and update the metadata */
   if ((meta->peers_offset =
-         get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
-                    BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT)) < 0) {
+           get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+                      BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "WARN: Could not get peer offset. Retrying...\n");
     goto again;
   }
 
   for (bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-       bgpview_iter_has_more_peer(it);
-       bgpview_iter_next_peer(it)) {
+       bgpview_iter_has_more_peer(it); bgpview_iter_next_peer(it)) {
     if (cb != NULL) {
       /* ask the caller if they want this peer */
       if ((filter = cb(it, BGPVIEW_IO_FILTER_PEER, cb_user)) < 0) {
@@ -347,14 +337,13 @@ static int send_peers(bgpview_io_kafka_t *client,
     BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, type);
 
     if ((written = bgpview_io_serialize_peer(
-           ptr, (len - written), bgpview_iter_peer_get_peer_id(it),
-           bgpview_iter_peer_get_sig(it))) < 0) {
+             ptr, (len - written), bgpview_iter_peer_get_peer_id(it),
+             bgpview_iter_peer_get_sig(it))) < 0) {
       goto err;
     }
 
     SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS,
-             BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
-             buf, written);
+             BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT, buf, written);
     RESET_BUF(buf, ptr, written);
   }
 
@@ -369,8 +358,7 @@ static int send_peers(bgpview_io_kafka_t *client,
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, peers_tx);
 
   SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS,
-           BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
-           buf, written);
+           BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT, buf, written);
 
   while (rd_kafka_outq_len(client->rdk_conn) > 0) {
     rd_kafka_poll(client->rdk_conn, 100);
@@ -382,11 +370,9 @@ err:
   return -1;
 }
 
-static int send_cells(bgpview_io_kafka_t *client,
-                      bgpview_iter_t *it,
+static int send_cells(bgpview_io_kafka_t *client, bgpview_iter_t *it,
                       bgpview_iter_t *parent_view_it,
-                      bgpview_io_filter_cb_t *cb,
-                      void *cb_user)
+                      bgpview_io_filter_cb_t *cb, void *cb_user)
 {
   uint8_t upd_buf[BUFFER_LEN];
   uint8_t *upd_ptr = upd_buf;
@@ -404,156 +390,148 @@ static int send_cells(bgpview_io_kafka_t *client,
 
   /* for each pfx-peer in the new view */
   for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-       bgpview_iter_pfx_has_more_peer(it);
-       bgpview_iter_pfx_next_peer(it))
-    {
-      bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(it);
-      int parent_exists = bgpview_iter_pfx_seek_peer(parent_view_it, peerid,
-                                                     BGPVIEW_FIELD_ACTIVE);
-      /* and did we send this cell last time? */
-      int parent_exists_sent = parent_exists && cb(parent_view_it,
-                                                   BGPVIEW_IO_FILTER_PFX_PEER,
-                                                   cb_user);
+       bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
+    bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(it);
+    int parent_exists = bgpview_iter_pfx_seek_peer(parent_view_it, peerid,
+                                                   BGPVIEW_FIELD_ACTIVE);
+    /* and did we send this cell last time? */
+    int parent_exists_sent =
+        parent_exists &&
+        cb(parent_view_it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user);
 
-      int send_this = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user);
+    int send_this = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user);
 
-      int upd_cell = 0;
-      int rem_cell = 0;
-      if (parent_exists_sent && send_this) {
-        if (diff_cells(parent_view_it, it) != 0) {
-          /* the cell has changed, send it */
-          upd_cell = 1;
-          STAT(changed_pfx_peer_cnt)++;
-        }
-      } else if (parent_exists_sent && !send_this) {
-        /* cell has been removed */
-        rem_cell = 1;
-        STAT(removed_pfx_peer_cnt)++;
-      } else if (!parent_exists_sent && send_this) {
-        /* cell has been added */
+    int upd_cell = 0;
+    int rem_cell = 0;
+    if (parent_exists_sent && send_this) {
+      if (diff_cells(parent_view_it, it) != 0) {
+        /* the cell has changed, send it */
         upd_cell = 1;
-        STAT(added_pfx_peer_cnt)++;
-      } else {
-        /* nothing to send */
-        continue;
+        STAT(changed_pfx_peer_cnt)++;
+      }
+    } else if (parent_exists_sent && !send_this) {
+      /* cell has been removed */
+      rem_cell = 1;
+      STAT(removed_pfx_peer_cnt)++;
+    } else if (!parent_exists_sent && send_this) {
+      /* cell has been added */
+      upd_cell = 1;
+      STAT(added_pfx_peer_cnt)++;
+    } else {
+      /* nothing to send */
+      continue;
+    }
+
+    if (upd_cell == 1) {
+      assert(rem_cell == 0);
+      if (upd_written == 0) {
+        /* start the row */
+        if ((s = pfx_row_start(upd_ptr, (BUFFER_LEN - upd_written), 'U',
+                               bgpview_iter_pfx_get_pfx(it))) == -1) {
+          goto err;
+        }
+        upd_written += s;
+        upd_ptr += s;
       }
 
-      if (upd_cell == 1) {
-        assert(rem_cell == 0);
-        if (upd_written == 0) {
-          /* start the row */
-          if ((s = pfx_row_start(upd_ptr, (BUFFER_LEN - upd_written), 'U',
-                                 bgpview_iter_pfx_get_pfx(it))) == -1) {
-            goto err;
-          }
-          upd_written += s;
-          upd_ptr += s;
-        }
-
-        /* add this cell */
-        if ((s = bgpview_io_serialize_pfx_peer(upd_ptr,
-                                               (BUFFER_LEN - upd_written),
-                                               it, NULL, NULL, 0)) == -1) {
+      /* add this cell */
+      if ((s = bgpview_io_serialize_pfx_peer(
+               upd_ptr, (BUFFER_LEN - upd_written), it, NULL, NULL, 0)) == -1) {
+        goto err;
+      }
+      if (s > 0) {
+        upd_cells++;
+        upd_written += s;
+        upd_ptr += s;
+      }
+    } else if (rem_cell == 1) {
+      assert(upd_cell == 0);
+      if (rem_written == 0) {
+        /* start the row */
+        if ((s = pfx_row_start(rem_ptr, (BUFFER_LEN - rem_written), 'R',
+                               bgpview_iter_pfx_get_pfx(parent_view_it))) ==
+            -1) {
           goto err;
         }
-        if (s > 0) {
-          upd_cells++;
-          upd_written += s;
-          upd_ptr += s;
-        }
-      } else if (rem_cell == 1) {
-        assert(upd_cell == 0);
-        if (rem_written == 0) {
-          /* start the row */
-          if ((s = pfx_row_start(rem_ptr, (BUFFER_LEN - rem_written), 'R',
-                                 bgpview_iter_pfx_get_pfx(parent_view_it)))
-              == -1) {
-            goto err;
-          }
-          rem_written += s;
-          rem_ptr += s;
-        }
+        rem_written += s;
+        rem_ptr += s;
+      }
 
-        /* add this cell */
-        if ((s = bgpview_io_serialize_pfx_peer(rem_ptr,
-                                               (BUFFER_LEN - rem_written),
-                                               parent_view_it,
-                                               NULL, NULL, -1)) == -1) {
-          goto err;
-        }
-        if (s > 0) {
-          rem_cells++;
-          rem_written += s;
-          rem_ptr += s;
-        }
+      /* add this cell */
+      if ((s = bgpview_io_serialize_pfx_peer(
+               rem_ptr, (BUFFER_LEN - rem_written), parent_view_it, NULL, NULL,
+               -1)) == -1) {
+        goto err;
+      }
+      if (s > 0) {
+        rem_cells++;
+        rem_written += s;
+        rem_ptr += s;
       }
     }
+  }
 
   /* for each pfx-peer in the parent view */
   for (bgpview_iter_pfx_first_peer(parent_view_it, BGPVIEW_FIELD_ACTIVE);
        bgpview_iter_pfx_has_more_peer(parent_view_it);
        bgpview_iter_pfx_next_peer(parent_view_it)) {
-      /* was this cell actually sent? */
-      if (cb(parent_view_it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user) == 0) {
-        /* no need to do anything */
-        continue;
-      }
+    /* was this cell actually sent? */
+    if (cb(parent_view_it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user) == 0) {
+      /* no need to do anything */
+      continue;
+    }
 
-      bgpstream_peer_id_t peerid =
-        bgpview_iter_peer_get_peer_id(parent_view_it);
-      if (bgpview_iter_pfx_seek_peer(it, peerid, BGPVIEW_FIELD_ACTIVE) != 1) {
-        /* pfx-peer has been removed in new view, send removal (parent iter) */
+    bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(parent_view_it);
+    if (bgpview_iter_pfx_seek_peer(it, peerid, BGPVIEW_FIELD_ACTIVE) != 1) {
+      /* pfx-peer has been removed in new view, send removal (parent iter) */
 
-        if (rem_written == 0) {
-          /* start the row */
-          if ((s = pfx_row_start(rem_ptr, (BUFFER_LEN - rem_written), 'R',
-                                 bgpview_iter_pfx_get_pfx(parent_view_it)))
-              == -1) {
-            goto err;
-          }
-          rem_written += s;
-          rem_ptr += s;
-        }
-
-        /* add this cell */
-        if ((s = bgpview_io_serialize_pfx_peer(rem_ptr,
-                                               (BUFFER_LEN - rem_written),
-                                               parent_view_it, cb, cb_user, -1))
-            == -1) {
+      if (rem_written == 0) {
+        /* start the row */
+        if ((s = pfx_row_start(rem_ptr, (BUFFER_LEN - rem_written), 'R',
+                               bgpview_iter_pfx_get_pfx(parent_view_it))) ==
+            -1) {
           goto err;
         }
-        if (s > 0) {
-          rem_cells++;
-          rem_written += s;
-          rem_ptr += s;
-        }
+        rem_written += s;
+        rem_ptr += s;
       }
+
+      /* add this cell */
+      if ((s = bgpview_io_serialize_pfx_peer(
+               rem_ptr, (BUFFER_LEN - rem_written), parent_view_it, cb, cb_user,
+               -1)) == -1) {
+        goto err;
+      }
+      if (s > 0) {
+        rem_cells++;
+        rem_written += s;
+        rem_ptr += s;
+      }
+    }
   }
 
   if (upd_cells > 0) {
     /* send the update row */
-    if ((s = pfx_row_end(upd_ptr, (BUFFER_LEN - upd_written),
-                         upd_cells)) == -1) {
+    if ((s = pfx_row_end(upd_ptr, (BUFFER_LEN - upd_written), upd_cells)) ==
+        -1) {
       goto err;
     }
     upd_written += s;
     upd_ptr += s;
     SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-             upd_buf, upd_written);
+             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, upd_buf, upd_written);
   }
 
   if (rem_cells > 0) {
     /* send the remove row */
-    if ((s = pfx_row_end(rem_ptr, (BUFFER_LEN - rem_written),
-                         rem_cells)) == -1) {
+    if ((s = pfx_row_end(rem_ptr, (BUFFER_LEN - rem_written), rem_cells)) ==
+        -1) {
       goto err;
     }
     rem_written += s;
     rem_ptr += s;
     SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-             rem_buf, rem_written);
+             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, rem_buf, rem_written);
   }
 
   STAT(changed_pfxs_cnt) += (upd_cells > 0 || rem_cells > 0);
@@ -562,43 +540,39 @@ static int send_cells(bgpview_io_kafka_t *client,
 
   return 0;
 
- err:
+err:
   return -1;
 }
 
-static int send_pfxs(bgpview_io_kafka_t *client,
-                     bgpview_io_kafka_md_t *meta,
-                     bgpview_iter_t *it,
-                     bgpview_t *parent_view,
-                     bgpview_iter_t *parent_view_it,
-                     bgpview_io_filter_cb_t *cb,
+static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
+                     bgpview_iter_t *it, bgpview_t *parent_view,
+                     bgpview_iter_t *parent_view_it, bgpview_io_filter_cb_t *cb,
                      void *cb_user)
 {
   /* serialization buffer and state */
   uint8_t buf[BUFFER_LEN];
-  uint8_t *ptr = buf;;
+  uint8_t *ptr = buf;
+  ;
   size_t len = BUFFER_LEN;
   size_t written = 0;
   ssize_t s = 0;
 
- again:
+again:
   /* find our current offset and update the metadata */
   if ((meta->pfxs_offset =
-       get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
-                    BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT)) < 0) {
+           get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+                      BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "WARN: Could not get prefix offset. Retrying...\n");
     goto again;
   }
 
   /* for each prefix in new view */
   for (bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ACTIVE);
-       bgpview_iter_has_more_pfx(it);
-       bgpview_iter_next_pfx(it)) {
+       bgpview_iter_has_more_pfx(it); bgpview_iter_next_pfx(it)) {
 
     /* if we are sending a sync frame, just send the row */
     if (meta->type == 'S') {
-      if ((s = pfx_row_serialize(client, ptr, len, 'S', it,
-                                 cb, cb_user)) < 0) {
+      if ((s = pfx_row_serialize(client, ptr, len, 'S', it, cb, cb_user)) < 0) {
         goto err;
       }
       if (s > 0) {
@@ -607,8 +581,8 @@ static int send_pfxs(bgpview_io_kafka_t *client,
         written += s;
         ptr += s;
         SEND_IF_FULL(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-                     BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-                     buf, written, ptr, len);
+                     BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, buf, written, ptr,
+                     len);
         s = 0;
       }
       continue;
@@ -618,11 +592,11 @@ static int send_pfxs(bgpview_io_kafka_t *client,
     assert(meta->type == 'D');
 
     bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
-    int parent_exists = bgpview_iter_seek_pfx(parent_view_it, pfx,
-                                              BGPVIEW_FIELD_ACTIVE);
+    int parent_exists =
+        bgpview_iter_seek_pfx(parent_view_it, pfx, BGPVIEW_FIELD_ACTIVE);
     /* did we send this prefix last time? */
     int parent_exists_sent =
-      parent_exists && cb(parent_view_it, BGPVIEW_IO_FILTER_PFX, cb_user);
+        parent_exists && cb(parent_view_it, BGPVIEW_IO_FILTER_PFX, cb_user);
 
     /* does the user want this prefix sent? */
     int send_this = cb(it, BGPVIEW_IO_FILTER_PFX, cb_user);
@@ -634,8 +608,8 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       }
     } else if (parent_exists_sent && !send_this) {
       /* remove row (parent cb) */
-      if ((s = pfx_row_serialize(client, ptr, len, 'R', parent_view_it,
-                                 cb, cb_user)) < 0) {
+      if ((s = pfx_row_serialize(client, ptr, len, 'R', parent_view_it, cb,
+                                 cb_user)) < 0) {
         goto err;
       }
 
@@ -644,8 +618,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       }
     } else if (!parent_exists_sent && send_this) {
       /* update row (current cb) */
-      if ((s = pfx_row_serialize(client, ptr, len, 'U', it,
-                                 cb, cb_user)) < 0) {
+      if ((s = pfx_row_serialize(client, ptr, len, 'U', it, cb, cb_user)) < 0) {
         goto err;
       }
 
@@ -662,8 +635,8 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       written += s;
       ptr += s;
       SEND_IF_FULL(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-                   BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-                   buf, written, ptr, len);
+                   BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, buf, written, ptr,
+                   len);
       s = 0;
       STAT(pfx_cnt)++;
     }
@@ -672,8 +645,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   /* if this is a diff, we need to send prefix-removal info */
   if (meta->type == 'D') {
     /* for each prefix in the parent view */
-    for (bgpview_iter_first_pfx(parent_view_it, 0,
-                                BGPVIEW_FIELD_ACTIVE);
+    for (bgpview_iter_first_pfx(parent_view_it, 0, BGPVIEW_FIELD_ACTIVE);
          bgpview_iter_has_more_pfx(parent_view_it);
          bgpview_iter_next_pfx(parent_view_it)) {
       /* was this prefix actually sent? */
@@ -686,16 +658,16 @@ static int send_pfxs(bgpview_io_kafka_t *client,
       /* does this prefix exist in the new view? */
       if (bgpview_iter_seek_pfx(it, pfx, BGPVIEW_FIELD_ACTIVE) != 1) {
         /* does not exist, send a removal (parent iter) */
-        if ((s = pfx_row_serialize(client, ptr, len, 'R', parent_view_it,
-                                   cb, cb_user)) < 0) {
+        if ((s = pfx_row_serialize(client, ptr, len, 'R', parent_view_it, cb,
+                                   cb_user)) < 0) {
           goto err;
         }
         if (s > 0) {
           written += s;
           ptr += s;
           SEND_IF_FULL(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-                       BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-                       buf, written, ptr, len);
+                       BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, buf, written,
+                       ptr, len);
           s = 0;
           STAT(removed_pfxs_cnt)++;
           STAT(pfx_cnt)++;
@@ -707,8 +679,7 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   /* send whatever is left in the buffer */
   if (written > 0) {
     SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-             buf, written);
+             BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, buf, written);
     RESET_BUF(buf, ptr, written);
   }
 
@@ -722,19 +693,16 @@ static int send_pfxs(bgpview_io_kafka_t *client,
   BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, STAT(pfx_cnt));
 
   SEND_MSG(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-           BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-           buf, written);
+           BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, buf, written);
 
   return 0;
 
- err:
+err:
   return -1;
 }
 
-static int send_sync_view(bgpview_io_kafka_t *client,
-                          bgpview_t *view,
-                          bgpview_io_filter_cb_t *cb,
-                          void *cb_user)
+static int send_sync_view(bgpview_io_kafka_t *client, bgpview_t *view,
+                          bgpview_io_filter_cb_t *cb, void *cb_user)
 {
   bgpview_iter_t *it = NULL;
   bgpview_io_kafka_md_t meta;
@@ -755,8 +723,8 @@ static int send_sync_view(bgpview_io_kafka_t *client,
 
   /* find the current metadata offset and update the sync info */
   if ((client->prod_state.last_sync_offset =
-       get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
-                    BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT)) < 0) {
+           get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
+                      BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "ERROR: Could not get metadata offset\n");
     goto err;
   }
@@ -774,10 +742,8 @@ err:
   return -1;
 }
 
-static int send_diff_view(bgpview_io_kafka_t *client,
-                          bgpview_t *view,
-                          bgpview_t *parent_view,
-                          bgpview_io_filter_cb_t *cb,
+static int send_diff_view(bgpview_io_kafka_t *client, bgpview_t *view,
+                          bgpview_t *parent_view, bgpview_io_filter_cb_t *cb,
                           void *cb_user)
 {
   bgpview_iter_t *it = NULL;
@@ -803,8 +769,8 @@ static int send_diff_view(bgpview_io_kafka_t *client,
     goto err;
   }
 
-  if (send_pfxs(client, &meta, it, parent_view, parent_view_it,
-                cb, cb_user) == -1) {
+  if (send_pfxs(client, &meta, it, parent_view, parent_view_it, cb, cb_user) ==
+      -1) {
     goto err;
   }
 
@@ -900,11 +866,9 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
   return 0;
 }
 
-int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
-                                   bgpview_t *view,
+int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client, bgpview_t *view,
                                    bgpview_t *parent_view,
-                                   bgpview_io_filter_cb_t *cb,
-                                   void *cb_user)
+                                   bgpview_io_filter_cb_t *cb, void *cb_user)
 {
   /* reset the stats */
   memset(&client->prod_state.stats, 0, sizeof(bgpview_io_kafka_stats_t));
@@ -929,7 +893,7 @@ int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
   }
 
   // wait for the queue to drain
-  //while (rd_kafka_outq_len(client->rdk_conn) > 0) {
+  // while (rd_kafka_outq_len(client->rdk_conn) > 0) {
   rd_kafka_poll(client->rdk_conn, 100);
   //}
 

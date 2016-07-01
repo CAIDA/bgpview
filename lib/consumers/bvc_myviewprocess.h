@@ -21,13 +21,12 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BVC_MYVIEWPROCESS_H
 #define __BVC_MYVIEWPROCESS_H
 
 /** @file
  *
- * @brief Header file that exposes the public interface of the bgpview 
+ * @brief Header file that exposes the public interface of the bgpview
  *  My View Process consumer
  *
  * @author Chiara Orsini

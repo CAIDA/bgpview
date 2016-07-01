@@ -120,7 +120,6 @@ typedef struct direct_consumer_state {
 
 } direct_consumer_state_t;
 
-
 enum {
   WORKER_BUSY = 0,
   WORKER_IDLE = 1,
@@ -193,12 +192,12 @@ typedef struct gc_topics {
 } gc_topics_t;
 
 /** Maps a member identity string (e.g., collector name) to a topic structure */
-KHASH_INIT(str_topic, char *, gc_topics_t *, 1,
-           kh_str_hash_func, kh_str_hash_equal);
+KHASH_INIT(str_topic, char *, gc_topics_t *, 1, kh_str_hash_func,
+           kh_str_hash_equal);
 
 typedef struct global_consumer_state {
 
-  khash_t(str_topic) *topics;
+  khash_t(str_topic) * topics;
 
 #ifdef WITH_THREADS
   /** Global view mutex */
@@ -245,7 +244,6 @@ struct bgpview_io_kafka {
   producer_state_t prod_state;
   direct_consumer_state_t dc_state;
   global_consumer_state_t gc_state;
-
 };
 
 typedef struct bgpview_io_kafka_md {
@@ -307,11 +305,9 @@ int bgpview_io_kafka_producer_topic_connect(bgpview_io_kafka_t *client,
  * @param cb            callback function to use to filter peers (may be NULL)
  * @return 0 if the view was sent successfully, -1 otherwise
  */
-int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client,
-                                   bgpview_t *view,
+int bgpview_io_kafka_producer_send(bgpview_io_kafka_t *client, bgpview_t *view,
                                    bgpview_t *parent_view,
-                                   bgpview_io_filter_cb_t *cb,
-                                   void *cb_user);
+                                   bgpview_io_filter_cb_t *cb, void *cb_user);
 
 /** Manually trigger an update to the members topic (used to signal producer is
  * shutting down)
@@ -339,8 +335,8 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client);
  * @return pointer to the view instance received, NULL if an error occurred.
  */
 int bgpview_io_kafka_consumer_recv(
-  bgpview_io_kafka_t *client, bgpview_t *view,
-  bgpview_io_filter_peer_cb_t *peer_cb, bgpview_io_filter_pfx_cb_t *pfx_cb,
-  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+    bgpview_io_kafka_t *client, bgpview_t *view,
+    bgpview_io_filter_peer_cb_t *peer_cb, bgpview_io_filter_pfx_cb_t *pfx_cb,
+    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 #endif /* __BGPVIEW_IO_KAFKA_INT_H */

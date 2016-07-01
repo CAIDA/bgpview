@@ -222,11 +222,9 @@ int bgpview_io_kafka_set_namespace(bgpview_io_kafka_t *client,
  * compared against `parent_view` and only prefixes and peers that have changed
  * will be sent.
  */
-int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client,
-                               bgpview_t *view,
+int bgpview_io_kafka_send_view(bgpview_io_kafka_t *client, bgpview_t *view,
                                bgpview_t *parent_view,
-                               bgpview_io_filter_cb_t *cb,
-                               void *cb_user);
+                               bgpview_io_filter_cb_t *cb, void *cb_user);
 
 /** Attempt to receive an BGP View from the bgpview server
  *

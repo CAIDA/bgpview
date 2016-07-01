@@ -29,7 +29,6 @@
 #include <czmq.h>
 #include <stdint.h>
 
-
 /** @file
  *
  * @brief Header file that exposes the private interface of the bgpview
@@ -39,7 +38,8 @@
  *
  */
 
-/** The maximum number of requests that we allow to be outstanding at any time */
+/** The maximum number of requests that we allow to be outstanding at any time
+ */
 #define MAX_OUTSTANDING_REQ 2
 
 /** The number of frames that we allocate each time we need more messages */
@@ -153,7 +153,6 @@ typedef struct bgpview_io_zmq_client_broker_config {
 
 } bgpview_io_zmq_client_broker_config_t;
 
-
 /** State for a broker instance */
 typedef struct bgpview_io_zmq_client_broker {
 
@@ -227,6 +226,7 @@ bgpview_io_zmq_client_broker_req_t *bgpview_io_zmq_client_broker_req_init();
  *
  * @param req_p           double-pointer to a request instance
  */
-void bgpview_io_zmq_client_broker_req_free(bgpview_io_zmq_client_broker_req_t **req_p);
+void bgpview_io_zmq_client_broker_req_free(
+    bgpview_io_zmq_client_broker_req_t **req_p);
 
 #endif

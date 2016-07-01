@@ -21,17 +21,17 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #ifndef __BGPVIEW_CONSUMER_INTERFACE_H
 #define __BGPVIEW_CONSUMER_INTERFACE_H
 
-#include <inttypes.h>
 #include "bgpview.h"
 #include "bgpview_consumer_manager.h" /* for bvc_t */
+#include <inttypes.h>
 
 /** @file
  *
- * @brief Header file that exposes the protected interface of the bgpview consumer API
+ * @brief Header file that exposes the protected interface of the bgpview
+ * consumer API
  *
  * @author Alistair King
  *
@@ -40,43 +40,39 @@
 /** Convenience macro to allow consumer implementations to retrieve their state
  *  object
  */
-#define BVC_GET_STATE(consumer, type)		\
-  ((bvc_##type##_state_t*)(consumer)->state)
+#define BVC_GET_STATE(consumer, type)                                          \
+  ((bvc_##type##_state_t *)(consumer)->state)
 
 /** Convenience macro to allow consumer implementations to store a state
     pointer */
-#define BVC_SET_STATE(consumer, ptr)		\
-  do {						\
-    (consumer)->state = ptr;			\
-  } while(0)
+#define BVC_SET_STATE(consumer, ptr)                                           \
+  do {                                                                         \
+    (consumer)->state = ptr;                                                   \
+  } while (0)
 
-#define BVC_GET_TIMESERIES(consumer)		\
-  ((consumer)->timeseries)
+#define BVC_GET_TIMESERIES(consumer) ((consumer)->timeseries)
 
-#define BVC_GET_CHAIN_STATE(consumer)		\
-  ((consumer)->chain_state)
+#define BVC_GET_CHAIN_STATE(consumer) ((consumer)->chain_state)
 
-/** Convenience macro that defines all the function prototypes for the timeseries
+/** Convenience macro that defines all the function prototypes for the
+ * timeseries
  * consumer API
  */
-#define BVC_GENERATE_PROTOS(consname)					\
-  bvc_t * bvc_##consname##_alloc();					\
-  int bvc_##consname##_init(bvc_t *ds, int argc, char **argv);		\
-  void bvc_##consname##_destroy(bvc_t *ds);				\
+#define BVC_GENERATE_PROTOS(consname)                                          \
+  bvc_t *bvc_##consname##_alloc();                                             \
+  int bvc_##consname##_init(bvc_t *ds, int argc, char **argv);                 \
+  void bvc_##consname##_destroy(bvc_t *ds);                                    \
   int bvc_##consname##_process_view(bvc_t *ds, bgpview_t *view);
 
 /** Convenience macro that defines all the function pointers for the timeseries
  * consumer API
  */
-#define BVC_GENERATE_PTRS(consname)	\
-  bvc_##consname##_init,		\
-    bvc_##consname##_destroy,		\
-    bvc_##consname##_process_view,	\
-    0, NULL
+#define BVC_GENERATE_PTRS(consname)                                            \
+  bvc_##consname##_init, bvc_##consname##_destroy,                             \
+      bvc_##consname##_process_view, 0, NULL
 
 /** Structure which represents a metadata consumer */
-struct bvc
-{
+struct bvc {
   /**
    * @name Consumer information fields
    *

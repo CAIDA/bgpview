@@ -39,11 +39,11 @@
 #define BUFFER_LEN 16384
 
 static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
-                              bgpview_iter_t *it,
-                              bgpstream_peer_sig_t *sig,
+                              bgpview_iter_t *it, bgpstream_peer_sig_t *sig,
                               bgpstream_peer_id_t remote_id
 #ifdef WITH_THREADS
-                              , pthread_mutex_t *mutex
+                              ,
+                              pthread_mutex_t *mutex
 #endif
                               )
 {
@@ -52,9 +52,8 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
 
   /* first, is the array big enough to possibly already contain remote_id? */
   if (remote_id >= idmap->alloc_cnt) {
-    if ((idmap->map =
-           realloc(idmap->map,
-                   sizeof(bgpstream_peer_id_t) * (remote_id + 1))) == NULL) {
+    if ((idmap->map = realloc(idmap->map, sizeof(bgpstream_peer_id_t) *
+                                              (remote_id + 1))) == NULL) {
       return -1;
     }
 
@@ -65,7 +64,7 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
     idmap->alloc_cnt = remote_id + 1;
   }
 
-  /* just blindly add the peer */
+/* just blindly add the peer */
 #ifdef WITH_THREADS
   if (mutex != NULL) {
     pthread_mutex_lock(mutex);
@@ -96,8 +95,7 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
 
 static void clear_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap)
 {
-  memset(idmap->map, 0,
-         sizeof(bgpstream_peer_id_t) * idmap->alloc_cnt);
+  memset(idmap->map, 0, sizeof(bgpstream_peer_id_t) * idmap->alloc_cnt);
 }
 
 /* This check doesn't seem to work. It often reports a range that is smaller
@@ -130,7 +128,7 @@ static int seek_topic(rd_kafka_t *rdk_conn, rd_kafka_topic_t *rkt,
 {
   int err;
 
-  /* see note above */
+/* see note above */
 #if 0
   if (check_offset(rdk_conn, rd_kafka_topic_name(rkt),
                    partition, offset) != 1) {
@@ -147,8 +145,7 @@ static int seek_topic(rd_kafka_t *rdk_conn, rd_kafka_topic_t *rkt,
   return 0;
 }
 
-static int deserialize_metadata(bgpview_io_kafka_md_t *meta,
-                                uint8_t *buf,
+static int deserialize_metadata(bgpview_io_kafka_md_t *meta, uint8_t *buf,
                                 size_t len)
 {
   size_t read = 0;
@@ -159,7 +156,7 @@ static int deserialize_metadata(bgpview_io_kafka_md_t *meta,
 
   /* Identity */
   BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, ident_len);
-  assert((len-read) >= ident_len);
+  assert((len - read) >= ident_len);
   memcpy(meta->identity, buf, ident_len);
   meta->identity[ident_len] = '\0';
   buf += ident_len;
@@ -210,8 +207,7 @@ err:
 }
 
 static int deserialize_global_metadata(bgpview_io_kafka_md_t **metasptr,
-                                       int64_t *last_sync_offset,
-                                       uint8_t *buf,
+                                       int64_t *last_sync_offset, uint8_t *buf,
                                        size_t len)
 {
   size_t read = 0;
@@ -234,17 +230,19 @@ static int deserialize_global_metadata(bgpview_io_kafka_md_t **metasptr,
 
   /* allocate the metas array */
   bgpview_io_kafka_md_t *metas;
-  if ((metas =
-       malloc_zero(sizeof(bgpview_io_kafka_md_t) * members_cnt)) == NULL) {
+  if ((metas = malloc_zero(sizeof(bgpview_io_kafka_md_t) * members_cnt)) ==
+      NULL) {
     return -1;
   }
 
   int i;
   bgpview_io_kafka_md_t common;
   /* hush anxious gcc5: */
-  common.time = 0; common.type = '\0'; common.parent_time = 0;
-  for (i=0; i<members_cnt; i++) {
-    if ((s = deserialize_metadata(&metas[i], buf, (len-read))) <= 0) {
+  common.time = 0;
+  common.type = '\0';
+  common.parent_time = 0;
+  for (i = 0; i < members_cnt; i++) {
+    if ((s = deserialize_metadata(&metas[i], buf, (len - read))) <= 0) {
       goto err;
     }
     read += s;
@@ -254,8 +252,7 @@ static int deserialize_global_metadata(bgpview_io_kafka_md_t **metasptr,
       common = metas[i];
     } else {
       // check against common
-      if (metas[i].time != common.time ||
-          metas[i].type != common.type ||
+      if (metas[i].time != common.time || metas[i].type != common.type ||
           metas[i].parent_time != common.parent_time) {
         fprintf(stderr, "WARN: Found inconsistent global metadata. Skipping\n");
         return 0;
@@ -273,7 +270,7 @@ static int deserialize_global_metadata(bgpview_io_kafka_md_t **metasptr,
   *metasptr = metas;
   return members_cnt;
 
- err:
+err:
   return -1;
 }
 
@@ -362,8 +359,7 @@ err:
 }
 
 static int recv_global_metadata(bgpview_io_kafka_t *client, bgpview_t *view,
-                                bgpview_io_kafka_md_t **metasptr,
-                                int need_sync)
+                                bgpview_io_kafka_md_t **metasptr, int need_sync)
 {
   rd_kafka_message_t *msg = NULL;
   bgpview_io_kafka_md_t *metas = NULL;
@@ -394,9 +390,8 @@ again:
   /* extract the information from the message */
   int metas_cnt;
   int64_t last_sync_offset = -1;
-  if ((metas_cnt =
-       deserialize_global_metadata(&metas, &last_sync_offset,
-                                   msg->payload, msg->len)) < 0) {
+  if ((metas_cnt = deserialize_global_metadata(&metas, &last_sync_offset,
+                                               msg->payload, msg->len)) < 0) {
     fprintf(stderr, "ERROR: Could not deserialize metadata message\n");
     goto err;
   }
@@ -417,24 +412,24 @@ again:
   /* since by here we know all members are giving a view for the same time,
      type, and parent view, we can just check the first member's metadata */
   if (metas[0].type != 'S' && metas[0].parent_time != bgpview_get_time(view)) {
-     fprintf(stderr, "WARN: Found Diff frame against %d, but view time is %d\n",
+    fprintf(stderr, "WARN: Found Diff frame against %d, but view time is %d\n",
             metas[0].parent_time, bgpview_get_time(view));
 
-     if (last_sync_offset == -1) {
-       fprintf(stderr, "INFO: No rewind info. Waiting for next sync frame\n");
-     } else {
-       fprintf(stderr, "INFO: Rewinding to last sync frame (%"PRIi64")\n",
-               last_sync_offset);
-       if (seek_topic(client->rdk_conn,
-                      RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
-                      BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
-                      last_sync_offset) != 0) {
-         fprintf(stderr, "ERROR: Could not seek to last global sync metadata\n");
-         goto err;
-       }
-     }
+    if (last_sync_offset == -1) {
+      fprintf(stderr, "INFO: No rewind info. Waiting for next sync frame\n");
+    } else {
+      fprintf(stderr, "INFO: Rewinding to last sync frame (%" PRIi64 ")\n",
+              last_sync_offset);
+      if (seek_topic(client->rdk_conn,
+                     RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
+                     BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
+                     last_sync_offset) != 0) {
+        fprintf(stderr, "ERROR: Could not seek to last global sync metadata\n");
+        goto err;
+      }
+    }
 
-     goto again;
+    goto again;
   }
 
   /* we can use this view! */
@@ -457,13 +452,12 @@ err:
 }
 
 static int recv_peers(bgpview_io_kafka_peeridmap_t *idmap,
-                      bgpview_io_kafka_topic_t *topic,
-                      bgpview_iter_t *iter,
+                      bgpview_io_kafka_topic_t *topic, bgpview_iter_t *iter,
                       bgpview_io_filter_peer_cb_t *peer_cb, int64_t offset,
-                      uint32_t exp_time,
-                      rd_kafka_t *rdk_conn
+                      uint32_t exp_time, rd_kafka_t *rdk_conn
 #ifdef WITH_THREADS
-                     , pthread_mutex_t *mutex
+                      ,
+                      pthread_mutex_t *mutex
 #endif
                       )
 {
@@ -481,16 +475,15 @@ static int recv_peers(bgpview_io_kafka_peeridmap_t *idmap,
   int peers_rx = 0;
   int filter;
 
-  if (seek_topic(rdk_conn, topic->rkt,
-                 BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+  if (seek_topic(rdk_conn, topic->rkt, BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
                  offset) != 0) {
     goto err;
   }
 
   /* receive the peers */
   while (1) {
-    msg = rd_kafka_consume(topic->rkt,
-                           BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT, 5000);
+    msg = rd_kafka_consume(topic->rkt, BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+                           5000);
     if (msg == NULL) {
       fprintf(stderr, "INFO: Failed to retrieve peer message. Retrying...\n");
       continue;
@@ -546,7 +539,8 @@ static int recv_peers(bgpview_io_kafka_peeridmap_t *idmap,
 
     if (add_peerid_mapping(idmap, iter, &ps, peerid_remote
 #ifdef WITH_THREADS
-                           , mutex
+                           ,
+                           mutex
 #endif
                            ) <= 0) {
       goto err;
@@ -564,14 +558,13 @@ err:
 }
 
 static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
-                     bgpview_io_kafka_topic_t *topic,
-                     bgpview_iter_t *iter,
+                     bgpview_io_kafka_topic_t *topic, bgpview_iter_t *iter,
                      bgpview_io_filter_pfx_cb_t *pfx_cb,
                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
-                     int64_t offset, uint32_t exp_time,
-                     rd_kafka_t *rdk_conn
+                     int64_t offset, uint32_t exp_time, rd_kafka_t *rdk_conn
 #ifdef WITH_THREADS
-                     , pthread_mutex_t *mutex
+                     ,
+                     pthread_mutex_t *mutex
 #endif
                      )
 {
@@ -592,10 +585,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
 
   rd_kafka_message_t *msg = NULL;
 
-  fprintf(stderr, "DEBUG: seek %s to %"PRIi64"\n", topic->name, offset);
+  fprintf(stderr, "DEBUG: seek %s to %" PRIi64 "\n", topic->name, offset);
 
-  if (seek_topic(rdk_conn, topic->rkt,
-                 BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+  if (seek_topic(rdk_conn, topic->rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
                  offset) != 0) {
     goto err;
   }
@@ -607,8 +599,8 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
   int msg_cnt = 0;
 
   while (1) {
-    msg = rd_kafka_consume(topic->rkt,
-                           BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT, 5000);
+    msg = rd_kafka_consume(topic->rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                           5000);
     if (msg == NULL) {
       fprintf(stderr, "INFO: Failed to retrieve prefix message. Retrying...\n");
       continue;
@@ -631,9 +623,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       }
       assert(view_time == exp_time);
       BGPVIEW_IO_DESERIALIZE_VAL(ptr, msg->len, read, pfx_cnt);
-      fprintf(stderr, "DEBUG: Time: %"PRIu32"\n", view_time);
+      fprintf(stderr, "DEBUG: Time: %" PRIu32 "\n", view_time);
       fprintf(stderr, "DEBUG: MSG CNT %s: %d\n", topic->name, msg_cnt);
-      fprintf(stderr, "DEBUG: pfx_cnt: %"PRIu32", pfx_rx: %"PRIu32"\n",
+      fprintf(stderr, "DEBUG: pfx_cnt: %" PRIu32 ", pfx_rx: %" PRIu32 "\n",
               pfx_cnt, pfx_rx);
 
       if (pfx_rx != pfx_cnt || read != msg->len) {
@@ -665,12 +657,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       case 'U':
         /* an update row */
         tom++;
-        if ((s =
-             bgpview_io_deserialize_pfx_row(ptr, (msg->len - read), iter,
-                                            pfx_cb, pfx_peer_cb,
-                                            idmap->map,
-                                            idmap->alloc_cnt, NULL, -1,
-                                            BGPVIEW_FIELD_ACTIVE)) == -1) {
+        if ((s = bgpview_io_deserialize_pfx_row(
+                 ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb, idmap->map,
+                 idmap->alloc_cnt, NULL, -1, BGPVIEW_FIELD_ACTIVE)) == -1) {
 #ifdef WITH_THREADS
           if (mutex != NULL) {
             pthread_mutex_unlock(mutex);
@@ -685,13 +674,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
       case 'R':
         /* a remove row */
         tor++;
-        if ((s =
-             bgpview_io_deserialize_pfx_row(ptr, (msg->len - read), iter,
-                                            pfx_cb, pfx_peer_cb,
-                                            idmap->map,
-                                            idmap->alloc_cnt,
-                                            NULL, -1,
-                                            BGPVIEW_FIELD_INACTIVE)) == -1) {
+        if ((s = bgpview_io_deserialize_pfx_row(
+                 ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb, idmap->map,
+                 idmap->alloc_cnt, NULL, -1, BGPVIEW_FIELD_INACTIVE)) == -1) {
 #ifdef WITH_THREADS
           if (mutex != NULL) {
             pthread_mutex_unlock(mutex);
@@ -714,9 +699,9 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
     }
 
 #ifdef WITH_THREADS
-        if (mutex != NULL) {
-          pthread_mutex_unlock(mutex);
-        }
+    if (mutex != NULL) {
+      pthread_mutex_unlock(mutex);
+    }
 #endif
 
     assert(read == msg->len);
@@ -734,8 +719,7 @@ err:
   return -1;
 }
 
-static int recv_view(bgpview_io_kafka_peeridmap_t *idmap,
-                     bgpview_t *view,
+static int recv_view(bgpview_io_kafka_peeridmap_t *idmap, bgpview_t *view,
                      bgpview_io_kafka_md_t *meta,
                      bgpview_io_kafka_topic_t *peers_topic,
                      bgpview_io_kafka_topic_t *pfxs_topic,
@@ -744,7 +728,8 @@ static int recv_view(bgpview_io_kafka_peeridmap_t *idmap,
                      bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
                      rd_kafka_t *rdk_conn
 #ifdef WITH_THREADS
-                     , pthread_mutex_t *mutex
+                     ,
+                     pthread_mutex_t *mutex
 #endif
                      )
 {
@@ -754,21 +739,21 @@ static int recv_view(bgpview_io_kafka_peeridmap_t *idmap,
     return -1;
   }
 
-  if (recv_peers(idmap, peers_topic, it, peer_cb,
-                 meta->peers_offset, meta->time,
-                 rdk_conn
+  if (recv_peers(idmap, peers_topic, it, peer_cb, meta->peers_offset,
+                 meta->time, rdk_conn
 #ifdef WITH_THREADS
-                 , mutex
+                 ,
+                 mutex
 #endif
                  ) < 0) {
     goto err;
   }
 
-  if (recv_pfxs(idmap, pfxs_topic, it, pfx_cb, pfx_peer_cb,
-                meta->pfxs_offset, meta->time,
-                rdk_conn
+  if (recv_pfxs(idmap, pfxs_topic, it, pfx_cb, pfx_peer_cb, meta->pfxs_offset,
+                meta->time, rdk_conn
 #ifdef WITH_THREADS
-                 , mutex
+                ,
+                mutex
 #endif
                 ) != 0) {
     goto err;
@@ -816,8 +801,8 @@ static void *thread_worker(void *user)
     /* do some work! */
     /* ask to read each view */
     if (recv_view(&gct->idmap, gct->view, gct->meta, &gct->peers, &gct->pfxs,
-                  gct->peer_cb, gct->pfx_cb, gct->pfx_peer_cb,
-                  gct->rdk_conn, &gct->global->mutex) != 0) {
+                  gct->peer_cb, gct->pfx_cb, gct->pfx_peer_cb, gct->rdk_conn,
+                  &gct->global->mutex) != 0) {
       pthread_mutex_lock(&gct->mutex);
       gct->recv_error = 1;
       pthread_mutex_unlock(&gct->mutex);
@@ -846,7 +831,7 @@ static int deactivate_worker(gc_topics_t *gct)
   /* It is safe to assume that all fields in gct are locked (except the view) */
 
   /* for each peersig in worker's map, disable the peer in the view */
-  for (i=0; i<gct->idmap.alloc_cnt; i++) {
+  for (i = 0; i < gct->idmap.alloc_cnt; i++) {
     bgpstream_peer_id_t peerid = gct->idmap.map[i];
     if (peerid == 0) {
       continue;
@@ -869,8 +854,7 @@ static int deactivate_worker(gc_topics_t *gct)
   return 0;
 }
 
-static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
-                                  char *identity)
+static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client, char *identity)
 {
   gc_topics_t *gct = NULL;
   char *cpy = NULL;
@@ -880,8 +864,8 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
   fprintf(stderr, "DEBUG: Getting GCT for %s\n", identity);
 
   /* is there already a record for this identity? */
-  if ((k = kh_get(str_topic, client->gc_state.topics, identity))
-      == kh_end(client->gc_state.topics)) {
+  if ((k = kh_get(str_topic, client->gc_state.topics, identity)) ==
+      kh_end(client->gc_state.topics)) {
     /* need to create the topic and insert into the hash */
     cpy = strdup(identity);
     assert(cpy != NULL);
@@ -928,8 +912,10 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
       goto err;
     }
     assert(gct->worker_state == WORKER_IDLE); // the worker can accept work
-    assert(gct->job_state == WORKER_JOB_IDLE); // there is work assigned to the worker
-    assert(gct->view_state == WORKER_VIEW_EMPTY);   // the worker has completed some work
+    assert(gct->job_state ==
+           WORKER_JOB_IDLE); // there is work assigned to the worker
+    assert(gct->view_state ==
+           WORKER_VIEW_EMPTY); // the worker has completed some work
     pthread_mutex_unlock(&gct->mutex);
 #endif
 
@@ -943,7 +929,7 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client,
 
   return gct;
 
- err:
+err:
   return NULL;
 }
 
@@ -960,8 +946,8 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     goto err;
   }
 
-  fprintf(stderr, "\nDEBUG: ------ %c %d ------\n",
-          metas[0].type, metas[0].time);
+  fprintf(stderr, "\nDEBUG: ------ %c %d ------\n", metas[0].type,
+          metas[0].time);
   struct timeval tv;
   gettimeofday(&tv, NULL);
   uint32_t start = tv.tv_sec;
@@ -972,23 +958,17 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
 
   fprintf(stderr, "DEBUG: %d members:\n", metas_cnt);
   for (i = 0; i < metas_cnt; i++) {
-    fprintf(stderr,
-            "DEBUG: [%d] "
-            "%s|"
-            "%"PRIu32"|"
-            "%c|"
-            "%"PRIi64"|"
-            "%"PRIi64"|"
-            "%"PRIi64"|"
-            "%"PRIu32"\n",
-            i,
-            metas[i].identity,
-            metas[i].time,
-            metas[i].type,
-            metas[i].pfxs_offset,
-            metas[i].peers_offset,
-            metas[i].sync_md_offset,
-            metas[i].parent_time);
+    fprintf(stderr, "DEBUG: [%d] "
+                    "%s|"
+                    "%" PRIu32 "|"
+                    "%c|"
+                    "%" PRIi64 "|"
+                    "%" PRIi64 "|"
+                    "%" PRIi64 "|"
+                    "%" PRIu32 "\n",
+            i, metas[i].identity, metas[i].time, metas[i].type,
+            metas[i].pfxs_offset, metas[i].peers_offset,
+            metas[i].sync_md_offset, metas[i].parent_time);
 
     gc_topics_t *gct;
     if ((gct = get_gc_topics(client, metas[i].identity)) == NULL) {
@@ -999,8 +979,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
     assert(gct->job_state == WORKER_JOB_IDLE);
 
     /* if this is a diff, can it be applied correctly? */
-    if (metas[i].type == 'D' &&
-        metas[i].parent_time != gct->parent_view_time) {
+    if (metas[i].type == 'D' && metas[i].parent_time != gct->parent_view_time) {
       fprintf(stderr,
               "WARN: Skipping view from %s (parent time: %d, expecting %d)\n",
               metas[i].identity, metas[i].parent_time, gct->parent_view_time);
@@ -1055,7 +1034,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
      but are not part of this view */
   khiter_t k;
   gc_topics_t *gct;
-  for (k=0; k<kh_end(client->gc_state.topics); k++) {
+  for (k = 0; k < kh_end(client->gc_state.topics); k++) {
     if (!kh_exist(client->gc_state.topics, k)) {
       continue;
     }
@@ -1082,10 +1061,9 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
 #ifdef WITH_THREADS
     assert(gct->worker_state == WORKER_IDLE);
 #endif
-      /* has the worker contributed to the view?
-       * if so, deactivate it's peers */
-    if (gct->view_state == WORKER_VIEW_READY &&
-        deactivate_worker(gct) != 0) {
+    /* has the worker contributed to the view?
+     * if so, deactivate it's peers */
+    if (gct->view_state == WORKER_VIEW_READY && deactivate_worker(gct) != 0) {
       goto err;
     }
 #ifdef WITH_THREADS
@@ -1095,7 +1073,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
 
 #ifdef WITH_THREADS
   /* now wait for the workers to finish */
-  for (i=0; i < metas_cnt; i++) {
+  for (i = 0; i < metas_cnt; i++) {
     gc_topics_t *gct;
     if ((gct = get_gc_topics(client, metas[i].identity)) == NULL) {
       fprintf(stderr, "ERROR: Could not create topics for '%s'\n",
@@ -1113,8 +1091,7 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
       fprintf(stderr, "DEBUG: waiting for worker %s\n", metas[i].identity);
       pthread_cond_wait(&gct->worker_state_cond, &gct->mutex);
     }
-    fprintf(stderr, "DEBUG: Worker '%s' finished.\n",
-            metas[i].identity);
+    fprintf(stderr, "DEBUG: Worker '%s' finished.\n", metas[i].identity);
     if (gct->recv_error != 0) {
       fprintf(stderr, "DEBUG: %s could not receive view. Deactivating...\n",
               metas[i].identity);
@@ -1134,14 +1111,14 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
 
   gettimeofday(&tv, NULL);
   uint32_t stop = tv.tv_sec;
-  fprintf(stderr, "DEBUG: Processing time: %"PRIu32"\n", stop-start);
+  fprintf(stderr, "DEBUG: Processing time: %" PRIu32 "\n", stop - start);
 
   free(metas);
   metas = NULL;
 
   return 0;
 
- err:
+err:
   free(metas);
   return -1;
 }
@@ -1190,7 +1167,7 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client)
 
   return client->fatal_error;
 
- err:
+err:
   return -1;
 }
 
@@ -1227,11 +1204,11 @@ int bgpview_io_kafka_consumer_recv(bgpview_io_kafka_t *client, bgpview_t *view,
     }
     if (recv_view(&client->dc_state.idmap, view, &meta,
                   TOPIC(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
-                  TOPIC(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
-                  peer_cb, pfx_cb, pfx_peer_cb,
-                  client->rdk_conn
+                  TOPIC(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS), peer_cb, pfx_cb,
+                  pfx_peer_cb, client->rdk_conn
 #ifdef WITH_THREADS
-                  , NULL
+                  ,
+                  NULL
 #endif
                   ) != 0) {
       fprintf(stderr, "WARN: Failed to receive view (%d), moving on\n",

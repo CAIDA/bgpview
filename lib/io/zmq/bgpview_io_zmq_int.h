@@ -31,24 +31,23 @@
  *
  * @{ */
 
-
 #ifdef DEBUG_TIMING
 
-#define TIMER_START(timer)			\
-  struct timeval timer##_start;			\
-  do {						\
-  gettimeofday_wrap(&timer##_start);		\
-  } while(0)
+#define TIMER_START(timer)                                                     \
+  struct timeval timer##_start;                                                \
+  do {                                                                         \
+    gettimeofday_wrap(&timer##_start);                                         \
+  } while (0)
 
-#define TIMER_END(timer)					\
-  struct timeval timer##_end, timer##_diff;				\
-  do {								\
-    gettimeofday_wrap(&timer##_end);				\
-    timeval_subtract(&timer##_diff, &timer##_end, &timer##_start);	\
-  } while(0)
+#define TIMER_END(timer)                                                       \
+  struct timeval timer##_end, timer##_diff;                                    \
+  do {                                                                         \
+    gettimeofday_wrap(&timer##_end);                                           \
+    timeval_subtract(&timer##_diff, &timer##_end, &timer##_start);             \
+  } while (0)
 
-#define TIMER_VAL(timer)			\
-  ((timer##_diff.tv_sec*1000000) + timer##_diff.tv_usec)
+#define TIMER_VAL(timer)                                                       \
+  ((timer##_diff.tv_sec * 1000000) + timer##_diff.tv_usec)
 #else
 
 #define TIMER_START(timer)
@@ -57,7 +56,7 @@
 
 #endif
 
-#define BW_PFX_ROW_BUFFER_LEN 17 + (BGPVIEW_PEER_MAX_CNT*5)
+#define BW_PFX_ROW_BUFFER_LEN 17 + (BGPVIEW_PEER_MAX_CNT * 5)
 
 /* shared constants are in bgpview_io_zmq.h */
 
@@ -75,30 +74,29 @@
  */
 typedef enum {
   /** Invalid message */
-  BGPVIEW_IO_ZMQ_MSG_TYPE_UNKNOWN   = 0,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_UNKNOWN = 0,
 
   /** Client is ready to send requests/Server is ready for requests */
-  BGPVIEW_IO_ZMQ_MSG_TYPE_READY     = 1,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_READY = 1,
 
   /** Client is explicitly disconnecting (clean shutdown) */
-  BGPVIEW_IO_ZMQ_MSG_TYPE_TERM      = 2,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_TERM = 2,
 
   /** Server/Client is still alive */
   BGPVIEW_IO_ZMQ_MSG_TYPE_HEARTBEAT = 3,
 
   /** A view for the server to process */
-  BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW   = 4,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW = 4,
 
   /** Server is sending a response to a client */
-  BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY     = 5,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY = 5,
 
   /** Highest message number in use */
-  BGPVIEW_IO_ZMQ_MSG_TYPE_MAX      = BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY,
+  BGPVIEW_IO_ZMQ_MSG_TYPE_MAX = BGPVIEW_IO_ZMQ_MSG_TYPE_REPLY,
 
 } bgpview_io_zmq_msg_type_t;
 
 #define bgpview_io_zmq_msg_type_size_t sizeof(uint8_t)
-
 
 /** @} */
 
@@ -121,8 +119,7 @@ bgpview_io_zmq_msg_type_t bgpview_io_zmq_recv_type(void *src, int flags);
  * @param cb            callback function to use to filter entries (may be NULL)
  * @return 0 if the view was sent successfully, -1 otherwise
  */
-int bgpview_io_zmq_send(void *dest, bgpview_t *view,
-                        bgpview_io_filter_cb_t *cb,
+int bgpview_io_zmq_send(void *dest, bgpview_t *view, bgpview_io_filter_cb_t *cb,
                         void *cb_user);
 
 /** Receive a view from the given socket

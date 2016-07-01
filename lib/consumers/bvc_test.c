@@ -39,20 +39,14 @@
 
 #define MAX_DUMP_SIZE 100
 
-#define STATE					\
-  (BVC_GET_STATE(consumer, test))
+#define STATE (BVC_GET_STATE(consumer, test))
 
-static bvc_t bvc_test = {
-  BVC_ID_TEST,
-  NAME,
-  BVC_GENERATE_PTRS(test)
-};
+static bvc_t bvc_test = {BVC_ID_TEST, NAME, BVC_GENERATE_PTRS(test)};
 
 typedef struct bvc_test_state {
 
   /** The number of views we have processed */
   int view_cnt;
-
 
 } bvc_test_state_t;
 
@@ -77,7 +71,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   /* NB: remember to reset optind to 1 before using getopt! */
   optind = 1;
 
-  /* remember the argv strings DO NOT belong to us */
+/* remember the argv strings DO NOT belong to us */
 #if 0
   while((opt = getopt(argc, argv, ":c:f:?")) >= 0)
     {
@@ -112,19 +106,17 @@ int bvc_test_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_test_state_t *state = NULL;
 
-  if((state = malloc_zero(sizeof(bvc_test_state_t))) == NULL)
-    {
-      return -1;
-    }
+  if ((state = malloc_zero(sizeof(bvc_test_state_t))) == NULL) {
+    return -1;
+  }
   BVC_SET_STATE(consumer, state);
 
   /* set defaults here */
 
   /* parse the command line args */
-  if(parse_args(consumer, argc, argv) != 0)
-    {
-      return -1;
-    }
+  if (parse_args(consumer, argc, argv) != 0) {
+    return -1;
+  }
 
   /* react to args here */
 
@@ -135,13 +127,11 @@ void bvc_test_destroy(bvc_t *consumer)
 {
   bvc_test_state_t *state = STATE;
 
-  if(state == NULL)
-    {
-      return;
-    }
+  if (state == NULL) {
+    return;
+  }
 
-  fprintf(stdout, "BVC-TEST: %d views processed\n",
-	  STATE->view_cnt);
+  fprintf(stdout, "BVC-TEST: %d views processed\n", STATE->view_cnt);
 
   /* destroy things here */
   free(state);
@@ -154,32 +144,26 @@ int bvc_test_process_view(bvc_t *consumer, bgpview_t *view)
   bvc_test_state_t *state = STATE;
 
   /* only dump 'small' views, otherwise it is just obnoxious */
-  if(bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE)
-     < MAX_DUMP_SIZE)
-    {
-      bgpview_debug_dump(view);
-    }
-  else
-    {
-      fprintf(stdout, "BVC-TEST: Time:      %"PRIu32"\n",
-	      bgpview_get_time(view));
-      fprintf(stdout, "BVC-TEST: IPv4-Pfxs: %"PRIu32"\n",
-	      bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
-      fprintf(stdout, "BVC-TEST: IPv6-Pfxs: %"PRIu32"\n",
-	      bgpview_v6pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
-      fprintf(stdout, "--------------------\n");
-    }
+  if (bgpview_pfx_cnt(view, BGPVIEW_FIELD_ACTIVE) < MAX_DUMP_SIZE) {
+    bgpview_debug_dump(view);
+  } else {
+    fprintf(stdout, "BVC-TEST: Time:      %" PRIu32 "\n",
+            bgpview_get_time(view));
+    fprintf(stdout, "BVC-TEST: IPv4-Pfxs: %" PRIu32 "\n",
+            bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
+    fprintf(stdout, "BVC-TEST: IPv6-Pfxs: %" PRIu32 "\n",
+            bgpview_v6pfx_cnt(view, BGPVIEW_FIELD_ACTIVE));
+    fprintf(stdout, "--------------------\n");
+  }
 
-  timeseries_set_single(BVC_GET_TIMESERIES(consumer),
-			"bvc-test.v4pfxs_cnt",
-			bgpview_v4pfx_cnt(view,
-						  BGPVIEW_FIELD_ACTIVE),
-			bgpview_get_time(view));
+  timeseries_set_single(BVC_GET_TIMESERIES(consumer), "bvc-test.v4pfxs_cnt",
+                        bgpview_v4pfx_cnt(view, BGPVIEW_FIELD_ACTIVE),
+                        bgpview_get_time(view));
 
   state->view_cnt++;
 
   return 0;
-  
+
   /** End of old test consumer **/
 
   // TEST: add some memory to the users pointers
@@ -187,7 +171,6 @@ int bvc_test_process_view(bvc_t *consumer, bgpview_t *view)
   bgpview_iter_t *it;
   it = bgpview_iter_create(view);
 
-  
   // set destructors
   bgpview_set_user_destructor(view, free);
   bgpview_set_pfx_user_destructor(view, free);
@@ -200,37 +183,32 @@ int bvc_test_process_view(bvc_t *consumer, bgpview_t *view)
   my_memory = NULL;
 
   // per-peer user memory allocation
-  for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_peer(it);
-      bgpview_iter_next_peer(it))
-    {
-      my_memory = malloc(sizeof(int));
-      *(int *)my_memory = bgpview_iter_peer_get_peer_id(it) + 100;
-      bgpview_iter_peer_set_user(it, my_memory);
-      
-      my_memory = NULL;            
-    }
+  for (bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_peer(it); bgpview_iter_next_peer(it)) {
+    my_memory = malloc(sizeof(int));
+    *(int *)my_memory = bgpview_iter_peer_get_peer_id(it) + 100;
+    bgpview_iter_peer_set_user(it, my_memory);
 
-  // per-prefix user memory allocation 
-  for(bgpview_iter_first_pfx(it, BGPSTREAM_ADDR_VERSION_IPV4, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_pfx(it);
-      bgpview_iter_next_pfx(it))
-    {
+    my_memory = NULL;
+  }
+
+  // per-prefix user memory allocation
+  for (bgpview_iter_first_pfx(it, BGPSTREAM_ADDR_VERSION_IPV4,
+                              BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_pfx(it); bgpview_iter_next_pfx(it)) {
+    my_memory = malloc(sizeof(int));
+    bgpview_iter_pfx_set_user(it, my_memory);
+    my_memory = NULL;
+
+    // per-prefix per-peer user memory allocation
+    for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+         bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
       my_memory = malloc(sizeof(int));
-      bgpview_iter_pfx_set_user(it, my_memory);
+      *(int *)my_memory = bgpview_iter_peer_get_peer_id(it);
+      bgpview_iter_pfx_peer_set_user(it, my_memory);
       my_memory = NULL;
-      
-      // per-prefix per-peer user memory allocation
-      for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-          bgpview_iter_pfx_has_more_peer(it);
-          bgpview_iter_pfx_next_peer(it))
-        {
-          my_memory = malloc(sizeof(int));
-          *(int *)my_memory = bgpview_iter_peer_get_peer_id(it);
-          bgpview_iter_pfx_peer_set_user(it, my_memory);
-          my_memory = NULL;          
-        }
     }
+  }
 
   // TEST: use seek in peers
   /* for(int i = 1; i <= 3 ; i++) */
@@ -253,28 +231,24 @@ int bvc_test_process_view(bvc_t *consumer, bgpview_t *view)
   /*   } */
 
   int d = 0;
-  
+
   // TEST: check pfx-peers iterator and deactivate
   d = 0;
-  for(bgpview_iter_first_pfx_peer(it, BGPSTREAM_ADDR_VERSION_IPV4,
-                                          BGPVIEW_FIELD_ACTIVE,
-                                          BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_pfx_peer(it);
-      bgpview_iter_next_pfx_peer(it))
-    {
-      // TEST: memory is correct
-      /* fprintf(stderr, "Peer id: %d, %d\n", */
-      /*         *(int *)bgpview_iter_peer_get_user(it), */
-      /*         *(int *)bgpview_iter_pfx_peer_get_user(it)); */
-      if(rand()%10 > 5)
-        {
-          bgpview_iter_pfx_deactivate_peer(it);
-          d++;
-        }
+  for (bgpview_iter_first_pfx_peer(it, BGPSTREAM_ADDR_VERSION_IPV4,
+                                   BGPVIEW_FIELD_ACTIVE, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_pfx_peer(it); bgpview_iter_next_pfx_peer(it)) {
+    // TEST: memory is correct
+    /* fprintf(stderr, "Peer id: %d, %d\n", */
+    /*         *(int *)bgpview_iter_peer_get_user(it), */
+    /*         *(int *)bgpview_iter_pfx_peer_get_user(it)); */
+    if (rand() % 10 > 5) {
+      bgpview_iter_pfx_deactivate_peer(it);
+      d++;
     }
+  }
 
   // dump view after random pfx-peer deactivation
-  fprintf(stderr,"Deactivated %d pfx-peers\n", d);
+  fprintf(stderr, "Deactivated %d pfx-peers\n", d);
   bgpview_debug_dump(view);
 
   // TEST: check pfx iterator and deactivate
@@ -297,45 +271,36 @@ int bvc_test_process_view(bvc_t *consumer, bgpview_t *view)
 
   // TEST: check peer iterator and deactivate
   d = 0;
-  for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_peer(it);
-      bgpview_iter_next_peer(it))
-    {
-      if(rand()%10 > 5)
-        {
-          bgpview_iter_deactivate_peer(it);
-          d++;
-        }
+  for (bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_peer(it); bgpview_iter_next_peer(it)) {
+    if (rand() % 10 > 5) {
+      bgpview_iter_deactivate_peer(it);
+      d++;
     }
+  }
 
   // dump view after random peer deactivation
-  fprintf(stderr,"Deactivated %d peers\n", d);
+  fprintf(stderr, "Deactivated %d peers\n", d);
   bgpview_debug_dump(view);
 
-
-
   // TEST REMOVE
-    // TEST: check pfx-peers iterator and remove
+  // TEST: check pfx-peers iterator and remove
   d = 0;
-  for(bgpview_iter_first_pfx_peer(it, BGPSTREAM_ADDR_VERSION_IPV4,
-                                          BGPVIEW_FIELD_ACTIVE,
-                                          BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_pfx_peer(it);
-      bgpview_iter_next_pfx_peer(it))
-    {
-      // TEST: memory is correct
-      /* fprintf(stderr, "Peer id: %d, %d\n", */
-      /*         *(int *)bgpview_iter_peer_get_user(it), */
-      /*         *(int *)bgpview_iter_pfx_peer_get_user(it)); */
-      if(rand()%10 > 5)
-        {
-          bgpview_iter_pfx_remove_peer(it);
-          d++;
-        }
+  for (bgpview_iter_first_pfx_peer(it, BGPSTREAM_ADDR_VERSION_IPV4,
+                                   BGPVIEW_FIELD_ACTIVE, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_pfx_peer(it); bgpview_iter_next_pfx_peer(it)) {
+    // TEST: memory is correct
+    /* fprintf(stderr, "Peer id: %d, %d\n", */
+    /*         *(int *)bgpview_iter_peer_get_user(it), */
+    /*         *(int *)bgpview_iter_pfx_peer_get_user(it)); */
+    if (rand() % 10 > 5) {
+      bgpview_iter_pfx_remove_peer(it);
+      d++;
     }
+  }
 
   // dump view after random pfx-peer deactivation
-  fprintf(stderr,"Removed %d pfx-peers\n", d);
+  fprintf(stderr, "Removed %d pfx-peers\n", d);
   bgpview_debug_dump(view);
 
   // TEST: check pfx iterator and remove
@@ -358,34 +323,31 @@ int bvc_test_process_view(bvc_t *consumer, bgpview_t *view)
 
   // TEST: check peer iterator and remove
   d = 0;
-  for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ALL_VALID);
-      bgpview_iter_has_more_peer(it);
-      bgpview_iter_next_peer(it))
-    {
-      if(rand()%10 > 5)
-        {
-          bgpview_iter_remove_peer(it);
-          d++;
-        }
+  for (bgpview_iter_first_peer(it, BGPVIEW_FIELD_ALL_VALID);
+       bgpview_iter_has_more_peer(it); bgpview_iter_next_peer(it)) {
+    if (rand() % 10 > 5) {
+      bgpview_iter_remove_peer(it);
+      d++;
     }
+  }
 
   // dump view after random peer deactivation
-  fprintf(stderr,"Removed %d peers\n", d);
+  fprintf(stderr, "Removed %d peers\n", d);
   bgpview_debug_dump(view);
 
   // garbage collect the view
   fprintf(stderr, "Running garbage collector\n");
   bgpview_gc(view);
   bgpview_debug_dump(view);
-  
+
   // TEST: bgpview clear
   /* bgpview_clear(view); */
   /* fprintf(stderr,"Cleared view \n"); */
   /* bgpview_debug_dump(view); */
 
-  fprintf(stderr,"End of test\n");
-  
+  fprintf(stderr, "End of test\n");
+
   bgpview_iter_destroy(it);
 
-    return 0;
+  return 0;
 }

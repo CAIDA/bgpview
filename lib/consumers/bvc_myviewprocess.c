@@ -22,43 +22,33 @@
  */
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <unistd.h>
 
-#include "utils.h"
 #include "bgpview_consumer_interface.h"
+#include "utils.h"
 
 #include "bvc_myviewprocess.h"
 
-
 #define NAME "my-view-process"
 
-
 /* macro to access the current consumer state */
-#define STATE					\
-  (BVC_GET_STATE(consumer, myviewprocess))
+#define STATE (BVC_GET_STATE(consumer, myviewprocess))
 
 /* macro to access the current chain state, i.e.
  * the state variables shared by other consumers */
-#define CHAIN_STATE                             \
-  (BVC_GET_CHAIN_STATE(consumer))
-
+#define CHAIN_STATE (BVC_GET_CHAIN_STATE(consumer))
 
 /* our 'class' */
-static bvc_t bvc_myviewprocess = {
-  BVC_ID_MYVIEWPROCESS,
-  NAME,
-  BVC_GENERATE_PTRS(myviewprocess)
-};
-
-
+static bvc_t bvc_myviewprocess = {BVC_ID_MYVIEWPROCESS, NAME,
+                                  BVC_GENERATE_PTRS(myviewprocess)};
 
 /* our 'instance' */
 typedef struct bvc_myviewprocess_state {
 
-  /* count how many view have 
+  /* count how many view have
    * been processed */
   int view_counter;
 
@@ -69,13 +59,10 @@ typedef struct bvc_myviewprocess_state {
 
 } bvc_myviewprocess_state_t;
 
-
 /** Print usage information to stderr */
 static void usage(bvc_t *consumer)
 {
-  fprintf(stderr,
-	  "consumer usage: %s\n",
-	  consumer->name);
+  fprintf(stderr, "consumer usage: %s\n", consumer->name);
 }
 
 /** Parse the arguments given to the consumer */
@@ -89,22 +76,18 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while((opt = getopt(argc, argv, ":?")) >= 0)
-    {
-      switch(opt)
-	{
-	case '?':
-	case ':':
-	default:
-	  usage(consumer);
-	  return -1;
-	}
+  while ((opt = getopt(argc, argv, ":?")) >= 0) {
+    switch (opt) {
+    case '?':
+    case ':':
+    default:
+      usage(consumer);
+      return -1;
     }
+  }
 
   return 0;
 }
-
-
 
 /* ==================== CONSUMER INTERFACE FUNCTIONS ==================== */
 
@@ -113,52 +96,43 @@ bvc_t *bvc_myviewprocess_alloc()
   return &bvc_myviewprocess;
 }
 
-
 int bvc_myviewprocess_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_myviewprocess_state_t *state = NULL;
 
-  if((state = malloc_zero(sizeof(bvc_myviewprocess_state_t))) == NULL)
-    {
-      return -1;
-    }
+  if ((state = malloc_zero(sizeof(bvc_myviewprocess_state_t))) == NULL) {
+    return -1;
+  }
   BVC_SET_STATE(consumer, state);
-
 
   /* allocate dynamic memory HERE */
 
-  
   /* set defaults */
 
   state->view_counter = 0;
 
   state->current_view_elements = 0;
 
-
   /* parse the command line args */
-  if(parse_args(consumer, argc, argv) != 0)
-    {
-      goto err;
-    }
+  if (parse_args(consumer, argc, argv) != 0) {
+    goto err;
+  }
 
   /* react to args HERE */
 
-  
   return 0;
 
- err:
+err:
   return -1;
 }
-
 
 void bvc_myviewprocess_destroy(bvc_t *consumer)
 {
   bvc_myviewprocess_state_t *state = STATE;
-  
-  if(state == NULL)
-    {
-      return;
-    }
+
+  if (state == NULL) {
+    return;
+  }
 
   /* deallocate dynamic memory HERE */
 
@@ -167,17 +141,15 @@ void bvc_myviewprocess_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-
 int bvc_myviewprocess_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_myviewprocess_state_t *state = STATE;
   bgpview_iter_t *it;
-  
+
   /* create a new iterator */
-  if((it = bgpview_iter_create(view)) == NULL)
-    {
-      return -1;
-    }
+  if ((it = bgpview_iter_create(view)) == NULL) {
+    return -1;
+  }
 
   /* increment the number of views processed */
   state->view_counter++;
@@ -185,74 +157,66 @@ int bvc_myviewprocess_process_view(bvc_t *consumer, bgpview_t *view)
   /* reset the elements counter */
   state->current_view_elements = 0;
 
-  
-  /* iterate through all peer of the current view 
+  /* iterate through all peer of the current view
    *  - active peers only
    */
-  for(bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_peer(it);
-      bgpview_iter_next_peer(it))
-    {
-      /* Information that can be retrieved for the current peer:
-       *
-       * PEER NUMERIC ID:
-       * bgpstream_peer_id_t id = bgpview_iter_peer_get_peer_id(it);
-       *
-       * PEER SIGNATURE (i.e. collector, peer ASn, peer IP):
-       * bgpstream_peer_sig_t *s = bgpview_iter_peer_get_sig(it);       
-       *
-       * NUMBER OF CURRENTLY ANNOUNCED THE PFX
-       * int announced_pfxs = bgpview_iter_peer_get_pfx_cnt(it, 0, BGPVIEW_FIELD_ACTIVE);
-       * *0 -> ipv4 + ipv6
-       * 
-       */
-    }
+  for (bgpview_iter_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_peer(it); bgpview_iter_next_peer(it)) {
+    /* Information that can be retrieved for the current peer:
+     *
+     * PEER NUMERIC ID:
+     * bgpstream_peer_id_t id = bgpview_iter_peer_get_peer_id(it);
+     *
+     * PEER SIGNATURE (i.e. collector, peer ASn, peer IP):
+     * bgpstream_peer_sig_t *s = bgpview_iter_peer_get_sig(it);
+     *
+     * NUMBER OF CURRENTLY ANNOUNCED THE PFX
+     * int announced_pfxs = bgpview_iter_peer_get_pfx_cnt(it, 0,
+     * BGPVIEW_FIELD_ACTIVE);
+     * *0 -> ipv4 + ipv6
+     *
+     */
+  }
 
-  
-  /* iterate through all prefixes of the current view 
+  /* iterate through all prefixes of the current view
    *  - both ipv4 and ipv6 prefixes are considered
    *  - active prefixes only (i.e. do not consider prefixes that have
-   *    been withdrawn) 
+   *    been withdrawn)
    */
-  for(bgpview_iter_first_pfx(it, 0 /* all ip versions*/, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_pfx(it);
-      bgpview_iter_next_pfx(it))
-    {
+  for (bgpview_iter_first_pfx(it, 0 /* all ip versions*/, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_has_more_pfx(it); bgpview_iter_next_pfx(it)) {
 
-      /* Information that can be retrieved for the current prefix:
+    /* Information that can be retrieved for the current prefix:
+     *
+     * PREFIX:
+     * bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it)
+     *
+     * NUMBER OF PEERS CURRENTLY ANNOUNCING THE PFX
+     * int peers_cnt = bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
+     */
+
+    /* iterate over all the peers that currently observe the current pfx */
+    for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+         bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
+      /* Information that can be retrieved for the current element:
        *
-       * PREFIX:
-       * bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it)
-       *
-       * NUMBER OF PEERS CURRENTLY ANNOUNCING THE PFX
-       * int peers_cnt = bgpview_iter_pfx_get_peer_cnt(it, BGPVIEW_FIELD_ACTIVE);
+       * ORIGIN ASN:
+       * int origin_asn = bgpview_iter_pfx_peer_get_orig_asn(it);
        */
-      
-      /* iterate over all the peers that currently observe the current pfx */
-      for(bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-          bgpview_iter_pfx_has_more_peer(it);
-          bgpview_iter_pfx_next_peer(it))
-        {
-          /* Information that can be retrieved for the current element:
-           *
-           * ORIGIN ASN:
-           * int origin_asn = bgpview_iter_pfx_peer_get_orig_asn(it);
-           */
-          
-          state->current_view_elements++;
-        }
-      
+
+      state->current_view_elements++;
     }
+  }
 
-
-  /* print the number of views processed so far 
+  /* print the number of views processed so far
    * FORMAT: <ts> num-views: <num-views> */
-  printf("%"PRIu32" num-views: %d\n", bgpview_get_time(view), state->view_counter);
+  printf("%" PRIu32 " num-views: %d\n", bgpview_get_time(view),
+         state->view_counter);
 
   /* print the number of elements in the current view
    * FORMAT: <ts> num-elements: <num-elements> */
-  printf("%"PRIu32" num-elements: %d\n", bgpview_get_time(view), state->current_view_elements);
-
+  printf("%" PRIu32 " num-elements: %d\n", bgpview_get_time(view),
+         state->current_view_elements);
 
   /* destroy the view iterator */
   bgpview_iter_destroy(it);

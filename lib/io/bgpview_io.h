@@ -51,15 +51,15 @@ typedef enum {
  * @param written       the number of bytes used in the buffer (will be updated)
  * @param from          the variable to serialize
  */
-#define BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, from)           \
-  do {                                                              \
-    size_t s;                                                       \
-    assert(((len)-(written)) >= sizeof((from)));                    \
-    memcpy((buf), &(from), sizeof(from));                           \
-    s = sizeof(from);                                               \
-    written += s;                                                   \
-    buf += s;                                                       \
-  } while(0)
+#define BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, from)                      \
+  do {                                                                         \
+    size_t s;                                                                  \
+    assert(((len) - (written)) >= sizeof((from)));                             \
+    memcpy((buf), &(from), sizeof(from));                                      \
+    s = sizeof(from);                                                          \
+    written += s;                                                              \
+    buf += s;                                                                  \
+  } while (0)
 
 /** Convenience macro to deserialize a simple variable from a byte array.
  *
@@ -69,15 +69,15 @@ typedef enum {
  *                      (will be updated)
  * @param to            the variable to deserialize
  */
-#define BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, to)  \
-  do {							\
-    size_t s;                                           \
-    assert(((len)-(read)) >= sizeof(to));               \
-    memcpy(&(to), (buf), sizeof(to));			\
-    s = sizeof(to);					\
-    read += s;						\
-    buf += s;						\
-  } while(0)
+#define BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, to)                         \
+  do {                                                                         \
+    size_t s;                                                                  \
+    assert(((len) - (read)) >= sizeof(to));                                    \
+    memcpy(&(to), (buf), sizeof(to));                                          \
+    s = sizeof(to);                                                            \
+    read += s;                                                                 \
+    buf += s;                                                                  \
+  } while (0)
 
 /** Callback for filtering entries in a view when sending from
  * bgpview_io_client.
@@ -91,9 +91,8 @@ typedef enum {
  * @note This callback will be called for every prefix/peer combination, so it
  * should be efficient at determining if an entry is to be included.
  */
-typedef int (bgpview_io_filter_cb_t)(bgpview_iter_t *iter,
-                                     bgpview_io_filter_type_t type,
-                                     void *user);
+typedef int(bgpview_io_filter_cb_t)(bgpview_iter_t *iter,
+                                    bgpview_io_filter_type_t type, void *user);
 
 /** Callback for filtering peers when reading or receiving a view
  *
@@ -101,7 +100,7 @@ typedef int (bgpview_io_filter_cb_t)(bgpview_iter_t *iter,
  * @return 1 to include the entry, 0 to exclude the entry, and -1 if an error
  * occurred.
  */
-typedef int (bgpview_io_filter_peer_cb_t)(bgpstream_peer_sig_t *peersig);
+typedef int(bgpview_io_filter_peer_cb_t)(bgpstream_peer_sig_t *peersig);
 
 /** Callback for filtering prefixes when reading or receiving a view
  *
@@ -109,7 +108,7 @@ typedef int (bgpview_io_filter_peer_cb_t)(bgpstream_peer_sig_t *peersig);
  * @return 1 to include the entry, 0 to exclude the entry, and -1 if an error
  * occurred.
  */
-typedef int (bgpview_io_filter_pfx_cb_t)(bgpstream_pfx_t *pfx);
+typedef int(bgpview_io_filter_pfx_cb_t)(bgpstream_pfx_t *pfx);
 
 /** Callback for filtering prefix-peers when reading or receiving a view
  *
@@ -118,7 +117,8 @@ typedef int (bgpview_io_filter_pfx_cb_t)(bgpstream_pfx_t *pfx);
  * @return 1 to include the entry, 0 to exclude the entry, and -1 if an error
  * occurred.
  */
-typedef int (bgpview_io_filter_pfx_peer_cb_t)(bgpstream_as_path_store_path_t *store_path);
+typedef int(bgpview_io_filter_pfx_peer_cb_t)(
+    bgpstream_as_path_store_path_t *store_path);
 
 /** Serialize the given IP address into the given buffer
  *
@@ -172,8 +172,7 @@ int bgpview_io_deserialize_pfx(uint8_t *buf, size_t len,
  *
  * @note this function **does not** write bytes in network byte order.
  */
-int bgpview_io_serialize_peer(uint8_t *buf, size_t len,
-                              bgpstream_peer_id_t id,
+int bgpview_io_serialize_peer(uint8_t *buf, size_t len, bgpstream_peer_id_t id,
                               bgpstream_peer_sig_t *sig);
 
 /** Deserialize peer ID and signature from the given buffer
@@ -200,8 +199,8 @@ int bgpview_io_deserialize_peer(uint8_t *buf, size_t len,
  * @note this function is not strictly platform independent as it leaves values
  * in host byte order.
  */
-int bgpview_io_serialize_as_path_store_path(uint8_t *buf, size_t len,
-                                         bgpstream_as_path_store_path_t *spath);
+int bgpview_io_serialize_as_path_store_path(
+    uint8_t *buf, size_t len, bgpstream_as_path_store_path_t *spath);
 
 /** Deserialize the given AS Path Store Path
  *
@@ -210,10 +209,9 @@ int bgpview_io_serialize_as_path_store_path(uint8_t *buf, size_t len,
  * @param spath         pointer to the Store Path to deserialize
  * @return the number of bytes read, or -1 on an error
  */
-int
-bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
-                                     bgpstream_as_path_store_t *store,
-                                     bgpstream_as_path_store_path_id_t *pathid);
+int bgpview_io_deserialize_as_path_store_path(
+    uint8_t *buf, size_t len, bgpstream_as_path_store_t *store,
+    bgpstream_as_path_store_path_id_t *pathid);
 
 /** Serialize the current pfx-peer
  *
@@ -227,10 +225,8 @@ bgpview_io_deserialize_as_path_store_path(uint8_t *buf, size_t len,
  *                      included
  * @return the number of bytes written, or -1 on error
  */
-int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
-                                  bgpview_iter_t *it,
-                                  bgpview_io_filter_cb_t *cb,
-                                  void *cb_user,
+int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len, bgpview_iter_t *it,
+                                  bgpview_io_filter_cb_t *cb, void *cb_user,
                                   int use_pathid);
 
 /** Serialize the pfx-peers of the current prefix
@@ -247,12 +243,9 @@ int bgpview_io_serialize_pfx_peer(uint8_t *buf, size_t len,
  * @param[out] cells_tx  if not NULL; set to the number of pfx-peers serialized
  * @return the number of bytes written, or -1 on error
  */
-int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
-                                   bgpview_iter_t *it,
-                                   int *peers_cnt,
-                                   bgpview_io_filter_cb_t *cb,
-                                   void *cb_user,
-                                   int use_pathid);
+int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len, bgpview_iter_t *it,
+                                   int *peers_cnt, bgpview_io_filter_cb_t *cb,
+                                   void *cb_user, int use_pathid);
 
 /** Serialize the full 'prefix row' that the iterator currently points at
  *
@@ -268,12 +261,9 @@ int bgpview_io_serialize_pfx_peers(uint8_t *buf, size_t len,
  * @return the number of bytes written, 0 if there were no peers to write, or -1
  * on error
  */
-int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
-                                 bgpview_iter_t *it,
-                                 int *peers_cnt,
-                                 bgpview_io_filter_cb_t *cb,
-                                 void *cb_user,
-                                 int use_pathid);
+int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len, bgpview_iter_t *it,
+                                 int *peers_cnt, bgpview_io_filter_cb_t *cb,
+                                 void *cb_user, int use_pathid);
 
 /** Deserialize a full 'prefix row' from the given buffer
  *
@@ -295,14 +285,12 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len,
  * serialized directly into the buffer. **Note:** An empty pathid_map is valid
  * iff the view is also NULL (i.e., a no-op read).
  */
-int bgpview_io_deserialize_pfx_row(uint8_t *buf, size_t len,
-                                   bgpview_iter_t *it,
-                                   bgpview_io_filter_pfx_cb_t *pfx_cb,
-                                   bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
-                                   bgpstream_peer_id_t *peerid_map,
-                                   int peerid_map_cnt,
-                                   bgpstream_as_path_store_path_id_t *pathid_map,
-                                   int pathid_map_cnt,
-                                   bgpview_field_state_t state);
+int bgpview_io_deserialize_pfx_row(
+    uint8_t *buf, size_t len, bgpview_iter_t *it,
+    bgpview_io_filter_pfx_cb_t *pfx_cb,
+    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
+    bgpstream_peer_id_t *peerid_map, int peerid_map_cnt,
+    bgpstream_as_path_store_path_id_t *pathid_map, int pathid_map_cnt,
+    bgpview_field_state_t state);
 
 #endif /* __BGPVIEW_IO_H */

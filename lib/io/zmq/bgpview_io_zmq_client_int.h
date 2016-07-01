@@ -70,7 +70,6 @@ struct bgpview_io_zmq_client {
 
   /** Indicates that the client has been signaled to shutdown */
   int shutdown;
-
 };
 
 /** @} */

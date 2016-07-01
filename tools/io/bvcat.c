@@ -21,9 +21,9 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "config.h"
-#include "bgpview_io_file.h"
 #include "bgpview.h"
+#include "bgpview_io_file.h"
+#include "config.h"
 #include "utils.h"
 #include <stdio.h>
 #include <wandio.h>
@@ -56,7 +56,7 @@ int cat_file(char *file)
   }
   return 0;
 
- err:
+err:
   if (infile != NULL) {
     wandio_destroy(infile);
   }
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
       goto err;
     }
   } else {
-    for (i=1; i<argc; i++) {
+    for (i = 1; i < argc; i++) {
       if (cat_file(argv[i]) != 0) {
         goto err;
       }
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
   bgpview_destroy(view);
   return 0;
 
- err:
+err:
   if (wstdout != NULL) {
     wandio_wdestroy(wstdout);
   }

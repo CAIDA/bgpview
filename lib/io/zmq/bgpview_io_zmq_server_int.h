@@ -24,8 +24,8 @@
 #ifndef __BGPVIEW_IO_ZMQ_SERVER_INT_H
 #define __BGPVIEW_IO_ZMQ_SERVER_INT_H
 
-#include "bgpview_io_zmq_server.h"
 #include "bgpview.h"
+#include "bgpview_io_zmq_server.h"
 #include "bgpview_io_zmq_store.h"
 #include "khash.h"
 #include <czmq.h>
@@ -88,8 +88,8 @@ typedef struct bgpview_io_zmq_server_client {
 
 } bgpview_io_zmq_server_client_t;
 
-KHASH_INIT(strclient, char*, bgpview_io_zmq_server_client_t*, 1,
-	   kh_str_hash_func, kh_str_hash_equal);
+KHASH_INIT(strclient, char *, bgpview_io_zmq_server_client_t *, 1,
+           kh_str_hash_func, kh_str_hash_equal);
 
 struct bgpview_io_zmq_server {
 
@@ -112,7 +112,7 @@ struct bgpview_io_zmq_server {
   void *client_pub_socket;
 
   /** List of clients that are connected */
-  khash_t(strclient) *clients;
+  khash_t(strclient) * clients;
 
   /** Time (in ms) between heartbeats sent to clients */
   uint64_t heartbeat_interval;
@@ -138,7 +138,6 @@ struct bgpview_io_zmq_server {
 
   /** The number of views in the store */
   int store_window_len;
-
 };
 
 /** @} */

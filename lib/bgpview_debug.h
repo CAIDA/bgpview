@@ -30,7 +30,6 @@
  *
  * @param view        pointer to a view structure
  */
-void
-bgpview_debug_dump(bgpview_t *view);
+void bgpview_debug_dump(bgpview_t *view);
 
 #endif /* __BGPVIEW_DEBUG_H */
