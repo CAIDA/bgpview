@@ -21,16 +21,13 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <stdio.h>
-
+#include "bvc_perfmonitor.h"
+#include "bgpview_consumer_interface.h"
 #include "bgpstream_utils.h"
 #include "utils.h"
-#include "czmq.h"
-
-#include "bgpview_consumer_interface.h"
-
-#include "bvc_perfmonitor.h"
+#include <assert.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #define NAME "perfmonitor"
 
@@ -152,7 +149,7 @@ void bvc_perfmonitor_destroy(bvc_t *consumer)
 int bvc_perfmonitor_process_view(bvc_t *consumer, bgpview_t *view)
 {
   // view arrival delay, i.e. now - table ts
-  uint32_t time_begin = zclock_time() / 1000;
+  uint32_t time_begin = epoch_sec();
   DUMP_METRIC(time_begin - bgpview_get_time(view), bgpview_get_time(view), "%s",
               CHAIN_STATE->metric_prefix, "view_arrival_delay");
 
@@ -199,7 +196,7 @@ int bvc_perfmonitor_process_view(bvc_t *consumer, bgpview_t *view)
 
   STATE->view_cnt++;
 
-  uint32_t time_end = zclock_time() / 1000;
+  uint32_t time_end = epoch_sec();
 
   DUMP_METRIC(time_end - time_begin, bgpview_get_time(view), "%s",
               CHAIN_STATE->metric_prefix, "processing_time");

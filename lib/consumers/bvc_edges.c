@@ -21,22 +21,20 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bvc_edges.h"
+#include "bgpview_consumer_interface.h"
+#include "bgpstream_utils_pfx_set.h"
+#include "khash.h"
+#include "utils.h"
+#include "wandio_utils.h"
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include <czmq.h>
-
-#include "khash.h"
-#include "utils.h"
-#include "wandio_utils.h"
-
-#include "bgpview_consumer_interface.h"
-#include "bgpstream_utils_pfx_set.h"
-#include "bvc_edges.h"
 
 #define NAME "edges"
 #define CONSUMER_METRIC_PREFIX "edges"
@@ -828,7 +826,7 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   uint32_t time_now = bgpview_get_time(view);
   state->time_now = time_now;
   /* compute arrival delay */
-  state->arrival_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->arrival_delay = epoch_sec() - bgpview_get_time(view);
   // as_paths_t *as_paths = kh_init(as_paths);
   new_edges_t *new_edges = kh_init(new_edges);
   newrec_edges_t *newrec_edges = kh_init(newrec_edges);
@@ -1063,7 +1061,7 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   wandio_wdestroy(done_newedge);
 
   /* compute processed delay */
-  state->processed_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->processed_delay = epoch_sec() - bgpview_get_time(view);
   state->processing_time = state->processed_delay - state->arrival_delay;
 
   // Output timeseries

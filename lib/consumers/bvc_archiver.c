@@ -24,8 +24,9 @@
 #include "wandio_utils.h"
 #include "file/bgpview_io_file.h"
 #include <assert.h>
-#include <czmq.h> /*< for zclock_time */
+#include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <wandio.h>
 
@@ -369,7 +370,7 @@ void bvc_archiver_destroy(bvc_t *consumer)
 int bvc_archiver_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_archiver_state_t *state = STATE;
-  uint32_t time_begin = zclock_time() / 1000;
+  uint32_t time_begin = epoch_sec();
   uint32_t view_time = bgpview_get_time(view);
   uint32_t file_time = view_time;
   int compress_type;
@@ -421,7 +422,7 @@ int bvc_archiver_process_view(bvc_t *consumer, bgpview_t *view)
     break;
   }
 
-  uint32_t time_end = zclock_time() / 1000;
+  uint32_t time_end = epoch_sec();
   DUMP_METRIC(time_end - time_begin, view_time, "%s",
               CHAIN_STATE->metric_prefix, "processing_time");
 

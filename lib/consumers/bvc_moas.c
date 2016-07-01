@@ -21,23 +21,21 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bvc_moas.h"
+#include "bgpview_consumer_interface.h"
+#include "bgpstream_utils_pfx_set.h"
+#include "khash.h"
+#include "utils.h"
+#include "wandio_utils.h"
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include <czmq.h>
-
-#include "khash.h"
-#include "utils.h"
-#include "wandio_utils.h"
-
-#include "bgpview_consumer_interface.h"
-#include "bgpstream_utils_pfx_set.h"
-#include "bvc_moas.h"
 
 #define NAME "moas"
 #define CONSUMER_METRIC_PREFIX "moas"
@@ -798,7 +796,7 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute arrival delay */
-  state->arrival_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->arrival_delay = epoch_sec() - bgpview_get_time(view);
 
   /* init the first timestamp */
   if (state->first_ts == 0) {
@@ -901,7 +899,7 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute processed delay */
-  state->processed_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->processed_delay = epoch_sec() - bgpview_get_time(view);
   state->processing_time = state->processed_delay - state->arrival_delay;
 
   if (output_timeseries(consumer, bgpview_get_time(view)) != 0) {

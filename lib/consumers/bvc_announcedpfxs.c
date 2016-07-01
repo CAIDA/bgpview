@@ -21,21 +21,19 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bvc_announcedpfxs.h"
+#include "bgpview_consumer_interface.h"
+#include "bgpstream_utils_pfx_set.h"
+#include "khash.h"
+#include "utils.h"
+#include "wandio_utils.h"
 #include <assert.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include <czmq.h>
-
-#include "khash.h"
-#include "utils.h"
-#include "wandio_utils.h"
-
-#include "bgpview_consumer_interface.h"
-#include "bgpstream_utils_pfx_set.h"
-#include "bvc_announcedpfxs.h"
+#include <unistd.h>
 
 #define NAME "announced-pfxs"
 #define CONSUMER_METRIC_PREFIX "announced-pfxs"
@@ -336,7 +334,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute arrival delay */
-  state->arrival_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->arrival_delay = epoch_sec() - bgpview_get_time(view);
 
   /* iterate through ipv4 prefixes */
   for (bgpview_iter_first_pfx(it, BGPSTREAM_ADDR_VERSION_IPV4,
@@ -457,7 +455,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute processed delay */
-  state->processed_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->processed_delay = epoch_sec() - bgpview_get_time(view);
   state->processing_time = STATE->processed_delay - STATE->arrival_delay;
 
   /* dump timeseries metrics */

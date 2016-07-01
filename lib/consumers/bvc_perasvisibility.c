@@ -21,19 +21,15 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bvc_perasvisibility.h"
+#include "bgpview_consumer_interface.h"
+#include "bgpstream_utils_patricia.h"
+#include "khash.h"
+#include "utils.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <czmq.h>
-
-#include "khash.h"
-#include "utils.h"
-
-#include "bgpview_consumer_interface.h"
-
-#include "bgpstream_utils_patricia.h"
-#include "bvc_perasvisibility.h"
+#include <unistd.h>
 
 #define NAME "per-as-visibility"
 #define CONSUMER_METRIC_PREFIX "prefix-visibility.asn"
@@ -576,7 +572,7 @@ int bvc_perasvisibility_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute arrival delay */
-  state->arrival_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->arrival_delay = epoch_sec() - bgpview_get_time(view);
 
   /* get full feed peer ids from Visibility */
   if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
@@ -606,7 +602,7 @@ int bvc_perasvisibility_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute delays */
-  state->processed_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  state->processed_delay = epoch_sec() - bgpview_get_time(view);
   state->processing_time = state->processed_delay - state->arrival_delay;
 
   /* set delays metrics */

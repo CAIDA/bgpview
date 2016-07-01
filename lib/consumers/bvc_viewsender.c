@@ -32,7 +32,6 @@
 #include "utils.h"
 #include <assert.h>
 #include <ctype.h>
-#include <czmq.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -517,8 +516,8 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_viewsender_state_t *state = STATE;
 
-  uint64_t start_time = zclock_time() / 1000;
-  uint64_t arrival_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  uint64_t start_time = epoch_sec();
+  uint64_t arrival_delay = epoch_sec() - bgpview_get_time(view);
   timeseries_kp_set(state->kp, state->arr_delay_time_idx, arrival_delay);
 
   if (0) { /* just to simplify the if/else with macros */
@@ -543,7 +542,7 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
       return -1;
     }
 
-    uint64_t send_end = zclock_time() / 1000;
+    uint64_t send_end = epoch_sec();
     uint64_t send_time = send_end - start_time;
 
     // do the create/copy
@@ -562,7 +561,7 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
     assert(state->parent_view != NULL);
     assert(bgpview_get_time(view) == bgpview_get_time(state->parent_view));
 
-    uint64_t copy_end = zclock_time() / 1000;
+    uint64_t copy_end = epoch_sec();
     uint64_t copy_time = copy_end - send_end;
 
     // set timeseries metrics

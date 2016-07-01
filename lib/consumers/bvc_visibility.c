@@ -21,22 +21,17 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <czmq.h> /* for zclock_time() */
-#include <libipmeta.h>
-
-#include "khash.h"
-#include "utils.h"
-
+#include "bvc_visibility.h"
+#include "bgpview_consumer_interface.h"
 #include "bgpstream_utils_id_set.h"
 #include "bgpstream_utils_pfx_set.h"
-
-#include "bgpview_consumer_interface.h"
-
-#include "bvc_visibility.h"
+#include "khash.h"
+#include "utils.h"
+#include <assert.h>
+#include <libipmeta.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #define NAME "visibility"
 #define CONSUMER_METRIC_PREFIX "prefix-visibility.overall"
@@ -373,7 +368,7 @@ int bvc_visibility_process_view(bvc_t *consumer, bgpview_t *view)
   int i;
 
   // compute arrival delay
-  STATE->arrival_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  STATE->arrival_delay = epoch_sec() - bgpview_get_time(view);
 
   /* this MUST come before any computation  */
   for (i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; i++) {
@@ -403,7 +398,7 @@ int bvc_visibility_process_view(bvc_t *consumer, bgpview_t *view)
   /* @todo decide later what are the usability rules */
 
   /* compute processed delay (must come prior to dump_gen_metrics) */
-  STATE->processed_delay = zclock_time() / 1000 - bgpview_get_time(view);
+  STATE->processed_delay = epoch_sec() - bgpview_get_time(view);
 
   STATE->processing_time = STATE->processed_delay - STATE->arrival_delay;
   /* dump metrics and tables */

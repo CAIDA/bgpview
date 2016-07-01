@@ -24,6 +24,8 @@
 #ifndef __BVC_PFXORIGINS_H
 #define __BVC_PFXORIGINS_H
 
+#include "bgpview_consumer_interface.h"
+
 /** @file
  *
  * @brief Header file that exposes the public interface of the bgpview

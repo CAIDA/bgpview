@@ -21,22 +21,19 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bvc_routedspace.h"
+#include "bgpview_consumer_interface.h"
+#include "utils.h"
+#include "wandio_utils.h"
 #include <assert.h>
 #include <ctype.h>
-#include <czmq.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include "utils.h"
-#include "wandio_utils.h"
-
-#include "bgpview_consumer_interface.h"
-
-#include "bvc_routedspace.h"
 
 /** Name of the consumer */
 #define NAME "routed-space"
@@ -485,7 +482,7 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
   state->ts = bgpview_get_time(view);
 
   /* compute arrival delay */
-  state->arrival_delay = zclock_time() / 1000 - state->ts;
+  state->arrival_delay = epoch_sec() - state->ts;
 
   /* update first timestamp */
   if (state->first_ts == 0) {
@@ -637,7 +634,7 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
   bgpview_iter_destroy(it);
 
   /* compute processed delay */
-  state->processed_delay = zclock_time() / 1000 - state->ts;
+  state->processed_delay = epoch_sec() - state->ts;
   state->processing_time = state->processed_delay - state->arrival_delay;
 
   output_metrics(consumer, state->ts, current_window_size);

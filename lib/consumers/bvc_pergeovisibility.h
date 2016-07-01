@@ -24,6 +24,8 @@
 #ifndef __BVC_PERGEOVISIBILITY_H
 #define __BVC_PERGEOVISIBILITY_H
 
+#include "bgpview_consumer_interface.h"
+
 /** @file
  *
  * @brief Header file that exposes the public interface of the bgpview Per-Geo
