@@ -25,12 +25,11 @@
 #ifndef __BGPVIEW_CONSUMER_MANAGER_H
 #define __BGPVIEW_CONSUMER_MANAGER_H
 
+#include "config.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <timeseries.h>
-
 #include "bgpstream_utils_id_set.h"
-
 #include "bgpview.h"
 
 

@@ -26,7 +26,6 @@
 #define __BGPVIEW_CONSUMER_INTERFACE_H
 
 #include <inttypes.h>
-
 #include "bgpview.h"
 #include "bgpview_consumer_manager.h" /* for bvc_t */
 
