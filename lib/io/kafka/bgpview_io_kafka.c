@@ -21,8 +21,8 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bgpview.h"
 #include "bgpview_io_kafka_int.h"
+#include "bgpview.h"
 #include "config.h"
 #include "utils.h"
 #include "parse_cmd.h"

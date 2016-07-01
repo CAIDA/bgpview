@@ -21,8 +21,8 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bgpview_io_zmq.h"
 #include "bgpview_io_zmq_client_int.h"
+#include "bgpview_io_zmq.h"
 #include "bgpview_io_zmq_client_broker.h"
 #include "khash.h"
 #include "utils.h"
