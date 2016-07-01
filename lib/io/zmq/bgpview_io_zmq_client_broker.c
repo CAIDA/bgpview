@@ -167,7 +167,7 @@ static int server_connect(bgpview_io_zmq_client_broker_t *broker)
   }
 
   /* reset the time for the next heartbeat sent to the server */
-  reset_heartbeat_timer(broker, zclock_time());
+  reset_heartbeat_timer(broker, epoch_msec());
 
   /* create a new reader for this server socket */
   if (zloop_reader(broker->loop, broker->server_socket, handle_server_msg,
@@ -332,7 +332,7 @@ static int handle_timeouts(bgpview_io_zmq_client_broker_t *broker,
 
     if (clock < req->retry_at) {
       /*fprintf(stderr, "DEBUG: at %"PRIu64", waiting for %"PRIu64"\n",
-        zclock_time(), req->retry_at);*/
+        epoch_msec(), req->retry_at);*/
       continue;
     }
 
@@ -368,7 +368,7 @@ static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 
   uint8_t msg_type_p;
 
-  uint64_t clock = zclock_time();
+  uint64_t clock = epoch_msec();
 
   if (is_shutdown_time(broker, clock) != 0) {
     return -1;
@@ -425,7 +425,7 @@ static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
   int retries = 0;
 
   while (retries < BGPVIEW_IO_ZMQ_CLIENT_BROKER_GREEDY_MAX_MSG) {
-    clock = zclock_time();
+    clock = epoch_msec();
 
     if (is_shutdown_time(broker, clock) != 0) {
       return -1;
@@ -571,7 +571,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
   bgpview_io_zmq_msg_type_t msg_type;
   bgpview_io_zmq_client_broker_req_t *req = NULL;
 
-  uint64_t clock = zclock_time();
+  uint64_t clock = epoch_msec();
 
   int idx;
 
@@ -662,7 +662,7 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
       req.seq_num, req.msg_type);*/
 
     /* now send on to the server */
-    if (send_request(broker, req, zclock_time()) != 0) {
+    if (send_request(broker, req, epoch_msec()) != 0) {
       goto err;
     }
 
@@ -696,7 +696,7 @@ static int handle_signal_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
   bgpview_io_zmq_client_broker_t *broker =
       (bgpview_io_zmq_client_broker_t *)arg;
-  uint64_t clock = zclock_time();
+  uint64_t clock = epoch_msec();
 
   zmsg_t *msg = NULL;
   char *command = NULL;

@@ -602,7 +602,7 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
     return -1;
   }
 
-  uint64_t proc_time = zclock_time() - start_time;
+  uint64_t proc_time = epoch_sec() - start_time;
   timeseries_kp_set(state->kp, state->proc_time_idx, proc_time);
 
   // flush

@@ -965,7 +965,7 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
                 asn2 = asn;
               }
 
-              // int st=zclock_time();
+              // int st=epoch_msec();
               category = insert_update_edges(consumer, asn1, asn2, pfx);
               int buffer_len = 25;
               char edge_str[buffer_len];
@@ -1010,7 +1010,7 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
                   }
                 }
               }
-              // int time_taken=zclock_time() - st;
+              // int time_taken=epoch_msec() - st;
               // printf("edges scheme took %d \n",time_taken);
             }
             // Reading atleast three different ASNs to create first triplet

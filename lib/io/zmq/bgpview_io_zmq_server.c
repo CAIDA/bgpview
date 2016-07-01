@@ -157,7 +157,7 @@ client_init(bgpview_io_zmq_server_t *server, zmq_msg_t *id_msg)
     return NULL;
   }
   client->expiry =
-      zclock_time() + (server->heartbeat_interval * server->heartbeat_liveness);
+      epoch_msec() + (server->heartbeat_interval * server->heartbeat_liveness);
 
   client->info.name = client->id;
 
@@ -197,7 +197,7 @@ client_get(bgpview_io_zmq_server_t *server, zmq_msg_t *id_msg)
   /* we are already tracking this client, treat the msg as a heartbeat */
   /* touch the timeout */
   client->expiry =
-      zclock_time() + (server->heartbeat_interval * server->heartbeat_liveness);
+      epoch_msec() + (server->heartbeat_interval * server->heartbeat_liveness);
   free(id);
   return client;
 }
@@ -225,13 +225,13 @@ static int clients_purge(bgpview_io_zmq_server_t *server)
     if (kh_exist(server->clients, k) != 0) {
       client = kh_val(server->clients, k);
 
-      if (zclock_time() < client->expiry) {
+      if (epoch_msec() < client->expiry) {
         break; /* client is alive, we're done here */
       }
 
       fprintf(stderr, "INFO: Removing dead client (%s)\n", client->id);
       fprintf(stderr, "INFO: Expiry: %" PRIu64 " Time: %" PRIu64 "\n",
-              client->expiry, zclock_time());
+              client->expiry, epoch_msec());
       if (bgpview_io_zmq_store_client_disconnect(server->store,
                                                  &client->info) != 0) {
         fprintf(stderr, "Store failed to handle client disconnect\n");
@@ -462,7 +462,7 @@ static int handle_message(bgpview_io_zmq_server_t *server,
   /* check each type we support (in descending order of frequency) */
   switch (msg_type) {
   case BGPVIEW_IO_ZMQ_MSG_TYPE_VIEW:
-    begin_time = zclock_time();
+    begin_time = epoch_msec();
 
     /* every data now begins with intents */
     if (handle_ready_message(server, client) != 0) {
@@ -476,7 +476,7 @@ static int handle_message(bgpview_io_zmq_server_t *server,
     }
 
     fprintf(stderr, "DEBUG: handle_view_message from %s %" PRIu64 "\n",
-            client->id, zclock_time() - begin_time);
+            client->id, epoch_msec() - begin_time);
 
     break;
 
@@ -548,7 +548,7 @@ static int run_server(bgpview_io_zmq_server_t *server)
   zmq_msg_t client_id;
   zmq_msg_t id_cpy;
 
-  uint64_t begin_time = zclock_time();
+  uint64_t begin_time = epoch_msec();
 
   /* get the client id frame */
   if (zmq_msg_init(&client_id) == -1) {
@@ -603,7 +603,7 @@ static int run_server(bgpview_io_zmq_server_t *server)
 timeout:
   /* time for heartbeats */
   assert(server->heartbeat_next > 0);
-  if (zclock_time() >= server->heartbeat_next) {
+  if (epoch_msec() >= server->heartbeat_next) {
     for (k = kh_begin(server->clients); k != kh_end(server->clients); ++k) {
       if (kh_exist(server->clients, k) == 0) {
         continue;
@@ -631,7 +631,7 @@ timeout:
         goto err;
       }
     }
-    server->heartbeat_next = zclock_time() + server->heartbeat_interval;
+    server->heartbeat_next = epoch_msec() + server->heartbeat_interval;
 
     /* should we ask the store to check its timeouts? */
     if (server->store_timeout_cnt == STORE_HEARTBEATS_PER_TIMEOUT) {
@@ -651,7 +651,7 @@ timeout:
   }
 
   fprintf(stderr, "DEBUG: run_server in %" PRIu64 "\n",
-          zclock_time() - begin_time);
+          epoch_msec() - begin_time);
 
   return 0;
 
@@ -763,7 +763,7 @@ int bgpview_io_zmq_server_start(bgpview_io_zmq_server_t *server)
   }
 
   /* seed the time for the next heartbeat sent to servers */
-  server->heartbeat_next = zclock_time() + server->heartbeat_interval;
+  server->heartbeat_next = epoch_msec() + server->heartbeat_interval;
 
   /* start processing requests */
   while ((server->shutdown == 0) && (run_server(server) == 0)) {
