@@ -93,14 +93,14 @@ typedef struct bvc_visibility_state {
 static void usage(bvc_t *consumer)
 {
   fprintf(
-      stderr,
-      "consumer usage: %s\n"
-      "       -4 <pfx-cnt>  # pfxs in a IPv4 full-feed table (default: %d)\n"
-      "       -6 <pfx-cnt>  # pfxs in a IPv6 full-feed table (default: %d)\n"
-      "       -m <mask-len> minimum mask length for pfxs (default: %d)\n"
-      "       -p <peer-cnt> # peers that must observe a pfx (default: %d)\n",
-      consumer->name, IPV4_FULLFEED_SIZE, IPV6_FULLFEED_SIZE,
-      ROUTED_PFX_MIN_MASK_LEN, ROUTED_PFX_MIN_PEERCNT);
+    stderr,
+    "consumer usage: %s\n"
+    "       -4 <pfx-cnt>  # pfxs in a IPv4 full-feed table (default: %d)\n"
+    "       -6 <pfx-cnt>  # pfxs in a IPv6 full-feed table (default: %d)\n"
+    "       -m <mask-len> minimum mask length for pfxs (default: %d)\n"
+    "       -p <peer-cnt> # peers that must observe a pfx (default: %d)\n",
+    consumer->name, IPV4_FULLFEED_SIZE, IPV6_FULLFEED_SIZE,
+    ROUTED_PFX_MIN_MASK_LEN, ROUTED_PFX_MIN_PEERCNT);
 }
 
 /** Parse the arguments given to the consumer */
@@ -118,12 +118,12 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
     switch (opt) {
     case '4':
       STATE->full_feed_size[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] =
-          atoi(optarg);
+        atoi(optarg);
       break;
 
     case '6':
       STATE->full_feed_size[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] =
-          atoi(optarg);
+        atoi(optarg);
       break;
 
     case 'm':
@@ -154,7 +154,7 @@ static int create_gen_metrics(bvc_t *consumer)
     snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_FORMAT,
              CHAIN_STATE->metric_prefix, bgpstream_idx2number(i), "peers_cnt");
     if ((STATE->gen_metrics.peers_idx[i] =
-             timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
       return -1;
     }
 
@@ -162,7 +162,7 @@ static int create_gen_metrics(bvc_t *consumer)
              CHAIN_STATE->metric_prefix, bgpstream_idx2number(i),
              "ff_peers_cnt");
     if ((STATE->gen_metrics.ff_peers_idx[i] =
-             timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
       return -1;
     }
 
@@ -170,7 +170,7 @@ static int create_gen_metrics(bvc_t *consumer)
              CHAIN_STATE->metric_prefix, bgpstream_idx2number(i),
              "ff_peers_asns_cnt");
     if ((STATE->gen_metrics.ff_asns_idx[i] =
-             timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
       return -1;
     }
   }
@@ -181,7 +181,7 @@ static int create_gen_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, "arrival_delay");
 
   if ((STATE->gen_metrics.arrival_delay_idx =
-           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+         timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -189,7 +189,7 @@ static int create_gen_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, "processed_delay");
 
   if ((STATE->gen_metrics.processed_delay_idx =
-           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+         timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -197,7 +197,7 @@ static int create_gen_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, "processing_time");
 
   if ((STATE->gen_metrics.processing_time_idx =
-           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+         timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -238,7 +238,7 @@ static void find_ff_peers(bvc_t *consumer, bgpview_iter_t *it)
 
   for (i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; i++) {
     CHAIN_STATE->full_feed_peer_asns_cnt[i] =
-        bgpstream_id_set_size(STATE->full_feed_asns[i]);
+      bgpstream_id_set_size(STATE->full_feed_asns[i]);
   }
 }
 
@@ -249,8 +249,8 @@ static void dump_gen_metrics(bvc_t *consumer)
     timeseries_kp_set(STATE->kp, STATE->gen_metrics.peers_idx[i],
                       CHAIN_STATE->peer_ids_cnt[i]);
     timeseries_kp_set(
-        STATE->kp, STATE->gen_metrics.ff_peers_idx[i],
-        bgpstream_id_set_size(CHAIN_STATE->full_feed_peer_ids[i]));
+      STATE->kp, STATE->gen_metrics.ff_peers_idx[i],
+      bgpstream_id_set_size(CHAIN_STATE->full_feed_peer_ids[i]));
     timeseries_kp_set(STATE->kp, STATE->gen_metrics.ff_asns_idx[i],
                       CHAIN_STATE->full_feed_peer_asns_cnt[i]);
   }
@@ -302,9 +302,9 @@ int bvc_visibility_init(bvc_t *consumer, int argc, char **argv)
   CHAIN_STATE->pfx_vis_mask_len_threshold = ROUTED_PFX_MIN_MASK_LEN;
 
   state->full_feed_size[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] =
-      IPV4_FULLFEED_SIZE;
+    IPV4_FULLFEED_SIZE;
   state->full_feed_size[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)] =
-      IPV6_FULLFEED_SIZE;
+    IPV6_FULLFEED_SIZE;
 
   int i;
 

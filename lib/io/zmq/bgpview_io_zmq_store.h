@@ -69,7 +69,7 @@ void bgpview_io_zmq_store_destroy(bgpview_io_zmq_store_t *store);
  * @return 0 if successful, -1 otherwise
  */
 int bgpview_io_zmq_store_client_connect(
-    bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client);
+  bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client);
 
 /** Deregister a bgpview client
  *
@@ -78,7 +78,7 @@ int bgpview_io_zmq_store_client_connect(
  * @return 0 if successful, -1 otherwise
  */
 int bgpview_io_zmq_store_client_disconnect(
-    bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client);
+  bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client);
 
 /** Retrieve a pointer to the view that represents the given time
  *
@@ -98,8 +98,8 @@ bgpview_t *bgpview_io_zmq_store_get_view(bgpview_io_zmq_store_t *store,
  * @return 0 if the view was processed successfully, -1 otherwise
  */
 int bgpview_io_zmq_store_view_updated(
-    bgpview_io_zmq_store_t *store, bgpview_t *view,
-    bgpview_io_zmq_server_client_info_t *client);
+  bgpview_io_zmq_store_t *store, bgpview_t *view,
+  bgpview_io_zmq_server_client_info_t *client);
 
 /** Force a timeout check on the views currently in the store
  *

@@ -53,7 +53,7 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
   /* first, is the array big enough to possibly already contain remote_id? */
   if (remote_id >= idmap->alloc_cnt) {
     if ((idmap->map = realloc(idmap->map, sizeof(bgpstream_peer_id_t) *
-                                              (remote_id + 1))) == NULL) {
+                                            (remote_id + 1))) == NULL) {
       return -1;
     }
 
@@ -71,8 +71,8 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
   }
 #endif
   if ((local_id = bgpview_iter_add_peer(
-           it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
-           sig->peer_asnumber)) == 0) {
+         it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
+         sig->peer_asnumber)) == 0) {
 #ifdef WITH_THREADS
     if (mutex != NULL) {
       pthread_mutex_unlock(mutex);
@@ -658,8 +658,8 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
         /* an update row */
         tom++;
         if ((s = bgpview_io_deserialize_pfx_row(
-                 ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb, idmap->map,
-                 idmap->alloc_cnt, NULL, -1, BGPVIEW_FIELD_ACTIVE)) == -1) {
+               ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb, idmap->map,
+               idmap->alloc_cnt, NULL, -1, BGPVIEW_FIELD_ACTIVE)) == -1) {
 #ifdef WITH_THREADS
           if (mutex != NULL) {
             pthread_mutex_unlock(mutex);
@@ -675,8 +675,8 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
         /* a remove row */
         tor++;
         if ((s = bgpview_io_deserialize_pfx_row(
-                 ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb, idmap->map,
-                 idmap->alloc_cnt, NULL, -1, BGPVIEW_FIELD_INACTIVE)) == -1) {
+               ptr, (msg->len - read), iter, pfx_cb, pfx_peer_cb, idmap->map,
+               idmap->alloc_cnt, NULL, -1, BGPVIEW_FIELD_INACTIVE)) == -1) {
 #ifdef WITH_THREADS
           if (mutex != NULL) {
             pthread_mutex_unlock(mutex);
@@ -880,9 +880,8 @@ static gc_topics_t *get_gc_topics(bgpview_io_kafka_t *client, char *identity)
                                               &gct->peers) != 0) {
       goto err;
     }
-    if (bgpview_io_kafka_single_topic_connect(client, identity,
-                                              BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS,
-                                              &gct->pfxs) != 0) {
+    if (bgpview_io_kafka_single_topic_connect(
+          client, identity, BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS, &gct->pfxs) != 0) {
       goto err;
     }
     gct->job_state = WORKER_JOB_IDLE;

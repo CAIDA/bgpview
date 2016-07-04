@@ -91,21 +91,21 @@ typedef struct bvc_archiver_state {
 static void usage(bvc_t *consumer)
 {
   fprintf(
-      stderr,
-      "consumer usage: %s\n"
-      "       -f <filename> output file pattern for writing views\n"
-      "                       accepts same format parameters as strftime(3)\n"
-      "                       as well as '%%s' to write unix time\n"
-      "       -r <seconds>  output file rotation period (default: no "
-      "rotation)\n"
-      "       -a            disable alignment of output file rotation to "
-      "multiples of the rotation interval\n"
-      "       -l <filename> file to write the filename of the latest complete "
-      "output file to\n"
-      "       -c <level>    output compression level to use (default: %d)\n"
-      "       -m <mode>     output mode: 'ascii' or 'binary' (default: "
-      "binary)\n",
-      consumer->name, DEFAULT_COMPRESS_LEVEL);
+    stderr,
+    "consumer usage: %s\n"
+    "       -f <filename> output file pattern for writing views\n"
+    "                       accepts same format parameters as strftime(3)\n"
+    "                       as well as '%%s' to write unix time\n"
+    "       -r <seconds>  output file rotation period (default: no "
+    "rotation)\n"
+    "       -a            disable alignment of output file rotation to "
+    "multiples of the rotation interval\n"
+    "       -l <filename> file to write the filename of the latest complete "
+    "output file to\n"
+    "       -c <level>    output compression level to use (default: %d)\n"
+    "       -m <mode>     output mode: 'ascii' or 'binary' (default: "
+    "binary)\n",
+    consumer->name, DEFAULT_COMPRESS_LEVEL);
 }
 
 #if 0
@@ -385,20 +385,20 @@ int bvc_archiver_process_view(bvc_t *consumer, bgpview_t *view)
       /* align the time to a multiple of the interval */
       if (state->rotate_noalign == 0) {
         file_time =
-            (view_time / state->rotation_interval) * state->rotation_interval;
+          (view_time / state->rotation_interval) * state->rotation_interval;
       }
       state->next_rotate_time = file_time + state->rotation_interval;
     }
 
     /* compute the output filename */
     if ((state->outfile_name =
-             generate_file_name(state->outfile_pattern, file_time)) == NULL) {
+           generate_file_name(state->outfile_pattern, file_time)) == NULL) {
       goto err;
     }
     compress_type = wandio_detect_compression_type(state->outfile_name);
     if ((state->outfile =
-             wandio_wcreate(state->outfile_name, compress_type,
-                            state->outfile_compress_level, O_CREAT)) == NULL) {
+           wandio_wcreate(state->outfile_name, compress_type,
+                          state->outfile_compress_level, O_CREAT)) == NULL) {
       fprintf(stderr, "ERROR: Could not open %s for writing\n",
               state->outfile_name);
       goto err;

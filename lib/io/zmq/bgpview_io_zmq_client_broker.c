@@ -364,7 +364,7 @@ err:
 static int handle_heartbeat_timer(zloop_t *loop, int timer_id, void *arg)
 {
   bgpview_io_zmq_client_broker_t *broker =
-      (bgpview_io_zmq_client_broker_t *)arg;
+    (bgpview_io_zmq_client_broker_t *)arg;
 
   uint8_t msg_type_p;
 
@@ -419,7 +419,7 @@ err:
 static int handle_server_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
   bgpview_io_zmq_client_broker_t *broker =
-      (bgpview_io_zmq_client_broker_t *)arg;
+    (bgpview_io_zmq_client_broker_t *)arg;
   bgpview_io_zmq_msg_type_t msg_type;
   uint64_t clock;
   int retries = 0;
@@ -506,7 +506,7 @@ err:
 static int handle_server_sub_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
   bgpview_io_zmq_client_broker_t *broker =
-      (bgpview_io_zmq_client_broker_t *)arg;
+    (bgpview_io_zmq_client_broker_t *)arg;
 
   zmq_msg_t msg;
   int flags;
@@ -567,7 +567,7 @@ err:
 static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
   bgpview_io_zmq_client_broker_t *broker =
-      (bgpview_io_zmq_client_broker_t *)arg;
+    (bgpview_io_zmq_client_broker_t *)arg;
   bgpview_io_zmq_msg_type_t msg_type;
   bgpview_io_zmq_client_broker_req_t *req = NULL;
 
@@ -628,10 +628,10 @@ static int handle_master_msg(zloop_t *loop, zsock_t *reader, void *arg)
       /* expand the frames array if we need more */
       if (req->msg_frames_alloc == req->msg_frames_cnt) {
         req->msg_frames_alloc +=
-            BGPVIEW_IO_ZMQ_CLIENT_BROKER_REQ_MSG_FRAME_CHUNK;
+          BGPVIEW_IO_ZMQ_CLIENT_BROKER_REQ_MSG_FRAME_CHUNK;
         if ((req->msg_frames =
-                 realloc(req->msg_frames,
-                         sizeof(zmq_msg_t) * req->msg_frames_alloc)) == NULL) {
+               realloc(req->msg_frames,
+                       sizeof(zmq_msg_t) * req->msg_frames_alloc)) == NULL) {
           fprintf(stderr, "Could not allocate message frames\n");
           goto err;
         }
@@ -695,7 +695,7 @@ err:
 static int handle_signal_msg(zloop_t *loop, zsock_t *reader, void *arg)
 {
   bgpview_io_zmq_client_broker_t *broker =
-      (bgpview_io_zmq_client_broker_t *)arg;
+    (bgpview_io_zmq_client_broker_t *)arg;
   uint64_t clock = epoch_msec();
 
   zmsg_t *msg = NULL;
@@ -851,7 +851,7 @@ void bgpview_io_zmq_client_broker_run(zsock_t *pipe, void *args)
   assert(args != NULL);
 
   if ((broker = broker_init(
-           pipe, (bgpview_io_zmq_client_broker_config_t *)args)) == NULL) {
+         pipe, (bgpview_io_zmq_client_broker_config_t *)args)) == NULL) {
     return;
   }
 

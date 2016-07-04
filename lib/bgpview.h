@@ -337,7 +337,7 @@ void bgpview_set_user_destructor(bgpview_t *view,
  * memory
  */
 void bgpview_set_pfx_user_destructor(
-    bgpview_t *view, bgpview_destroy_user_t *bwv_pfx_user_destructor);
+  bgpview_t *view, bgpview_destroy_user_t *bwv_pfx_user_destructor);
 
 /** Set the peer user destructor function. If the function is set to NULL,
  *  then no the user pointer will not be destroyed by the bgpview
@@ -348,7 +348,7 @@ void bgpview_set_pfx_user_destructor(
  * user memory
  */
 void bgpview_set_peer_user_destructor(
-    bgpview_t *view, bgpview_destroy_user_t *bwv_peer_user_destructor);
+  bgpview_t *view, bgpview_destroy_user_t *bwv_peer_user_destructor);
 
 /** Set the pfx-peer user destructor function. If the function is set to NULL,
  *  then no the user pointer will not be destroyed by the bgpview
@@ -359,7 +359,7 @@ void bgpview_set_peer_user_destructor(
  * per-peer user memory
  */
 void bgpview_set_pfx_peer_user_destructor(
-    bgpview_t *view, bgpview_destroy_user_t *bwv_pfx_peer_user_destructor);
+  bgpview_t *view, bgpview_destroy_user_t *bwv_pfx_peer_user_destructor);
 
 /** Get the AS Path Store associated with this view
  *
@@ -970,7 +970,7 @@ int bgpview_iter_pfx_peer_set_as_path(bgpview_iter_t *iter,
  * The given AS path ID must already exist in the path store used by the view.
  */
 int bgpview_iter_pfx_peer_set_as_path_by_id(
-    bgpview_iter_t *iter, bgpstream_as_path_store_path_id_t path_id);
+  bgpview_iter_t *iter, bgpstream_as_path_store_path_id_t path_id);
 
 /** Get the state of the current pfx-peer pointed by the given iterator
  *

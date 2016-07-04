@@ -252,8 +252,8 @@ static int init_output_log(bvc_t *consumer, uint32_t ts)
 
   /* open file for writing */
   if ((state->wandio_fh =
-           wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+         wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
     return -1;
   }
@@ -280,8 +280,8 @@ static int close_output_log(bvc_t *consumer, uint32_t ts)
     snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
              state->output_folder, ts, state->current_window_size);
     if ((state->wandio_fh =
-             wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                            DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+           wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
       fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
       return -1;
     }
@@ -382,8 +382,8 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
       // printing a path for each peer
       peerid = bgpview_iter_peer_get_peer_id(it);
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-              peerid)) {
+            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+            peerid)) {
         bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
         // first ASn
@@ -553,14 +553,14 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "current_window_size");
   if ((state->current_window_size_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size, "new_moas_count");
   if ((state->new_moas_pfxs_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -568,7 +568,7 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "new_recurring_moas_count");
   if ((state->new_recurring_moas_pfxs_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -576,7 +576,7 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "ongoing_moas_count");
   if ((state->ongoing_moas_pfxs_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -584,7 +584,7 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "finished_moas_count");
   if ((state->finished_moas_pfxs_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -847,8 +847,8 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
       /* only consider peers that are full-feed */
 
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-              peerid)) {
+            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+            peerid)) {
 
         /* get origin asn */
         if ((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL) {

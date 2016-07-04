@@ -177,11 +177,11 @@ static void perpfx_info_destroy(void *ppi)
 static void usage(bvc_t *consumer)
 {
   fprintf(
-      stderr,
-      "consumer usage: %s\n"
-      "       -w <window-size>      window size in seconds (default %d)\n"
-      "       -o <path>             output folder (default: current folder)\n",
-      consumer->name, WINDOW_SIZE);
+    stderr,
+    "consumer usage: %s\n"
+    "       -w <window-size>      window size in seconds (default %d)\n"
+    "       -o <path>             output folder (default: current folder)\n",
+    consumer->name, WINDOW_SIZE);
 }
 
 /** Parse the arguments given to the consumer */
@@ -255,7 +255,7 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "ipv4.routed_pfxs_count");
   if ((state->routed_ipv4_prefixes_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -263,7 +263,7 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "ipv6.routed_pfxs_count");
   if ((state->routed_ipv6_prefixes_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -271,14 +271,14 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "ipv4.new_routed_pfxs_count");
   if ((state->new_routed_ipv4_prefixes_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_WIN_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size,
            "ipv6.new_routed_pfxs_count");
   if ((state->new_routed_ipv6_prefixes_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -286,7 +286,7 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "ipv4.old_routed_pfxs_count");
   if ((state->old_routed_ipv4_prefixes_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -294,7 +294,7 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "ipv6.old_routed_pfxs_count");
   if ((state->old_routed_ipv6_prefixes_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -510,8 +510,8 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
            state->output_folder, state->ts, state->window_size);
 
   if ((wandio_fh =
-           wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+         wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
     return -1;
   }
@@ -561,7 +561,7 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
      * with something that was there before */
 
     if ((patricia_node =
-             bgpstream_patricia_tree_insert(state->patricia, pfx)) == NULL) {
+           bgpstream_patricia_tree_insert(state->patricia, pfx)) == NULL) {
       fprintf(stderr, "ERROR: could not insert prefix in patricia tree\n");
       return -1;
     }
@@ -583,9 +583,8 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
 
       /* if the prefix does not overlap with any other pfxs
        * in the tree, then it's a new routed */
-      if (bgpstream_patricia_tree_get_node_overlap_info(state->patricia,
-                                                        patricia_node) ==
-          BGPSTREAM_PATRICIA_EXACT_MATCH) {
+      if (bgpstream_patricia_tree_get_node_overlap_info(
+            state->patricia, patricia_node) == BGPSTREAM_PATRICIA_EXACT_MATCH) {
         new_routed = 1;
       }
     } else {
@@ -623,8 +622,8 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
            "%srouted-space.%" PRIu32 ".%" PRIu32 "s-window.gz.done",
            state->output_folder, state->ts, state->window_size);
   if ((wandio_fh =
-           wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+         wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
     return -1;
   }

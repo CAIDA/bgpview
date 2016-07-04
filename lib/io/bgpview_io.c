@@ -112,9 +112,8 @@ int bgpview_io_serialize_pfx(uint8_t *buf, size_t len, bgpstream_pfx_t *pfx)
   size_t written = 0;
 
   /* pfx address */
-  if ((s = bgpview_io_serialize_ip(buf, (len - written),
-                                   (bgpstream_ip_addr_t *)(&pfx->address))) ==
-      -1) {
+  if ((s = bgpview_io_serialize_ip(
+         buf, (len - written), (bgpstream_ip_addr_t *)(&pfx->address))) == -1) {
     goto err;
   }
   written += s;
@@ -171,7 +170,7 @@ int bgpview_io_serialize_peer(uint8_t *buf, size_t len, bgpstream_peer_id_t id,
 
   /* Peer IP */
   if ((s = bgpview_io_serialize_ip(
-           buf, len, (bgpstream_ip_addr_t *)(&sig->peer_ip_addr))) < 0) {
+         buf, len, (bgpstream_ip_addr_t *)(&sig->peer_ip_addr))) < 0) {
     goto err;
   }
   written += s;
@@ -224,7 +223,7 @@ err:
 }
 
 int bgpview_io_serialize_as_path_store_path(
-    uint8_t *buf, size_t len, bgpstream_as_path_store_path_t *spath)
+  uint8_t *buf, size_t len, bgpstream_as_path_store_path_t *spath)
 {
   size_t written = 0;
   uint8_t *path_data;
@@ -251,8 +250,8 @@ int bgpview_io_serialize_as_path_store_path(
 }
 
 int bgpview_io_deserialize_as_path_store_path(
-    uint8_t *buf, size_t len, bgpstream_as_path_store_t *store,
-    bgpstream_as_path_store_path_id_t *pathid)
+  uint8_t *buf, size_t len, bgpstream_as_path_store_t *store,
+  bgpstream_as_path_store_path_id_t *pathid)
 {
   size_t read = 0;
 
@@ -420,12 +419,11 @@ err:
 }
 
 int bgpview_io_deserialize_pfx_row(
-    uint8_t *buf, size_t len, bgpview_iter_t *it,
-    bgpview_io_filter_pfx_cb_t *pfx_cb,
-    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
-    bgpstream_peer_id_t *peerid_map, int peerid_map_cnt,
-    bgpstream_as_path_store_path_id_t *pathid_map, int pathid_map_cnt,
-    bgpview_field_state_t state)
+  uint8_t *buf, size_t len, bgpview_iter_t *it,
+  bgpview_io_filter_pfx_cb_t *pfx_cb,
+  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb, bgpstream_peer_id_t *peerid_map,
+  int peerid_map_cnt, bgpstream_as_path_store_path_id_t *pathid_map,
+  int pathid_map_cnt, bgpview_field_state_t state)
 {
   size_t read = 0;
   size_t s = 0;
@@ -496,7 +494,7 @@ int bgpview_io_deserialize_pfx_row(
     } else if (state == BGPVIEW_FIELD_ACTIVE) {
       /* we ask to deserialize (and insert) the path into the store */
       if ((s = bgpview_io_deserialize_as_path_store_path(
-               buf, (len - read), store, &pathid)) == -1) {
+             buf, (len - read), store, &pathid)) == -1) {
         goto err;
       }
       read += s;
@@ -546,8 +544,8 @@ int bgpview_io_deserialize_pfx_row(
       if (pfx_peers_added == 0) {
         /* seek to pfx-peer */
         if (bgpview_iter_seek_pfx_peer(
-                it, (bgpstream_pfx_t *)&pfx, peerid_map[peerid],
-                BGPVIEW_FIELD_ALL_VALID, BGPVIEW_FIELD_ALL_VALID) == 1) {
+              it, (bgpstream_pfx_t *)&pfx, peerid_map[peerid],
+              BGPVIEW_FIELD_ALL_VALID, BGPVIEW_FIELD_ALL_VALID) == 1) {
           bgpview_iter_pfx_deactivate_peer(it);
         }
       } else {

@@ -215,8 +215,8 @@ static int recv_pfxs(void *src, bgpview_iter_t *it,
     pfx_rx++;
 
     if ((read = bgpview_io_deserialize_pfx_row(
-             buf, len, it, pfx_cb, pfx_peer_cb, peerid_map, peerid_map_cnt,
-             pathid_map, pathid_map_cnt, BGPVIEW_FIELD_ACTIVE)) == -1) {
+           buf, len, it, pfx_cb, pfx_peer_cb, peerid_map, peerid_map_cnt,
+           pathid_map, pathid_map_cnt, BGPVIEW_FIELD_ACTIVE)) == -1) {
       goto err;
     }
 
@@ -271,8 +271,8 @@ static int send_peers(void *dest, bgpview_iter_t *it,
     peers_tx++;
 
     if ((written = bgpview_io_serialize_peer(
-             buf, BUFFER_LEN, bgpview_iter_peer_get_peer_id(it),
-             bgpview_iter_peer_get_sig(it))) < 0) {
+           buf, BUFFER_LEN, bgpview_iter_peer_get_peer_id(it),
+           bgpview_iter_peer_get_sig(it))) < 0) {
       goto err;
     }
 
@@ -367,7 +367,7 @@ static int recv_peers(void *src, bgpview_iter_t *iter,
     /* ensure we have enough space in the id map */
     if ((peerid_orig + 1) > idmap_cnt) {
       if ((idmap = realloc(idmap, sizeof(bgpstream_peer_id_t) *
-                                      (peerid_orig + 1))) == NULL) {
+                                    (peerid_orig + 1))) == NULL) {
         goto err;
       }
 
@@ -541,7 +541,7 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
         idmap_cnt = pathidx == 0 ? 1 : pathidx * 2;
 
         if ((idmap = realloc(idmap, sizeof(bgpstream_as_path_store_path_id_t) *
-                                        idmap_cnt)) == NULL) {
+                                      idmap_cnt)) == NULL) {
           goto err;
         }
 
@@ -550,8 +550,8 @@ static int recv_paths(void *src, bgpview_iter_t *iter,
     }
 
     if ((s = bgpview_io_deserialize_as_path_store_path(
-             buf, (len - read), store,
-             (store == NULL) ? NULL : &idmap[pathidx])) == -1) {
+           buf, (len - read), store,
+           (store == NULL) ? NULL : &idmap[pathidx])) == -1) {
       goto err;
     }
     read += s;

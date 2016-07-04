@@ -124,15 +124,15 @@ static int kafka_topic_connect(bgpview_io_kafka_t *client)
 static void usage()
 {
   fprintf(
-      stderr,
-      "Kafka Consumer Options:\n"
-      "       -i <identity>         Consume directly from the given producer\n"
-      "                             (rather than a global view from all "
-      "producers)\n"
-      "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
-      "       -n <namespace>        Kafka topic namespace to use (default: "
-      "%s)\n",
-      BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT, BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
+    stderr,
+    "Kafka Consumer Options:\n"
+    "       -i <identity>         Consume directly from the given producer\n"
+    "                             (rather than a global view from all "
+    "producers)\n"
+    "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
+    "       -n <namespace>        Kafka topic namespace to use (default: "
+    "%s)\n",
+    BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT, BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
 }
 
 static int parse_args(bgpview_io_kafka_t *client, int argc, char **argv)
@@ -205,24 +205,24 @@ int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
                                           bgpview_io_kafka_topic_t *topic)
 {
   static char *names[] = {
-      "pfxs", "peers", "meta", "members", "globalmeta",
+    "pfxs", "peers", "meta", "members", "globalmeta",
   };
 
   typedef int(topic_connect_func_t)(bgpview_io_kafka_t * client,
                                     rd_kafka_topic_t * *rkt, char *topic);
 
   topic_connect_func_t *topic_connect_funcs[] = {
-      // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
-      bgpview_io_kafka_consumer_topic_connect,
+    // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
+    bgpview_io_kafka_consumer_topic_connect,
 
-      // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
-      bgpview_io_kafka_consumer_topic_connect,
+    // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
+    bgpview_io_kafka_consumer_topic_connect,
 
-      // AUTO CONSUMER
-      NULL,
+    // AUTO CONSUMER
+    NULL,
 
-      // BGPVIEW_IO_KAFKA_MODE_PRODUCER
-      bgpview_io_kafka_producer_topic_connect,
+    // BGPVIEW_IO_KAFKA_MODE_PRODUCER
+    bgpview_io_kafka_producer_topic_connect,
   };
 
   // build the name
@@ -344,9 +344,9 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
     int drain_wait_cnt = 12;
     while (rd_kafka_outq_len(client->rdk_conn) > 0 && drain_wait_cnt > 0) {
       fprintf(
-          stderr,
-          "INFO: Waiting for Kafka queue to drain (currently %d messages)\n",
-          rd_kafka_outq_len(client->rdk_conn));
+        stderr,
+        "INFO: Waiting for Kafka queue to drain (currently %d messages)\n",
+        rd_kafka_outq_len(client->rdk_conn));
       rd_kafka_poll(client->rdk_conn, 5000);
       drain_wait_cnt--;
     }
@@ -402,17 +402,17 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
 typedef int(kafka_connect_func_t)(bgpview_io_kafka_t *client);
 
 static kafka_connect_func_t *kafka_connect_funcs[] = {
-    // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
-    bgpview_io_kafka_consumer_connect,
+  // BGPVIEW_IO_KAFKA_MODE_DIRECT_CONSUMER
+  bgpview_io_kafka_consumer_connect,
 
-    // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
-    bgpview_io_kafka_consumer_connect,
+  // BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER
+  bgpview_io_kafka_consumer_connect,
 
-    // AUTO CONSUMER
-    NULL,
+  // AUTO CONSUMER
+  NULL,
 
-    // BGPVIEW_IO_KAFKA_MODE_PRODUCER
-    bgpview_io_kafka_producer_connect,
+  // BGPVIEW_IO_KAFKA_MODE_PRODUCER
+  bgpview_io_kafka_producer_connect,
 };
 
 int bgpview_io_kafka_start(bgpview_io_kafka_t *client)

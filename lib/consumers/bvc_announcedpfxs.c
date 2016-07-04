@@ -153,7 +153,7 @@ static int create_ts_metrics(bvc_t *consumer)
   snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_TH_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size, "v4pfx_count");
   if ((state->ipv4_visible_pfxs_count_idx =
-           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+         timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -171,12 +171,12 @@ static int create_ts_metrics(bvc_t *consumer)
 static void usage(bvc_t *consumer)
 {
   fprintf(
-      stderr,
-      "consumer usage: %s\n"
-      "       -w <window-size>      window size in seconds (default %d)\n"
-      "       -i <output-interval>  output interval in seconds (default %d)\n"
-      "       -o <path>             output folder (default: current folder)\n",
-      consumer->name, WINDOW_SIZE, OUTPUT_INTERVAL);
+    stderr,
+    "consumer usage: %s\n"
+    "       -w <window-size>      window size in seconds (default %d)\n"
+    "       -i <output-interval>  output interval in seconds (default %d)\n"
+    "       -o <path>             output folder (default: current folder)\n",
+    consumer->name, WINDOW_SIZE, OUTPUT_INTERVAL);
 }
 
 /** Parse the arguments given to the consumer */
@@ -369,8 +369,8 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
       /* only consider peers that are full-feed */
       peerid = bgpview_iter_peer_get_peer_id(it);
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv4_idx],
-              peerid)) {
+            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv4_idx],
+            peerid)) {
         /* update the prefix timestamp */
         kh_value(state->v4pfx_ts, k) = current_view_ts;
         break;
@@ -421,8 +421,8 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
       if (kh_value(state->v4pfx_ts, k) >= last_valid_timestamp) {
         if (state->next_output_time <= current_view_ts) {
           if (bgpstream_pfx_snprintf(
-                  buffer_str, INET6_ADDRSTRLEN + 3,
-                  (bgpstream_pfx_t *)&kh_key(state->v4pfx_ts, k)) != NULL) {
+                buffer_str, INET6_ADDRSTRLEN + 3,
+                (bgpstream_pfx_t *)&kh_key(state->v4pfx_ts, k)) != NULL) {
             if (wandio_printf(f, "%s\n", buffer_str) == -1) {
               fprintf(stderr, "ERROR: Could not write %s file\n", filename);
               return -1;

@@ -70,7 +70,7 @@ typedef enum {
 } store_view_state_t;
 
 static char *store_view_state_names[] = {
-    "unused", "unknown", "partial", "full",
+  "unused", "unknown", "partial", "full",
 };
 
 /* one view will be hard-cleared at each cycle through the window */
@@ -659,7 +659,7 @@ void bgpview_io_zmq_store_destroy(bgpview_io_zmq_store_t *store)
 }
 
 int bgpview_io_zmq_store_client_connect(
-    bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client)
+  bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client)
 {
   khiter_t k;
   int khret;
@@ -684,7 +684,7 @@ int bgpview_io_zmq_store_client_connect(
 }
 
 int bgpview_io_zmq_store_client_disconnect(
-    bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client)
+  bgpview_io_zmq_store_t *store, bgpview_io_zmq_server_client_info_t *client)
 {
   int i;
   khiter_t k;
@@ -736,8 +736,8 @@ bgpview_t *bgpview_io_zmq_store_get_view(bgpview_io_zmq_store_t *store,
 }
 
 int bgpview_io_zmq_store_view_updated(
-    bgpview_io_zmq_store_t *store, bgpview_t *view,
-    bgpview_io_zmq_server_client_info_t *client)
+  bgpview_io_zmq_store_t *store, bgpview_t *view,
+  bgpview_io_zmq_server_client_info_t *client)
 {
   store_view_t *sview;
   int i;

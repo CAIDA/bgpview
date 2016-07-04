@@ -106,68 +106,68 @@ typedef bvc_t *(*consumer_alloc_func_t)();
 /** Array of backend allocation functions. */
 static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
-    /** Pointer to test backend alloc function */
-    bvc_test_alloc,
+  /** Pointer to test backend alloc function */
+  bvc_test_alloc,
 
-    /** Pointer to performance monitor function */
-    bvc_perfmonitor_alloc,
+  /** Pointer to performance monitor function */
+  bvc_perfmonitor_alloc,
 
-    /** Pointer to visibility alloc function */
-    bvc_visibility_alloc,
+  /** Pointer to visibility alloc function */
+  bvc_visibility_alloc,
 
-    /** Pointer to per-as vis alloc function */
-    bvc_perasvisibility_alloc,
+  /** Pointer to per-as vis alloc function */
+  bvc_perasvisibility_alloc,
 
-    /** Pointer to per-geo vis alloc function */
-    bvc_pergeovisibility_alloc,
+  /** Pointer to per-geo vis alloc function */
+  bvc_pergeovisibility_alloc,
 
-    /** Pointer to announcedpfxs alloc function */
-    bvc_announcedpfxs_alloc,
+  /** Pointer to announcedpfxs alloc function */
+  bvc_announcedpfxs_alloc,
 
-    /** Pointer to moas alloc function */
-    bvc_moas_alloc,
+  /** Pointer to moas alloc function */
+  bvc_moas_alloc,
 
 #ifdef WITH_BGPVIEW_IO_FILE
-    /** Pointer to archiver alloc function */
-    bvc_archiver_alloc,
+  /** Pointer to archiver alloc function */
+  bvc_archiver_alloc,
 #else
-    NULL,
+  NULL,
 #endif
 
-    /** Pointer to submoas alloc function */
-    bvc_submoas_alloc,
+  /** Pointer to submoas alloc function */
+  bvc_submoas_alloc,
 
-    /** Pointer to edge alloc function */
-    bvc_edges_alloc,
+  /** Pointer to edge alloc function */
+  bvc_edges_alloc,
 
-    /** Pointer to triplet alloc function */
-    bvc_triplets_alloc,
+  /** Pointer to triplet alloc function */
+  bvc_triplets_alloc,
 
-    /** Pointer to pfxorigins alloc function */
-    bvc_pfxorigins_alloc,
+  /** Pointer to pfxorigins alloc function */
+  bvc_pfxorigins_alloc,
 
-    /** Pointer to routedspace alloc function */
-    bvc_routedspace_alloc,
+  /** Pointer to routedspace alloc function */
+  bvc_routedspace_alloc,
 
-    /** Pointer to myviewprocess alloc function */
-    bvc_myviewprocess_alloc,
+  /** Pointer to myviewprocess alloc function */
+  bvc_myviewprocess_alloc,
 
 #if defined(WITH_BGPVIEW_IO_KAFKA) || defined(WITH_BGPVIEW_IO_ZMQ)
-    /** Pointer to viewsender alloc function */
-    bvc_viewsender_alloc,
+  /** Pointer to viewsender alloc function */
+  bvc_viewsender_alloc,
 #else
-    NULL,
+  NULL,
 #endif
 
-    /** Sample conditional consumer. If enabled, point to the alloc function,
-        otherwise a NULL pointer to indicate the consumer is unavailable */
-    /*
-      #ifdef WITH_<NAME>
-      bvc_<name>_alloc,
-      #else
-      NULL,
-      #endif
-    */
+  /** Sample conditional consumer. If enabled, point to the alloc function,
+      otherwise a NULL pointer to indicate the consumer is unavailable */
+  /*
+    #ifdef WITH_<NAME>
+    bvc_<name>_alloc,
+    #else
+    NULL,
+    #endif
+  */
 
 };
 
@@ -354,7 +354,7 @@ int bgpview_consumer_manager_enable_consumer(bvc_t *consumer,
 }
 
 bvc_t *bgpview_consumer_manager_enable_consumer_from_str(
-    bgpview_consumer_manager_t *mgr, const char *cmd)
+  bgpview_consumer_manager_t *mgr, const char *cmd)
 {
   char *strcpy = NULL;
   char *args = NULL;
@@ -416,7 +416,7 @@ bgpview_consumer_manager_get_consumer_by_name(bgpview_consumer_manager_t *mgr,
 
   for (id = BVC_ID_FIRST; id <= BVC_ID_LAST; id++) {
     if ((consumer = bgpview_consumer_manager_get_consumer_by_id(mgr, id)) !=
-            NULL &&
+          NULL &&
         strncasecmp(consumer->name, name, strlen(consumer->name)) == 0) {
       return consumer;
     }
@@ -440,7 +440,7 @@ int bgpview_consumer_manager_process_view(bgpview_consumer_manager_t *mgr,
 
   for (id = BVC_ID_FIRST; id <= BVC_ID_LAST; id++) {
     if ((consumer = bgpview_consumer_manager_get_consumer_by_id(mgr, id)) ==
-            NULL ||
+          NULL ||
         bvc_is_enabled(consumer) == 0) {
       continue;
     }
