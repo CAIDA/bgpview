@@ -320,8 +320,8 @@ static int handle_recv_view(bgpview_io_zmq_server_t *server,
   }
   view_time = ntohl(view_time);
 
-  DUMP_METRIC(server->metric_prefix, epoch_sec() - view_time, view_time,
-              "view_receive.%s.begin_delay", client->id);
+  DUMP_METRIC(server->metric_prefix, (uint64_t)(epoch_sec() - view_time),
+              view_time, "view_receive.%s.begin_delay", client->id);
 
 #ifdef DEBUG
   fprintf(stderr, "**************************************\n");
@@ -349,8 +349,8 @@ static int handle_recv_view(bgpview_io_zmq_server_t *server,
     bgpview_set_time(view, view_time);
   }
 
-  DUMP_METRIC(server->metric_prefix, epoch_sec() - view_time, view_time,
-              "view_receive.%s.receive_delay", client->id);
+  DUMP_METRIC(server->metric_prefix, (uint64_t)(epoch_sec() - view_time),
+              view_time, "view_receive.%s.receive_delay", client->id);
 
   /* tell the store that the view has been updated */
   if (bgpview_io_zmq_store_view_updated(server->store, view, &client->info) !=
@@ -881,7 +881,7 @@ int bgpview_io_zmq_server_publish_view(bgpview_io_zmq_server_t *server,
     return -1;
   }
 
-  DUMP_METRIC(server->metric_prefix, epoch_sec() - time, time, "%s",
+  DUMP_METRIC(server->metric_prefix, (uint64_t)(epoch_sec() - time), time, "%s",
               "publication.delay");
 
   return 0;
