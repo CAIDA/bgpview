@@ -61,24 +61,23 @@ static void catch_sigint(int sig)
 static void usage(const char *name)
 {
   fprintf(
-      stderr,
-      "usage: %s [<options>]\n"
-      "       -c <client-uri>    0MQ-style URI to listen for clients on\n"
-      "                          (default: %s)\n"
-      "       -C <client-pub-uri> 0MQ-style URI to publish tables on\n"
-      "                          (default: %s)\n"
-      "       -i <interval-ms>   Time in ms between heartbeats to clients\n"
-      "                          (default: %d)\n"
-      "       -l <beats>         Number of heartbeats that can go by before \n"
-      "                          a client is declared dead (default: %d)\n"
-      "       -w <window-len>    Number of views in the window (default: %d)\n"
-      "       -m <prefix>        Metric prefix (default: %s)\n",
-      name, BGPVIEW_IO_ZMQ_CLIENT_URI_DEFAULT,
-      BGPVIEW_IO_ZMQ_CLIENT_PUB_URI_DEFAULT,
-      BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
-      BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
-      BGPVIEW_IO_ZMQ_SERVER_WINDOW_LEN,
-      BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_DEFAULT);
+    stderr,
+    "usage: %s [<options>]\n"
+    "       -c <client-uri>    0MQ-style URI to listen for clients on\n"
+    "                          (default: %s)\n"
+    "       -C <client-pub-uri> 0MQ-style URI to publish tables on\n"
+    "                          (default: %s)\n"
+    "       -i <interval-ms>   Time in ms between heartbeats to clients\n"
+    "                          (default: %d)\n"
+    "       -l <beats>         Number of heartbeats that can go by before \n"
+    "                          a client is declared dead (default: %d)\n"
+    "       -w <window-len>    Number of views in the window (default: %d)\n"
+    "       -m <prefix>        Metric prefix (default: %s)\n",
+    name, BGPVIEW_IO_ZMQ_CLIENT_URI_DEFAULT,
+    BGPVIEW_IO_ZMQ_CLIENT_PUB_URI_DEFAULT,
+    BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
+    BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT, BGPVIEW_IO_ZMQ_SERVER_WINDOW_LEN,
+    BGPVIEW_IO_ZMQ_SERVER_METRIC_PREFIX_DEFAULT);
 }
 
 int main(int argc, char **argv)

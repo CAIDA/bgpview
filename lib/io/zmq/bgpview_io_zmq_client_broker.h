@@ -227,6 +227,6 @@ bgpview_io_zmq_client_broker_req_t *bgpview_io_zmq_client_broker_req_init();
  * @param req_p           double-pointer to a request instance
  */
 void bgpview_io_zmq_client_broker_req_free(
-    bgpview_io_zmq_client_broker_req_t **req_p);
+  bgpview_io_zmq_client_broker_req_t **req_p);
 
 #endif

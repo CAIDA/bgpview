@@ -214,7 +214,7 @@ static int init_ipmeta(bvc_t *consumer)
 
   /* lookup the provider using the name  */
   if ((state->provider = ipmeta_get_provider_by_name(
-           state->ipmeta, GEO_PROVIDER_NAME)) == NULL) {
+         state->ipmeta, GEO_PROVIDER_NAME)) == NULL) {
     fprintf(stderr, "ERROR: Invalid provider name: %s\n", GEO_PROVIDER_NAME);
     return -1;
   }
@@ -324,7 +324,7 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo,
                bgpstream_idx2number(v), threshold_string(i),
                "visible_prefixes_cnt");
       if ((per_geo->info[i].pfx_cnt_idx[v] =
-               timeseries_kp_add_key(state->kp, buffer)) == -1) {
+             timeseries_kp_add_key(state->kp, buffer)) == -1) {
         return -1;
       }
       /* visible_ips_cnt */
@@ -332,10 +332,10 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo,
                CHAIN_STATE->metric_prefix, continent, iso2_cc,
                bgpstream_idx2number(v), threshold_string(i),
                v == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)
-                   ? "visible_slash24_cnt"
-                   : "visible_slash64_cnt");
+                 ? "visible_slash24_cnt"
+                 : "visible_slash64_cnt");
       if ((per_geo->info[i].subnet_cnt_idx[v] =
-               timeseries_kp_add_key(state->kp, buffer)) == -1) {
+             timeseries_kp_add_key(state->kp, buffer)) == -1) {
         return -1;
       }
       /* visible_asns_cnt */
@@ -344,7 +344,7 @@ static int pergeo_info_init(bvc_t *consumer, pergeo_info_t *per_geo,
                bgpstream_idx2number(v), threshold_string(i),
                "visible_asns_cnt");
       if ((per_geo->info[i].asns_cnt_idx =
-               timeseries_kp_add_key(state->kp, buffer)) == -1) {
+             timeseries_kp_add_key(state->kp, buffer)) == -1) {
         return -1;
       }
     }
@@ -359,8 +359,8 @@ static int pergeo_info_update(bvc_t *consumer, pergeo_info_t *per_geo,
 
   /* number of full feed ASns for the current IP version*/
   int totalfullfeed =
-      CHAIN_STATE
-          ->full_feed_peer_asns_cnt[bgpstream_ipv2idx(pfx->address.version)];
+    CHAIN_STATE
+      ->full_feed_peer_asns_cnt[bgpstream_ipv2idx(pfx->address.version)];
   assert(totalfullfeed > 0);
 
   /* number of full feed ASns observing the current prefix*/
@@ -416,7 +416,7 @@ static int create_geo_pfxs_vis(bvc_t *consumer)
 
   ipmeta_provider_netacq_edge_country_t **countries = NULL;
   int num_countries =
-      ipmeta_provider_netacq_edge_get_countries(state->provider, &countries);
+    ipmeta_provider_netacq_edge_get_countries(state->provider, &countries);
 
   /* we create an entry in the geo_pfxs_vis state for each country */
   for (i = 0; i < num_countries; i++) {
@@ -444,7 +444,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
   assert(pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4);
 
   khash_t(country_k_set) *cck_set =
-      (khash_t(country_k_set) *)bgpview_iter_pfx_get_user(it);
+    (khash_t(country_k_set) *)bgpview_iter_pfx_get_user(it);
 
   /* if the user pointer does not contain geographical information (i.e., it is
    * NULL), then create new geo info */
@@ -523,7 +523,7 @@ static int compute_geo_pfx_visibility(bvc_t *consumer, bgpview_iter_t *it)
     /* only consider ipv4 prefixes whose mask is greater than a /6 */
     if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4 &&
         pfx->mask_len <
-            BVC_GET_CHAIN_STATE(consumer)->pfx_vis_mask_len_threshold) {
+          BVC_GET_CHAIN_STATE(consumer)->pfx_vis_mask_len_threshold) {
       continue;
     }
 
@@ -541,9 +541,9 @@ static int compute_geo_pfx_visibility(bvc_t *consumer, bgpview_iter_t *it)
        * feed
        * for the current pfx IP version ) */
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)
-                  ->full_feed_peer_ids[bgpstream_ipv2idx(pfx->address.version)],
-              bgpview_iter_peer_get_peer_id(it)) == 0) {
+            BVC_GET_CHAIN_STATE(consumer)
+              ->full_feed_peer_ids[bgpstream_ipv2idx(pfx->address.version)],
+            bgpview_iter_peer_get_peer_id(it)) == 0) {
         continue;
       }
 
@@ -598,16 +598,16 @@ static int output_metrics_and_reset(bvc_t *consumer)
 
         /* IPv4*/
         timeseries_kp_set(
-            state->kp,
-            per_geo->info[i]
-                .pfx_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
-            bgpstream_patricia_prefix_count(per_geo->info[i].pt,
-                                            BGPSTREAM_ADDR_VERSION_IPV4));
+          state->kp,
+          per_geo->info[i]
+            .pfx_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
+          bgpstream_patricia_prefix_count(per_geo->info[i].pt,
+                                          BGPSTREAM_ADDR_VERSION_IPV4));
         timeseries_kp_set(
-            state->kp,
-            per_geo->info[i]
-                .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
-            bgpstream_patricia_tree_count_24subnets(per_geo->info[i].pt));
+          state->kp,
+          per_geo->info[i]
+            .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
+          bgpstream_patricia_tree_count_24subnets(per_geo->info[i].pt));
 
         /* IPv6 is not here yet */
         /* timeseries_kp_set(state->kp, */
@@ -776,7 +776,7 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
   bvc_pergeovisibility_state_t *state = STATE;
 
   if (BVC_GET_CHAIN_STATE(consumer)
-          ->usable_table_flag[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] ==
+        ->usable_table_flag[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] ==
       0) {
     fprintf(stderr,
             "ERROR: Per-Geo Visibility can't use this table %" PRIu32 "\n",

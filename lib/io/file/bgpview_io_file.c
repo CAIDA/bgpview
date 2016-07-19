@@ -478,7 +478,7 @@ static int read_peers(io_t *infile, bgpview_iter_t *iter,
     /* ensure we have enough space in the id map */
     if ((peerid_orig + 1) > idmap_cnt) {
       if ((idmap = realloc(idmap, sizeof(bgpstream_peer_id_t) *
-                                      (peerid_orig + 1))) == NULL) {
+                                    (peerid_orig + 1))) == NULL) {
         goto err;
       }
 
@@ -574,7 +574,7 @@ static int read_paths(io_t *infile, bgpview_iter_t *iter,
         idmap_cnt = pathidx == 0 ? 1 : pathidx * 2;
 
         if ((idmap = realloc(idmap, sizeof(bgpstream_as_path_store_path_id_t) *
-                                        idmap_cnt)) == NULL) {
+                                      idmap_cnt)) == NULL) {
           goto err;
         }
 
@@ -689,7 +689,7 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
       if (pfx_peer_cb != NULL) {
         /* get the store path using the id */
         store_path =
-            bgpstream_as_path_store_get_store_path(store, pathid_map[pathidx]);
+          bgpstream_as_path_store_get_store_path(store, pathid_map[pathidx]);
         /* ask the caller if they want this pfx-peer */
         if ((filter = pfx_peer_cb(store_path)) < 0) {
           goto err;

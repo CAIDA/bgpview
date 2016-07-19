@@ -209,7 +209,7 @@ static int create_ts_metrics(bvc_t *consumer)
              CHAIN_STATE->metric_prefix, state->io_module, state->gr_instance,
              "diffs.added_pfx_peer_cnt");
     if ((state->added_pfx_peer_idx =
-             timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
       return -1;
     }
 
@@ -217,7 +217,7 @@ static int create_ts_metrics(bvc_t *consumer)
              CHAIN_STATE->metric_prefix, state->io_module, state->gr_instance,
              "diffs.changed_pfx_peer_cnt");
     if ((state->changed_pfx_peer_idx =
-             timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
       return -1;
     }
 
@@ -225,7 +225,7 @@ static int create_ts_metrics(bvc_t *consumer)
              CHAIN_STATE->metric_prefix, state->io_module, state->gr_instance,
              "diffs.removed_pfx_peer_cnt");
     if ((state->removed_pfx_peer_idx =
-             timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+           timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
       return -1;
     }
 
@@ -271,7 +271,7 @@ static int configure_io(bvc_t *consumer)
   else if (strcmp(STATE->io_module, "kafka") == 0) {
     fprintf(stderr, "INFO: Starting Kafka IO producer module...\n");
     if ((STATE->kafka_client = bgpview_io_kafka_init(
-             BGPVIEW_IO_KAFKA_MODE_PRODUCER, io_options)) == NULL) {
+           BGPVIEW_IO_KAFKA_MODE_PRODUCER, io_options)) == NULL) {
       goto err;
     }
     if (bgpview_io_kafka_start(STATE->kafka_client) != 0) {
@@ -284,7 +284,7 @@ static int configure_io(bvc_t *consumer)
   else if (strcmp(STATE->io_module, "zmq") == 0) {
     fprintf(stderr, "INFO: Starting ZMQ IO producer module...\n");
     if ((STATE->zmq_client = bgpview_io_zmq_client_init(
-             BGPVIEW_PRODUCER_INTENT_PREFIX)) == NULL) {
+           BGPVIEW_PRODUCER_INTENT_PREFIX)) == NULL) {
       fprintf(stderr, "ERROR: could not initialize ZMQ module\n");
       goto err;
     }
@@ -322,14 +322,14 @@ static void usage(bvc_t *consumer)
   fprintf(stderr, "                                - zmq\n");
 #endif
   fprintf(
-      stderr,
-      "       -n <instance-name>    Unique name for this sender (required)\n");
+    stderr,
+    "       -n <instance-name>    Unique name for this sender (required)\n");
 #ifdef WITH_BGPVIEW_IO_KAFKA
   fprintf(
-      stderr,
-      "       -s <sync-frequency>   Sync frame freq. in # views (default: %d)\n"
-      "                               (used only for Kafka)\n",
-      SYNC_FREQUENCY);
+    stderr,
+    "       -s <sync-frequency>   Sync frame freq. in # views (default: %d)\n"
+    "                               (used only for Kafka)\n",
+    SYNC_FREQUENCY);
 #endif
   fprintf(stderr, "       -4 <pfx-cnt>          Only send peers with > N IPv4 "
                   "pfxs (default: %d)\n"
@@ -566,7 +566,7 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
 
     // set timeseries metrics
     bgpview_io_kafka_stats_t *stats =
-        bgpview_io_kafka_get_stats(state->kafka_client);
+      bgpview_io_kafka_get_stats(state->kafka_client);
 
     timeseries_kp_set(state->kp, state->send_time_idx, send_time);
     timeseries_kp_set(state->kp, state->copy_time_idx, copy_time);

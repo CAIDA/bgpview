@@ -81,32 +81,32 @@ err:
 static void usage()
 {
   fprintf(
-      stderr,
-      "ZMQ Client Options:\n"
-      "       -i <interval-ms>      Time in ms between heartbeats to server\n"
-      "                               (default: %d)\n"
-      "       -l <beats>            Number of heartbeats that can go by before "
-      "the\n"
-      "                               server is declared dead (default: %d)\n"
-      "       -n <identity>         Globally unique client name (default: "
-      "random)\n"
-      "       -r <retry-min>        Min wait time (in msec) before "
-      "reconnecting server\n"
+    stderr,
+    "ZMQ Client Options:\n"
+    "       -i <interval-ms>      Time in ms between heartbeats to server\n"
+    "                               (default: %d)\n"
+    "       -l <beats>            Number of heartbeats that can go by before "
+    "the\n"
+    "                               server is declared dead (default: %d)\n"
+    "       -n <identity>         Globally unique client name (default: "
+    "random)\n"
+    "       -r <retry-min>        Min wait time (in msec) before "
+    "reconnecting server\n"
 
-      "                               (default: %d)\n"
-      "       -R <retry-max>        Max wait time (in msec) before "
-      "reconnecting server\n"
-      "                               (default: %d)\n"
-      "       -s <server-uri>       0MQ-style URI to connect to server on\n"
-      "                               (default: %s)\n"
-      "       -S <server-sub-uri>   0MQ-style URI to subscribe to tables on\n"
-      "                               (default: %s)\n",
-      BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
-      BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
-      BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN,
-      BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX,
-      BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT,
-      BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT);
+    "                               (default: %d)\n"
+    "       -R <retry-max>        Max wait time (in msec) before "
+    "reconnecting server\n"
+    "                               (default: %d)\n"
+    "       -s <server-uri>       0MQ-style URI to connect to server on\n"
+    "                               (default: %s)\n"
+    "       -S <server-sub-uri>   0MQ-style URI to subscribe to tables on\n"
+    "                               (default: %s)\n",
+    BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT,
+    BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT,
+    BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN,
+    BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX,
+    BGPVIEW_IO_ZMQ_CLIENT_SERVER_URI_DEFAULT,
+    BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT);
 }
 
 static int parse_args(bgpview_io_zmq_client_t *client, int argc, char **argv)
@@ -187,7 +187,7 @@ bgpview_io_zmq_client_t *bgpview_io_zmq_client_init(uint8_t intents)
   }
 
   if ((BCFG.server_sub_uri =
-           strdup(BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT)) == NULL) {
+         strdup(BGPVIEW_IO_ZMQ_CLIENT_SERVER_SUB_URI_DEFAULT)) == NULL) {
     fprintf(stderr, "Failed to duplicate server SUB uri string\n");
     goto err;
   }
@@ -278,10 +278,10 @@ err:
 }
 
 int bgpview_io_zmq_client_recv_view(
-    bgpview_io_zmq_client_t *client, bgpview_io_zmq_client_recv_mode_t blocking,
-    bgpview_t *view, bgpview_io_filter_peer_cb_t *peer_cb,
-    bgpview_io_filter_pfx_cb_t *pfx_cb,
-    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
+  bgpview_io_zmq_client_t *client, bgpview_io_zmq_client_recv_mode_t blocking,
+  bgpview_t *view, bgpview_io_filter_peer_cb_t *peer_cb,
+  bgpview_io_filter_pfx_cb_t *pfx_cb,
+  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
 
 {
   assert(view != NULL);
@@ -289,8 +289,8 @@ int bgpview_io_zmq_client_recv_view(
   /* attempt to get the empty prefix message */
   if (zmq_recv(client->broker_zocket, NULL, 0,
                (blocking == BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_NONBLOCK)
-                   ? ZMQ_DONTWAIT
-                   : 0) != 0) {
+                 ? ZMQ_DONTWAIT
+                 : 0) != 0) {
     /* likely this means that we have shut the broker down */
     return -1;
   }
@@ -404,7 +404,7 @@ int bgpview_io_zmq_client_set_server_sub_uri(bgpview_io_zmq_client_t *client,
 }
 
 void bgpview_io_zmq_client_set_heartbeat_interval(
-    bgpview_io_zmq_client_t *client, uint64_t interval_ms)
+  bgpview_io_zmq_client_t *client, uint64_t interval_ms)
 {
   assert(client != NULL);
 
@@ -417,7 +417,7 @@ void bgpview_io_zmq_client_set_heartbeat_interval(
 }
 
 void bgpview_io_zmq_client_set_heartbeat_liveness(
-    bgpview_io_zmq_client_t *client, int beats)
+  bgpview_io_zmq_client_t *client, int beats)
 {
   assert(client != NULL);
 
@@ -430,7 +430,7 @@ void bgpview_io_zmq_client_set_heartbeat_liveness(
 }
 
 void bgpview_io_zmq_client_set_reconnect_interval_min(
-    bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_min)
+  bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_min)
 {
   assert(client != NULL);
 
@@ -443,7 +443,7 @@ void bgpview_io_zmq_client_set_reconnect_interval_min(
 }
 
 void bgpview_io_zmq_client_set_reconnect_interval_max(
-    bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_max)
+  bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_max)
 {
   assert(client != NULL);
 

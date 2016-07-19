@@ -203,21 +203,21 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "finished_edges_count");
   if ((state->finished_edges_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size,
            "newrec_edges_count");
   if ((state->newrec_edges_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size,
            "ongoing_edges_count");
   if ((state->ongoing_edges_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -494,12 +494,11 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
       edge_info = get_edge_struct(consumer, asn1, asn2);
       // printf("printing\n");
       if (wandio_printf(
-              state->file_newedges,
-              "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|NEW|%" PRIu32 "|%" PRIu32
-              "|%" PRIu32 "|%s",
-              state->time_now, edge_info.asn1, edge_info.asn2,
-              edge_info.first_seen, edge_info.start, edge_info.first_seen,
-              bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1)
+            state->file_newedges, "%" PRIu32 "|%" PRIu32 "-%" PRIu32
+                                  "|NEW|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|%s",
+            state->time_now, edge_info.asn1, edge_info.asn2,
+            edge_info.first_seen, edge_info.start, edge_info.first_seen,
+            bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1)
 
       {
         fprintf(stderr, "ERROR: Could not write %s file\n",
@@ -514,8 +513,8 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
         // printing a path for each peer
         peerid = bgpview_iter_peer_get_peer_id(it);
         if (bgpstream_id_set_exists(
-                BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-                peerid)) {
+              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+              peerid)) {
           bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
           // first ASn
@@ -564,12 +563,12 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
       edge_info = get_edge_struct(consumer, asn1, asn2);
       // printf("printing\n");
       if (wandio_printf(
-              state->file_newedges,
-              "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|NEWREC|%" PRIu32 "|%" PRIu32
-              "|%" PRIu32 "|%s",
-              state->time_now, edge_info.asn1, edge_info.asn2,
-              edge_info.first_seen, edge_info.start, edge_info.first_seen,
-              bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1)
+            state->file_newedges,
+            "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|NEWREC|%" PRIu32 "|%" PRIu32
+            "|%" PRIu32 "|%s",
+            state->time_now, edge_info.asn1, edge_info.asn2,
+            edge_info.first_seen, edge_info.start, edge_info.first_seen,
+            bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1)
 
       {
         fprintf(stderr, "ERROR: Could not write %s file\n",
@@ -584,8 +583,8 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
         // printing a path for each peer
         peerid = bgpview_iter_peer_get_peer_id(it);
         if (bgpstream_id_set_exists(
-                BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-                peerid)) {
+              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+              peerid)) {
           bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
           // first ASn
@@ -842,9 +841,9 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
            state->window_size);
   /* open file for writing */
   if ((state->file_newedges = wandio_wcreate(
-           state->filename_newedges,
-           wandio_detect_compression_type(state->filename_newedges),
-           DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+         state->filename_newedges,
+         wandio_detect_compression_type(state->filename_newedges),
+         DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n",
             state->filename_newedges);
     return -1;
@@ -906,8 +905,8 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
       peerid = bgpview_iter_peer_get_peer_id(it);
 
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-              peerid)) {
+            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+            peerid)) {
         /* get origin asn */
         if ((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL) {
           return -1;
@@ -1053,8 +1052,8 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_NEWEDGES ".done",
            state->output_folder, time_now, state->window_size);
   if ((done_newedge =
-           wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+         wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
     return -1;
   }

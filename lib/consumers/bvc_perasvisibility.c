@@ -236,7 +236,7 @@ static int peras_info_init(bvc_t *consumer, peras_info_t *per_as, uint32_t asn)
                CHAIN_STATE->metric_prefix, asn, bgpstream_idx2number(v),
                threshold_string(i), "visible_prefixes_cnt");
       if ((per_as->info[i].pfx_cnt_idx[v] =
-               timeseries_kp_add_key(state->kp, buffer)) == -1) {
+             timeseries_kp_add_key(state->kp, buffer)) == -1) {
         return -1;
       }
       /* visible_ips_cnt */
@@ -244,10 +244,10 @@ static int peras_info_init(bvc_t *consumer, peras_info_t *per_as, uint32_t asn)
                CHAIN_STATE->metric_prefix, asn, bgpstream_idx2number(v),
                threshold_string(i),
                v == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)
-                   ? "visible_slash24_cnt"
-                   : "visible_slash64_cnt");
+                 ? "visible_slash24_cnt"
+                 : "visible_slash64_cnt");
       if ((per_as->info[i].subnet_cnt_idx[v] =
-               timeseries_kp_add_key(state->kp, buffer)) == -1) {
+             timeseries_kp_add_key(state->kp, buffer)) == -1) {
         return -1;
       }
     }
@@ -262,8 +262,8 @@ static int peras_info_update(bvc_t *consumer, peras_info_t *per_as,
 
   /* number of full feed ASns for the current IP version*/
   int totalfullfeed =
-      CHAIN_STATE
-          ->full_feed_peer_asns_cnt[bgpstream_ipv2idx(pfx->address.version)];
+    CHAIN_STATE
+      ->full_feed_peer_asns_cnt[bgpstream_ipv2idx(pfx->address.version)];
   assert(totalfullfeed > 0);
 
   /* number of full feed ASns observing the current prefix*/
@@ -317,8 +317,8 @@ static int update_pfx_asns_information(bvc_t *consumer, bgpstream_pfx_t *pfx)
      * have to initialized its information */
     if ((k = kh_get(as_pfxs_info, state->as_pfxs_vis, state->origin_asns[i])) ==
         kh_end(state->as_pfxs_vis)) {
-      k = kh_put(as_pfxs_info, state->as_pfxs_vis, state->origin_asns[i],
-                 &khret);
+      k =
+        kh_put(as_pfxs_info, state->as_pfxs_vis, state->origin_asns[i], &khret);
       /* init peras_info_t */
       all_infos = &kh_val(state->as_pfxs_vis, k);
       if (peras_info_init(consumer, all_infos, state->origin_asns[i]) != 0) {
@@ -352,7 +352,7 @@ static int compute_origin_pfx_visibility(bvc_t *consumer, bgpview_iter_t *it)
     /* only consider ipv4 prefixes whose mask is greater than a /6 */
     if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4 &&
         pfx->mask_len <
-            BVC_GET_CHAIN_STATE(consumer)->pfx_vis_mask_len_threshold) {
+          BVC_GET_CHAIN_STATE(consumer)->pfx_vis_mask_len_threshold) {
       continue;
     }
 
@@ -370,9 +370,9 @@ static int compute_origin_pfx_visibility(bvc_t *consumer, bgpview_iter_t *it)
        * feed
        * for the current pfx IP version ) */
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)
-                  ->full_feed_peer_ids[bgpstream_ipv2idx(pfx->address.version)],
-              bgpview_iter_peer_get_peer_id(it)) == 0) {
+            BVC_GET_CHAIN_STATE(consumer)
+              ->full_feed_peer_ids[bgpstream_ipv2idx(pfx->address.version)],
+            bgpview_iter_peer_get_peer_id(it)) == 0) {
         continue;
       }
 
@@ -424,29 +424,29 @@ static int output_metrics_and_reset(bvc_t *consumer)
 
         /* IPv4*/
         timeseries_kp_set(
-            state->kp,
-            per_as->info[i]
-                .pfx_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
-            bgpstream_patricia_prefix_count(per_as->info[i].pt,
-                                            BGPSTREAM_ADDR_VERSION_IPV4));
+          state->kp,
+          per_as->info[i]
+            .pfx_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
+          bgpstream_patricia_prefix_count(per_as->info[i].pt,
+                                          BGPSTREAM_ADDR_VERSION_IPV4));
         timeseries_kp_set(
-            state->kp,
-            per_as->info[i]
-                .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
-            bgpstream_patricia_tree_count_24subnets(per_as->info[i].pt));
+          state->kp,
+          per_as->info[i]
+            .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
+          bgpstream_patricia_tree_count_24subnets(per_as->info[i].pt));
 
         /* IPv6*/
         timeseries_kp_set(
-            state->kp,
-            per_as->info[i]
-                .pfx_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)],
-            bgpstream_patricia_prefix_count(per_as->info[i].pt,
-                                            BGPSTREAM_ADDR_VERSION_IPV6));
+          state->kp,
+          per_as->info[i]
+            .pfx_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)],
+          bgpstream_patricia_prefix_count(per_as->info[i].pt,
+                                          BGPSTREAM_ADDR_VERSION_IPV6));
         timeseries_kp_set(
-            state->kp,
-            per_as->info[i]
-                .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)],
-            bgpstream_patricia_tree_count_64subnets(per_as->info[i].pt));
+          state->kp,
+          per_as->info[i]
+            .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)],
+          bgpstream_patricia_tree_count_64subnets(per_as->info[i].pt));
       }
 
       /* metrics are set, now we have to clean the patricia trees */
@@ -561,10 +561,12 @@ int bvc_perasvisibility_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bvc_perasvisibility_state_t *state = STATE;
 
-  if (BVC_GET_CHAIN_STATE(consumer)->usable_table_flag[bgpstream_ipv2idx(
-          BGPSTREAM_ADDR_VERSION_IPV4)] == 0 &&
-      BVC_GET_CHAIN_STATE(consumer)->usable_table_flag[bgpstream_ipv2idx(
-          BGPSTREAM_ADDR_VERSION_IPV6)] == 0) {
+  if (BVC_GET_CHAIN_STATE(consumer)
+          ->usable_table_flag[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] ==
+        0 &&
+      BVC_GET_CHAIN_STATE(consumer)
+          ->usable_table_flag[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)] ==
+        0) {
     fprintf(stderr,
             "ERROR: Per-AS Visibility can't use this table %" PRIu32 "\n",
             bgpview_get_time(view));

@@ -62,16 +62,15 @@ enum filter_type {
 #define FILTER_CNT 3
 
 static char *filter_type_str[] = {
-    "pfx", "pfx-exact", "origin",
+  "pfx", "pfx-exact", "origin",
 };
 
 static char *filter_desc[] = {
-    "match on prefix and sub-prefixes", "match on prefix",
-    "match on origin ASN",
+  "match on prefix and sub-prefixes", "match on prefix", "match on origin ASN",
 };
 
 static int filter_cnts[] = {
-    0, 0, 0,
+  0, 0, 0,
 };
 
 static int peer_filters_cnt = 0;
@@ -155,7 +154,7 @@ static int parse_origin(char *value)
 }
 
 static filter_parser_func *filter_parsers[] = {
-    parse_pfx, parse_pfx_exact, parse_origin,
+  parse_pfx, parse_pfx_exact, parse_origin,
 };
 
 static int match_pfx(bgpstream_pfx_t *pfx)
@@ -172,7 +171,7 @@ static int match_pfx_exact(bgpstream_pfx_t *pfx)
 }
 
 static bgpview_io_filter_pfx_cb_t *filter_pfx_matchers[] = {
-    match_pfx, match_pfx_exact, NULL,
+  match_pfx, match_pfx_exact, NULL,
 };
 
 static int match_pfx_peer_origin(bgpstream_as_path_store_path_t *store_path)
@@ -181,11 +180,11 @@ static int match_pfx_peer_origin(bgpstream_as_path_store_path_t *store_path)
   seg = bgpstream_as_path_store_path_get_origin_seg(store_path);
   return (seg->type == BGPSTREAM_AS_PATH_SEG_ASN &&
           bgpstream_id_set_exists(
-              asn_set, ((bgpstream_as_path_seg_asn_t *)seg)->asn) != 0);
+            asn_set, ((bgpstream_as_path_seg_asn_t *)seg)->asn) != 0);
 }
 
 static bgpview_io_filter_pfx_peer_cb_t *filter_pfx_peer_matchers[] = {
-    NULL, NULL, match_pfx_peer_origin,
+  NULL, NULL, match_pfx_peer_origin,
 };
 
 static int filters_init()
@@ -415,7 +414,7 @@ static int configure_io(char *io_module)
   else if (strcmp(io_module, "kafka") == 0) {
     fprintf(stderr, "INFO: Starting Kakfa IO consumer module...\n");
     if ((kafka_client = bgpview_io_kafka_init(
-             BGPVIEW_IO_KAFKA_MODE_AUTO_CONSUMER, io_options)) == NULL) {
+           BGPVIEW_IO_KAFKA_MODE_AUTO_CONSUMER, io_options)) == NULL) {
       fprintf(stderr, "ERROR: could not initialize Kafka module\n");
       goto err;
     }
@@ -496,17 +495,17 @@ static int recv_view(char *io_module)
   else if (strcmp(io_module, "file") == 0) {
     bgpview_clear(view);
     return bgpview_io_file_read(
-        file_handle, view, (peer_filters_cnt != 0) ? filter_peer : NULL,
-        (pfx_filters_cnt != 0) ? filter_pfx : NULL,
-        (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
+      file_handle, view, (peer_filters_cnt != 0) ? filter_peer : NULL,
+      (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+      (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
   }
 #endif
 #ifdef WITH_BGPVIEW_IO_KAFKA
   else if (strcmp(io_module, "kafka") == 0) {
     return bgpview_io_kafka_recv_view(
-        kafka_client, view, (peer_filters_cnt != 0) ? filter_peer : NULL,
-        (pfx_filters_cnt != 0) ? filter_pfx : NULL,
-        (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
+      kafka_client, view, (peer_filters_cnt != 0) ? filter_peer : NULL,
+      (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+      (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
   }
 #endif
 #ifdef WITH_BGPVIEW_IO_TEST
@@ -519,10 +518,10 @@ static int recv_view(char *io_module)
   else if (strcmp(io_module, "zmq") == 0) {
     bgpview_clear(view);
     return bgpview_io_zmq_client_recv_view(
-        zmq_client, BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_BLOCK, view,
-        (peer_filters_cnt != 0) ? filter_peer : NULL,
-        (pfx_filters_cnt != 0) ? filter_pfx : NULL,
-        (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
+      zmq_client, BGPVIEW_IO_ZMQ_CLIENT_RECV_MODE_BLOCK, view,
+      (peer_filters_cnt != 0) ? filter_peer : NULL,
+      (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+      (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
   }
 #endif
 
@@ -653,8 +652,8 @@ int main(int argc, char **argv)
 
   if (backends_cnt == 0) {
     fprintf(
-        stderr,
-        "ERROR: At least one timeseries backend must be specified using -b\n");
+      stderr,
+      "ERROR: At least one timeseries backend must be specified using -b\n");
     usage(argv[0]);
     goto err;
   }
@@ -691,7 +690,7 @@ int main(int argc, char **argv)
   for (i = 0; i < consumer_cmds_cnt; i++) {
     assert(consumer_cmds[i] != NULL);
     if (bgpview_consumer_manager_enable_consumer_from_str(
-            manager, consumer_cmds[i]) == NULL) {
+          manager, consumer_cmds[i]) == NULL) {
       usage(argv[0]);
       goto err;
     }

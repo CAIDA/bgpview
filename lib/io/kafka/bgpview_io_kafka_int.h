@@ -335,8 +335,8 @@ int bgpview_io_kafka_consumer_connect(bgpview_io_kafka_t *client);
  * @return pointer to the view instance received, NULL if an error occurred.
  */
 int bgpview_io_kafka_consumer_recv(
-    bgpview_io_kafka_t *client, bgpview_t *view,
-    bgpview_io_filter_peer_cb_t *peer_cb, bgpview_io_filter_pfx_cb_t *pfx_cb,
-    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+  bgpview_io_kafka_t *client, bgpview_t *view,
+  bgpview_io_filter_peer_cb_t *peer_cb, bgpview_io_filter_pfx_cb_t *pfx_cb,
+  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 #endif /* __BGPVIEW_IO_KAFKA_INT_H */

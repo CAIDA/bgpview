@@ -136,10 +136,10 @@ int bgpview_io_zmq_client_send_view(bgpview_io_zmq_client_t *client,
  * cleared using bgpview_clear.
  */
 int bgpview_io_zmq_client_recv_view(
-    bgpview_io_zmq_client_t *client, bgpview_io_zmq_client_recv_mode_t blocking,
-    bgpview_t *view, bgpview_io_filter_peer_cb_t *peer_cb,
-    bgpview_io_filter_pfx_cb_t *pfx_cb,
-    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+  bgpview_io_zmq_client_t *client, bgpview_io_zmq_client_recv_mode_t blocking,
+  bgpview_t *view, bgpview_io_filter_peer_cb_t *peer_cb,
+  bgpview_io_filter_pfx_cb_t *pfx_cb,
+  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
 
 /** Stop the given bgpview client instance
  *
@@ -191,7 +191,7 @@ int bgpview_io_zmq_client_set_server_sub_uri(bgpview_io_zmq_client_t *client,
  * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT
  */
 void bgpview_io_zmq_client_set_heartbeat_interval(
-    bgpview_io_zmq_client_t *client, uint64_t interval_ms);
+  bgpview_io_zmq_client_t *client, uint64_t interval_ms);
 
 /** Set the heartbeat liveness
  *
@@ -202,7 +202,7 @@ void bgpview_io_zmq_client_set_heartbeat_interval(
  * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT
  */
 void bgpview_io_zmq_client_set_heartbeat_liveness(
-    bgpview_io_zmq_client_t *client, int beats);
+  bgpview_io_zmq_client_t *client, int beats);
 
 /** Set the minimum reconnect time
  *
@@ -212,7 +212,7 @@ void bgpview_io_zmq_client_set_heartbeat_liveness(
  * @note defaults to BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MIN
  */
 void bgpview_io_zmq_client_set_reconnect_interval_min(
-    bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_min);
+  bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_min);
 
 /** Set the maximum reconnect time
  *
@@ -222,7 +222,7 @@ void bgpview_io_zmq_client_set_reconnect_interval_min(
  * @note defaults to BGPVIEW_IO_ZMQ_RECONNECT_INTERVAL_MAX
  */
 void bgpview_io_zmq_client_set_reconnect_interval_max(
-    bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_max);
+  bgpview_io_zmq_client_t *client, uint64_t reconnect_interval_max);
 
 /** Set the amount of time to wait for outstanding requests on shutdown
  *

@@ -109,8 +109,8 @@ static int pfx_row_serialize(bgpview_io_kafka_t *client, uint8_t *buf,
   // "Update" or "Remove"
   BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, operation);
   if ((s = bgpview_io_serialize_pfx_row(
-           buf, (len - written), it, operation == 'S' ? NULL : &cells_tx, cb,
-           cb_user, operation == 'R' ? -1 : 0)) == -1) {
+         buf, (len - written), it, operation == 'S' ? NULL : &cells_tx, cb,
+         cb_user, operation == 'R' ? -1 : 0)) == -1) {
     goto err;
   }
 
@@ -181,9 +181,9 @@ static int pfx_row_end(uint8_t *buf, size_t len, uint16_t peer_cnt)
 static int diff_cells(bgpview_iter_t *parent_view_it, bgpview_iter_t *itC)
 {
   bgpstream_as_path_store_path_id_t idxH =
-      bgpview_iter_pfx_peer_get_as_path_store_path_id(parent_view_it);
+    bgpview_iter_pfx_peer_get_as_path_store_path_id(parent_view_it);
   bgpstream_as_path_store_path_id_t idxC =
-      bgpview_iter_pfx_peer_get_as_path_store_path_id(itC);
+    bgpview_iter_pfx_peer_get_as_path_store_path_id(itC);
 
   return bcmp(&idxH, &idxC, sizeof(bgpstream_as_path_store_path_id_t)) != 0;
 }
@@ -217,7 +217,7 @@ int bgpview_io_kafka_producer_send_members_update(bgpview_io_kafka_t *client,
            BGPVIEW_IO_KAFKA_MEMBERS_PARTITION_DEFAULT, buf, written);
 
   client->prod_state.next_members_update =
-      time_now + BGPVIEW_IO_KAFKA_MEMBERS_UPDATE_INTERVAL_DEFAULT;
+    time_now + BGPVIEW_IO_KAFKA_MEMBERS_UPDATE_INTERVAL_DEFAULT;
 
   /* Wait for messages to be delivered */
   while (rd_kafka_outq_len(client->rdk_conn) > 0) {
@@ -313,8 +313,8 @@ static int send_peers(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
 again:
   /* find our current offset and update the metadata */
   if ((meta->peers_offset =
-           get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
-                      BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT)) < 0) {
+         get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PEERS),
+                    BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "WARN: Could not get peer offset. Retrying...\n");
     goto again;
   }
@@ -337,8 +337,8 @@ again:
     BGPVIEW_IO_SERIALIZE_VAL(ptr, len, written, type);
 
     if ((written = bgpview_io_serialize_peer(
-             ptr, (len - written), bgpview_iter_peer_get_peer_id(it),
-             bgpview_iter_peer_get_sig(it))) < 0) {
+           ptr, (len - written), bgpview_iter_peer_get_peer_id(it),
+           bgpview_iter_peer_get_sig(it))) < 0) {
       goto err;
     }
 
@@ -392,12 +392,11 @@ static int send_cells(bgpview_io_kafka_t *client, bgpview_iter_t *it,
   for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
        bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
     bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(it);
-    int parent_exists = bgpview_iter_pfx_seek_peer(parent_view_it, peerid,
-                                                   BGPVIEW_FIELD_ACTIVE);
+    int parent_exists =
+      bgpview_iter_pfx_seek_peer(parent_view_it, peerid, BGPVIEW_FIELD_ACTIVE);
     /* and did we send this cell last time? */
     int parent_exists_sent =
-        parent_exists &&
-        cb(parent_view_it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user);
+      parent_exists && cb(parent_view_it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user);
 
     int send_this = cb(it, BGPVIEW_IO_FILTER_PFX_PEER, cb_user);
 
@@ -436,7 +435,7 @@ static int send_cells(bgpview_io_kafka_t *client, bgpview_iter_t *it,
 
       /* add this cell */
       if ((s = bgpview_io_serialize_pfx_peer(
-               upd_ptr, (BUFFER_LEN - upd_written), it, NULL, NULL, 0)) == -1) {
+             upd_ptr, (BUFFER_LEN - upd_written), it, NULL, NULL, 0)) == -1) {
         goto err;
       }
       if (s > 0) {
@@ -459,8 +458,8 @@ static int send_cells(bgpview_io_kafka_t *client, bgpview_iter_t *it,
 
       /* add this cell */
       if ((s = bgpview_io_serialize_pfx_peer(
-               rem_ptr, (BUFFER_LEN - rem_written), parent_view_it, NULL, NULL,
-               -1)) == -1) {
+             rem_ptr, (BUFFER_LEN - rem_written), parent_view_it, NULL, NULL,
+             -1)) == -1) {
         goto err;
       }
       if (s > 0) {
@@ -498,8 +497,8 @@ static int send_cells(bgpview_io_kafka_t *client, bgpview_iter_t *it,
 
       /* add this cell */
       if ((s = bgpview_io_serialize_pfx_peer(
-               rem_ptr, (BUFFER_LEN - rem_written), parent_view_it, cb, cb_user,
-               -1)) == -1) {
+             rem_ptr, (BUFFER_LEN - rem_written), parent_view_it, cb, cb_user,
+             -1)) == -1) {
         goto err;
       }
       if (s > 0) {
@@ -560,8 +559,8 @@ static int send_pfxs(bgpview_io_kafka_t *client, bgpview_io_kafka_md_t *meta,
 again:
   /* find our current offset and update the metadata */
   if ((meta->pfxs_offset =
-           get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
-                      BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT)) < 0) {
+         get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_PFXS),
+                    BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "WARN: Could not get prefix offset. Retrying...\n");
     goto again;
   }
@@ -593,10 +592,10 @@ again:
 
     bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
     int parent_exists =
-        bgpview_iter_seek_pfx(parent_view_it, pfx, BGPVIEW_FIELD_ACTIVE);
+      bgpview_iter_seek_pfx(parent_view_it, pfx, BGPVIEW_FIELD_ACTIVE);
     /* did we send this prefix last time? */
     int parent_exists_sent =
-        parent_exists && cb(parent_view_it, BGPVIEW_IO_FILTER_PFX, cb_user);
+      parent_exists && cb(parent_view_it, BGPVIEW_IO_FILTER_PFX, cb_user);
 
     /* does the user want this prefix sent? */
     int send_this = cb(it, BGPVIEW_IO_FILTER_PFX, cb_user);
@@ -723,8 +722,8 @@ static int send_sync_view(bgpview_io_kafka_t *client, bgpview_t *view,
 
   /* find the current metadata offset and update the sync info */
   if ((client->prod_state.last_sync_offset =
-           get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
-                      BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT)) < 0) {
+         get_offset(client, TNAME(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
+                    BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT)) < 0) {
     fprintf(stderr, "ERROR: Could not get metadata offset\n");
     goto err;
   }

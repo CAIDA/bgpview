@@ -157,7 +157,7 @@ client_init(bgpview_io_zmq_server_t *server, zmq_msg_t *id_msg)
     return NULL;
   }
   client->expiry =
-      epoch_msec() + (server->heartbeat_interval * server->heartbeat_liveness);
+    epoch_msec() + (server->heartbeat_interval * server->heartbeat_liveness);
 
   client->info.name = client->id;
 
@@ -197,7 +197,7 @@ client_get(bgpview_io_zmq_server_t *server, zmq_msg_t *id_msg)
   /* we are already tracking this client, treat the msg as a heartbeat */
   /* touch the timeout */
   client->expiry =
-      epoch_msec() + (server->heartbeat_interval * server->heartbeat_liveness);
+    epoch_msec() + (server->heartbeat_interval * server->heartbeat_liveness);
   free(id);
   return client;
 }
@@ -690,7 +690,7 @@ bgpview_io_zmq_server_t *bgpview_io_zmq_server_init()
   }
 
   if ((server->client_pub_uri =
-           strdup(BGPVIEW_IO_ZMQ_CLIENT_PUB_URI_DEFAULT)) == NULL) {
+         strdup(BGPVIEW_IO_ZMQ_CLIENT_PUB_URI_DEFAULT)) == NULL) {
     fprintf(stderr, "Failed to duplicate client pub uri string\n");
     goto err;
   }
@@ -730,7 +730,7 @@ void bgpview_io_zmq_server_set_metric_prefix(bgpview_io_zmq_server_t *server,
 int bgpview_io_zmq_server_start(bgpview_io_zmq_server_t *server)
 {
   if ((server->store = bgpview_io_zmq_store_create(
-           server, server->store_window_len)) == NULL) {
+         server, server->store_window_len)) == NULL) {
     fprintf(stderr, "Could not create store\n");
     return -1;
   }
@@ -847,7 +847,7 @@ int bgpview_io_zmq_server_set_client_pub_uri(bgpview_io_zmq_server_t *server,
 }
 
 void bgpview_io_zmq_server_set_heartbeat_interval(
-    bgpview_io_zmq_server_t *server, uint64_t interval_ms)
+  bgpview_io_zmq_server_t *server, uint64_t interval_ms)
 {
   assert(server != NULL);
 
@@ -855,7 +855,7 @@ void bgpview_io_zmq_server_set_heartbeat_interval(
 }
 
 void bgpview_io_zmq_server_set_heartbeat_liveness(
-    bgpview_io_zmq_server_t *server, int beats)
+  bgpview_io_zmq_server_t *server, int beats)
 {
   assert(server != NULL);
 

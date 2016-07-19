@@ -177,28 +177,28 @@ static int create_ts_metrics(bvc_t *consumer)
            CHAIN_STATE->metric_prefix, state->window_size,
            "new_triplets_count");
   if ((state->new_triplets_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size,
            "finished_triplets_count");
   if ((state->finished_triplets_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size,
            "newrec_triplets_count");
   if ((state->newrec_triplets_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
   snprintf(buffer, MAX_BUFFER_LEN, METRIC_PREFIX_FORMAT,
            CHAIN_STATE->metric_prefix, state->window_size,
            "ongoing_triplets_count");
   if ((state->ongoing_triplets_count_idx =
-           timeseries_kp_add_key(state->kp, buffer)) == -1) {
+         timeseries_kp_add_key(state->kp, buffer)) == -1) {
     return -1;
   }
   /* Meta metrics */
@@ -382,11 +382,11 @@ void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
   if (status == NEW) {
     // printf("printing \n");
     if (wandio_printf(
-            state->file_triplets,
-            "%" PRIu32 "|%s|NEW|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|%s\n",
-            state->time_now, triplet, triplet_info.first_seen,
-            triplet_info.start, triplet_info.end,
-            bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1) {
+          state->file_triplets,
+          "%" PRIu32 "|%s|NEW|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|%s\n",
+          state->time_now, triplet, triplet_info.first_seen, triplet_info.start,
+          triplet_info.end,
+          bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1) {
       fprintf(stderr, "ERROR: Could not write %s file\n",
               state->filename_triplets);
       return;
@@ -395,11 +395,11 @@ void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
 
   if (status == NEWREC) {
     if (wandio_printf(
-            state->file_triplets,
-            "%" PRIu32 "|%s|NEWREC|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|%s\n",
-            state->time_now, triplet, triplet_info.first_seen,
-            triplet_info.start, triplet_info.end,
-            bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1) {
+          state->file_triplets,
+          "%" PRIu32 "|%s|NEWREC|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|%s\n",
+          state->time_now, triplet, triplet_info.first_seen, triplet_info.start,
+          triplet_info.end,
+          bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1) {
       fprintf(stderr, "ERROR: Could not write %s file\n",
               state->filename_triplets);
       return;
@@ -541,9 +541,9 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
            state->window_size);
   /* open file for writing */
   if ((state->file_triplets = wandio_wcreate(
-           state->filename_triplets,
-           wandio_detect_compression_type(state->filename_triplets),
-           DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+         state->filename_triplets,
+         wandio_detect_compression_type(state->filename_triplets),
+         DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n",
             state->filename_triplets);
     return -1;
@@ -587,8 +587,8 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
       /* only consider peers that are full-feed */
       peerid = bgpview_iter_peer_get_peer_id(it);
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-              peerid)) {
+            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+            peerid)) {
 
         // initializing asns for each view
         i = 0;
@@ -678,8 +678,8 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
   snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_TRIPLETS ".done",
            state->output_folder, time_now, state->window_size);
   if ((done_triplets =
-           wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+         wandio_wcreate(filename, wandio_detect_compression_type(filename),
+                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
     return -1;
   }

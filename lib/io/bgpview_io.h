@@ -118,7 +118,7 @@ typedef int(bgpview_io_filter_pfx_cb_t)(bgpstream_pfx_t *pfx);
  * occurred.
  */
 typedef int(bgpview_io_filter_pfx_peer_cb_t)(
-    bgpstream_as_path_store_path_t *store_path);
+  bgpstream_as_path_store_path_t *store_path);
 
 /** Serialize the given IP address into the given buffer
  *
@@ -200,7 +200,7 @@ int bgpview_io_deserialize_peer(uint8_t *buf, size_t len,
  * in host byte order.
  */
 int bgpview_io_serialize_as_path_store_path(
-    uint8_t *buf, size_t len, bgpstream_as_path_store_path_t *spath);
+  uint8_t *buf, size_t len, bgpstream_as_path_store_path_t *spath);
 
 /** Deserialize the given AS Path Store Path
  *
@@ -210,8 +210,8 @@ int bgpview_io_serialize_as_path_store_path(
  * @return the number of bytes read, or -1 on an error
  */
 int bgpview_io_deserialize_as_path_store_path(
-    uint8_t *buf, size_t len, bgpstream_as_path_store_t *store,
-    bgpstream_as_path_store_path_id_t *pathid);
+  uint8_t *buf, size_t len, bgpstream_as_path_store_t *store,
+  bgpstream_as_path_store_path_id_t *pathid);
 
 /** Serialize the current pfx-peer
  *
@@ -286,11 +286,10 @@ int bgpview_io_serialize_pfx_row(uint8_t *buf, size_t len, bgpview_iter_t *it,
  * iff the view is also NULL (i.e., a no-op read).
  */
 int bgpview_io_deserialize_pfx_row(
-    uint8_t *buf, size_t len, bgpview_iter_t *it,
-    bgpview_io_filter_pfx_cb_t *pfx_cb,
-    bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb,
-    bgpstream_peer_id_t *peerid_map, int peerid_map_cnt,
-    bgpstream_as_path_store_path_id_t *pathid_map, int pathid_map_cnt,
-    bgpview_field_state_t state);
+  uint8_t *buf, size_t len, bgpview_iter_t *it,
+  bgpview_io_filter_pfx_cb_t *pfx_cb,
+  bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb, bgpstream_peer_id_t *peerid_map,
+  int peerid_map_cnt, bgpstream_as_path_store_path_id_t *pathid_map,
+  int pathid_map_cnt, bgpview_field_state_t state);
 
 #endif /* __BGPVIEW_IO_H */

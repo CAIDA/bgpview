@@ -565,8 +565,8 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
       peerid = bgpview_iter_peer_get_peer_id(it);
 
       if (bgpstream_id_set_exists(
-              BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-              peerid)) {
+            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+            peerid)) {
         /* get origin segment  */
         if ((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL) {
           return -1;
@@ -603,7 +603,7 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
 
         if (!found) {
           os->current.origin_asns[os->current.num_asns] =
-              bgpstream_as_path_seg_dup(origin_seg);
+            bgpstream_as_path_seg_dup(origin_seg);
           if (os->current.origin_asns[os->current.num_asns] == NULL) {
             fprintf(stderr, "Could not allocate memory for AS segment\n");
             return -1;

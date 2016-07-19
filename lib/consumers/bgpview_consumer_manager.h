@@ -243,7 +243,7 @@ int bgpview_consumer_manager_enable_consumer(bvc_t *consumer,
  * consumer and will pass `-a all` as options.
  */
 bvc_t *bgpview_consumer_manager_enable_consumer_from_str(
-    bgpview_consumer_manager_t *mgr, const char *cmd);
+  bgpview_consumer_manager_t *mgr, const char *cmd);
 
 /** Retrieve the consumer object for the given consumer ID
  *

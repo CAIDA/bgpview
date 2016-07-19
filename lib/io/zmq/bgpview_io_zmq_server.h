@@ -168,7 +168,7 @@ int bgpview_io_zmq_server_set_client_pub_uri(bgpview_io_zmq_server_t *server,
  * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_INTERVAL_DEFAULT
  */
 void bgpview_io_zmq_server_set_heartbeat_interval(
-    bgpview_io_zmq_server_t *server, uint64_t interval_ms);
+  bgpview_io_zmq_server_t *server, uint64_t interval_ms);
 
 /** Set the heartbeat liveness
  *
@@ -179,6 +179,6 @@ void bgpview_io_zmq_server_set_heartbeat_interval(
  * @note defaults to BGPVIEW_IO_ZMQ_HEARTBEAT_LIVENESS_DEFAULT
  */
 void bgpview_io_zmq_server_set_heartbeat_liveness(
-    bgpview_io_zmq_server_t *server, int beats);
+  bgpview_io_zmq_server_t *server, int beats);
 
 #endif
