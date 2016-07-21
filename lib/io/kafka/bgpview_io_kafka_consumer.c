@@ -818,6 +818,7 @@ static void *thread_worker(void *user)
   }
 
   gct->shutdown = 1;
+  pthread_mutex_unlock(&gct->mutex);
   return NULL;
 }
 #endif

@@ -723,11 +723,16 @@ int main(int argc, char **argv)
     }
   }
 
+
   fprintf(stderr, "INFO: Shutting down...\n");
   shutdown_io();
+  fprintf(stderr, "INFO: Destroying filters...\n");
   filters_destroy();
+  fprintf(stderr, "INFO: Destroying BGPView...\n");
   bgpview_destroy(view);
+  fprintf(stderr, "INFO: Destroying Consumer Manager...\n");
   bgpview_consumer_manager_destroy(&manager);
+  fprintf(stderr, "INFO: Destroying libtimeseries...\n");
   timeseries_free(&timeseries);
   fprintf(stderr, "INFO: Shutdown complete\n");
   return 0;

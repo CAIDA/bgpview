@@ -68,6 +68,18 @@ static void kafka_error_callback(rd_kafka_t *rk, int err, const char *reason,
 
 static void free_gc_topics(gc_topics_t *gct)
 {
+  fprintf(stderr, "INFO: Destroying state for %s\n",
+          gct->pfxs.name);
+#ifdef WITH_THREADS
+  /* clean up the worker thread */
+  gct->shutdown = 1;
+  pthread_cond_signal(&gct->job_state_cond);
+  pthread_join(gct->worker, NULL);
+  pthread_mutex_destroy(&gct->mutex);
+  pthread_cond_destroy(&gct->job_state_cond);
+  pthread_cond_destroy(&gct->worker_state_cond);
+#endif
+
   if (gct->peers.rkt != NULL) {
     rd_kafka_topic_destroy(gct->peers.rkt);
     gct->peers.rkt = NULL;
@@ -76,15 +88,6 @@ static void free_gc_topics(gc_topics_t *gct)
     rd_kafka_topic_destroy(gct->pfxs.rkt);
     gct->pfxs.rkt = NULL;
   }
-
-#ifdef WITH_THREADS
-  /* clean up the worker thread */
-  gct->shutdown = 1;
-  pthread_join(gct->worker, NULL);
-  pthread_mutex_destroy(&gct->mutex);
-  pthread_cond_destroy(&gct->job_state_cond);
-  pthread_cond_destroy(&gct->worker_state_cond);
-#endif
 
   free(gct);
 }
@@ -366,6 +369,7 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
   free(client->namespace);
   client->namespace = NULL;
 
+  fprintf(stderr, "INFO: Shutting down topics\n");
   bgpview_io_kafka_topic_id_t id;
   for (id = 0; id < BGPVIEW_IO_KAFKA_TOPIC_ID_CNT; id++) {
     if (RKT(id) != NULL) {
@@ -374,16 +378,8 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
     }
   }
 
-  if (client->rdk_conn != NULL) {
-    rd_kafka_destroy(client->rdk_conn);
-    client->rdk_conn = NULL;
-  }
-
-  free(client->dc_state.idmap.map);
-  client->dc_state.idmap.map = NULL;
-  client->dc_state.idmap.alloc_cnt = 0;
-
   if (client->mode == BGPVIEW_IO_KAFKA_MODE_GLOBAL_CONSUMER) {
+    fprintf(stderr, "INFO: Destroying global consumer state\n");
     if (client->gc_state.topics != NULL) {
       kh_free_vals(str_topic, client->gc_state.topics, free_gc_topics);
       kh_free(str_topic, client->gc_state.topics, (void (*)(char *))free);
@@ -393,6 +389,16 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
 #ifdef WITH_THREADS
     pthread_mutex_destroy(&client->gc_state.mutex);
 #endif
+  }
+
+  free(client->dc_state.idmap.map);
+  client->dc_state.idmap.map = NULL;
+  client->dc_state.idmap.alloc_cnt = 0;
+
+  fprintf(stderr, "INFO: Shutting down rdkafka\n");
+  if (client->rdk_conn != NULL) {
+    rd_kafka_destroy(client->rdk_conn);
+    client->rdk_conn = NULL;
   }
 
   free(client);
