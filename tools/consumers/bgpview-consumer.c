@@ -723,7 +723,6 @@ int main(int argc, char **argv)
     }
   }
 
-
   fprintf(stderr, "INFO: Shutting down...\n");
   shutdown_io();
   fprintf(stderr, "INFO: Destroying filters...\n");

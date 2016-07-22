@@ -68,8 +68,7 @@ static void kafka_error_callback(rd_kafka_t *rk, int err, const char *reason,
 
 static void free_gc_topics(gc_topics_t *gct)
 {
-  fprintf(stderr, "INFO: Destroying state for %s\n",
-          gct->pfxs.name);
+  fprintf(stderr, "INFO: Destroying state for %s\n", gct->pfxs.name);
 #ifdef WITH_THREADS
   /* clean up the worker thread */
   gct->shutdown = 1;

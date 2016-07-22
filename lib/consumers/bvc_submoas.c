@@ -1094,14 +1094,14 @@ static void check_remove_submoas_asn(bvc_t *consumer, bgpstream_pfx_t *pfx,
         state->newrec_submoas_pfxs_count++;
       }
     }
-    
+
     submoas_struct.start = timenow;
     bgpstream_pfx_t *sub_pfx;
     sub_pfx = (bgpstream_pfx_t *)&submoas_struct.subprefix;
-    if (bgpview_iter_seek_pfx(state->iter, sub_pfx, BGPVIEW_FIELD_ALL_VALID) == 0)
-      {
-        return;
-      }
+    if (bgpview_iter_seek_pfx(state->iter, sub_pfx, BGPVIEW_FIELD_ALL_VALID) ==
+        0) {
+      return;
+    }
 
     kh_value(state->subprefix_map, p) = submoas_struct;
     if (wandio_printf(
@@ -1317,11 +1317,10 @@ static void check_remove_superprefix(bvc_t *consumer, bgpstream_pfx_t *pfx)
         }
         bgpstream_pfx_t *sub_pfx;
         sub_pfx = (bgpstream_pfx_t *)&submoas_struct.subprefix;
-        if (bgpview_iter_seek_pfx(state->iter, sub_pfx, BGPVIEW_FIELD_ALL_VALID) == 0)
-          {
-            continue;
-          }
-        
+        if (bgpview_iter_seek_pfx(state->iter, sub_pfx,
+                                  BGPVIEW_FIELD_ALL_VALID) == 0) {
+          continue;
+        }
 
         ipv_idx = bgpstream_ipv2idx(sub_pfx->address.version);
 
