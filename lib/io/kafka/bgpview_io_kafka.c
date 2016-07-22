@@ -80,6 +80,10 @@ static void free_gc_topics(gc_topics_t *gct)
   pthread_cond_destroy(&gct->worker_state_cond);
 #endif
 
+  free(gct->idmap.map);
+  gct->idmap.map = NULL;
+  gct->idmap.alloc_cnt = 0;
+
   if (gct->peers.rkt != NULL) {
     rd_kafka_topic_destroy(gct->peers.rkt);
     gct->peers.rkt = NULL;

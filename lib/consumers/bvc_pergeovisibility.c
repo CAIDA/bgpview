@@ -995,6 +995,8 @@ static void bvc_destroy_pfx_user_ptr(void *user)
     pfx_cache->poly_table_idxs[i] = NULL;
     pfx_cache->poly_table_idxs_cnt[i] = 0;
   }
+
+  free(pfx_cache);
 }
 
 void bvc_pergeovisibility_destroy(bvc_t *consumer)
