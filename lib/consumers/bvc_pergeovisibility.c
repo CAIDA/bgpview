@@ -645,6 +645,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
       }
       if (found == 0) {
         /* no, add it. ooh. nasty realloc... */
+        assert(pfx_cache->continent_idxs_cnt < UINT8_MAX);
         if ((pfx_cache->continent_idxs = realloc(
                pfx_cache->continent_idxs,
                sizeof(uint16_t) * (pfx_cache->continent_idxs_cnt + 1))) ==
@@ -668,6 +669,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
       }
       if (found == 0) {
         /* no, add it. */
+        assert(pfx_cache->country_idxs_cnt < UINT8_MAX);
         if ((pfx_cache->country_idxs = realloc(
                pfx_cache->country_idxs,
                sizeof(uint16_t) * (pfx_cache->country_idxs_cnt + 1))) == NULL) {
@@ -690,6 +692,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
         }
         if (found == 0) {
           /* not in cache, add it */
+          assert(pfx_cache->poly_table_idxs_cnt[poly_table] < UINT16_MAX);
           if ((pfx_cache->poly_table_idxs[poly_table] = realloc(
                  pfx_cache->poly_table_idxs[poly_table],
                  sizeof(uint16_t) *
