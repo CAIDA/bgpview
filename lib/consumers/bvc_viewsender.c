@@ -45,8 +45,9 @@
 // bgp.meta.bgpview.consumer.view-sender.{kafka|zmq}.{rrc00}.{metric}
 #define META_METRIC_PREFIX_FORMAT "%s.meta.bgpview.consumer." NAME ".%s.%s.%s"
 
-/** A Sync frame will be sent once per N views */
-#define SYNC_FREQUENCY 12
+/** A Sync frame will be sent once every N seconds (aligned to a multiple of
+    N). e.g. 3600 means a sync frame will be sent once per hour, on the hour. */
+#define SECONDS_BETWEEN_SYNC 3600
 
 #define FILTER_FF_V4CNT_DEFAULT 400000
 #define FILTER_FF_V6CNT_DEFAULT 10000
@@ -87,10 +88,8 @@ typedef struct bvc_viewsender_state {
   timeseries_kp_t *kp;
 
 #ifdef WITH_BGPVIEW_IO_KAFKA
-  /** Sync frequency */
-  int sync_freq;
-  /** Number of diffs sent */
-  int num_diffs;
+  /** Sync interval */
+  int sync_interval;
   /** Parent view */
   bgpview_t *parent_view;
 #endif
@@ -327,9 +326,9 @@ static void usage(bvc_t *consumer)
 #ifdef WITH_BGPVIEW_IO_KAFKA
   fprintf(
     stderr,
-    "       -s <sync-frequency>   Sync frame freq. in # views (default: %d)\n"
+    "       -s <sync-interval>   Sync frame freq. in secs (default: %d)\n"
     "                               (used only for Kafka)\n",
-    SYNC_FREQUENCY);
+    SECONDS_BETWEEN_SYNC);
 #endif
   fprintf(stderr, "       -4 <pfx-cnt>          Only send peers with > N IPv4 "
                   "pfxs (default: %d)\n"
@@ -379,7 +378,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 
 #ifdef WITH_BGPVIEW_IO_KAFKA
     case 's':
-      STATE->sync_freq = atoi(optarg);
+      STATE->sync_interval = atoi(optarg);
       break;
 #endif
 
@@ -437,7 +436,7 @@ int bvc_viewsender_init(bvc_t *consumer, int argc, char **argv)
   BVC_SET_STATE(consumer, state);
 
 #ifdef WITH_BGPVIEW_IO_KAFKA
-  state->sync_freq = SYNC_FREQUENCY;
+  state->sync_interval = SECONDS_BETWEEN_SYNC;
 #endif
 
   STATE->filter_ff_v4cnt = FILTER_FF_V4CNT_DEFAULT;
@@ -526,14 +525,29 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
   else if (STATE->kafka_client != NULL) {
     bgpview_t *pvp = NULL;
 
+    uint32_t view_time = bgpview_get_time(view);
+    uint32_t sync_time =
+      (view_time / state->sync_interval) * state->sync_interval;
+
     // are we sending a sync frame or a diff frame?
-    if (state->parent_view == NULL ||
-        state->num_diffs == state->sync_freq - 1) {
-      state->num_diffs = 0;
+    if ((state->parent_view == NULL) || view_time == sync_time) {
+      // we need to send a sync frame, but if we have started out of step,
+      // then we'll avoid publishing anything until we line up
+      if (view_time != sync_time) {
+        // rats
+        assert(state->parent_view == NULL);
+        fprintf(stderr,"WARN: Sync needed, but refusing to send out-of-step. "
+                "Skipping view publication\n");
+        return 0;
+      }
+
       pvp = NULL;
-    } else {
+      fprintf(stderr, "INFO: Sending sync view at %d\n",
+              view_time);
+   } else {
       pvp = state->parent_view;
-      state->num_diffs++;
+      fprintf(stderr, "INFO: Sending diff view at %d\n",
+              view_time);
     }
 
     // send the view
