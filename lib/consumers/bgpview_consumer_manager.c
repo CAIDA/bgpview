@@ -82,6 +82,9 @@
 #include "bvc_viewsender.h"
 #endif
 
+/* Path Change consumer */
+#include "bvc_pathchange.h"
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -158,6 +161,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 #else
   NULL,
 #endif
+
+  /** Pointer to pathchange alloc function */
+  bvc_pathchange_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */

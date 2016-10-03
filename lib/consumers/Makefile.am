@@ -127,6 +127,11 @@ CONSUMER_SRCS += \
 endif
 endif
 
+# Path Change (no dependencies)
+CONSUMER_SRCS += \
+	bvc_pathchange.c \
+	bvc_pathchange.h
+
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>

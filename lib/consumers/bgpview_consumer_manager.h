@@ -168,13 +168,16 @@ typedef enum bvc_id {
    *  view */
   BVC_ID_MYVIEWPROCESS = 15,
 
+  /** Extracts information about path changes between successive views */
+  BVC_ID_PATHCHANGE = 16,
+
   /** @todo add more consumers here */
 
   /** Lowest numbered bgpview consumer ID */
   BVC_ID_FIRST = BVC_ID_TEST,
 
   /** Highest numbered bgpview consumer ID */
-  BVC_ID_LAST = BVC_ID_MYVIEWPROCESS,
+  BVC_ID_LAST = BVC_ID_PATHCHANGE,
 
 } bvc_id_t;
 
