@@ -309,32 +309,33 @@ static int diff_paths(bvc_t *consumer, bgpview_t *view)
 
       /* is the path different? */
       if (diff_cells(parent_view_it, it) != 0) {
-        /* yes! dump it, update stats */
-
-        bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
-        ps = bgpview_iter_peer_get_sig(it);
-        bgpstream_addr_ntop(peer_str, INET6_ADDRSTRLEN, &ps->peer_ip_addr);
-
+        /* there is currently a bug somewhere that causes us to use different
+         * path store IDs for the same effective path, so we need to do a full
+         * check of the paths */
         old_path = bgpview_iter_pfx_peer_get_as_path(parent_view_it);
-        bgpstream_as_path_snprintf(old_path_str, 4096, old_path);
-        bgpstream_as_path_destroy(old_path);
-
         new_path = bgpview_iter_pfx_peer_get_as_path(it);
-        bgpstream_as_path_snprintf(new_path_str, 4096, new_path);
-        bgpstream_as_path_destroy(new_path);
+        if (bgpstream_as_path_equal(old_path, new_path) == 0) {
+          bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
+          ps = bgpview_iter_peer_get_sig(it);
+          bgpstream_addr_ntop(peer_str, INET6_ADDRSTRLEN, &ps->peer_ip_addr);
+          bgpstream_as_path_snprintf(old_path_str, 4096, old_path);
+          bgpstream_as_path_snprintf(new_path_str, 4096, new_path);
 
-        wandio_printf(STATE->outfile,
-                      "%" PRIu32 "|" /* time */
-                      "%s|"          /* prefix */
-                      "%s|"          /* collector */
-                      "%" PRIu32 "|" /* peer ASN */
-                      "%s|"          /* peer IP */
-                      "%s|"          /* old-path */
-                      "%s"          /* new-path */
-                      "\n",
-                      bgpview_get_time(view),
-                      pfx_str, ps->collector_str, ps->peer_asnumber,
-                      peer_str, old_path_str, new_path_str);
+          wandio_printf(STATE->outfile,
+                        "%" PRIu32 "|" /* time */
+                        "%s|"          /* prefix */
+                        "%s|"          /* collector */
+                        "%" PRIu32 "|" /* peer ASN */
+                        "%s|"          /* peer IP */
+                        "%s|"          /* old-path */
+                        "%s"          /* new-path */
+                        "\n",
+                        bgpview_get_time(view),
+                        pfx_str, ps->collector_str, ps->peer_asnumber,
+                        peer_str, old_path_str, new_path_str);
+        }
+        bgpstream_as_path_destroy(old_path);
+        bgpstream_as_path_destroy(new_path);
       }
     }
   }
