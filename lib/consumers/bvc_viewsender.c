@@ -324,11 +324,10 @@ static void usage(bvc_t *consumer)
     stderr,
     "       -n <instance-name>    Unique name for this sender (required)\n");
 #ifdef WITH_BGPVIEW_IO_KAFKA
-  fprintf(
-    stderr,
-    "       -s <sync-interval>   Sync frame freq. in secs (default: %d)\n"
-    "                               (used only for Kafka)\n",
-    SECONDS_BETWEEN_SYNC);
+  fprintf(stderr,
+          "       -s <sync-interval>   Sync frame freq. in secs (default: %d)\n"
+          "                               (used only for Kafka)\n",
+          SECONDS_BETWEEN_SYNC);
 #endif
   fprintf(stderr, "       -4 <pfx-cnt>          Only send peers with > N IPv4 "
                   "pfxs (default: %d)\n"
@@ -536,18 +535,16 @@ int bvc_viewsender_process_view(bvc_t *consumer, bgpview_t *view)
       if (view_time != sync_time) {
         // rats
         assert(state->parent_view == NULL);
-        fprintf(stderr,"WARN: Sync needed, but refusing to send out-of-step. "
-                "Skipping view publication\n");
+        fprintf(stderr, "WARN: Sync needed, but refusing to send out-of-step. "
+                        "Skipping view publication\n");
         return 0;
       }
 
       pvp = NULL;
-      fprintf(stderr, "INFO: Sending sync view at %d\n",
-              view_time);
-   } else {
+      fprintf(stderr, "INFO: Sending sync view at %d\n", view_time);
+    } else {
       pvp = state->parent_view;
-      fprintf(stderr, "INFO: Sending diff view at %d\n",
-              view_time);
+      fprintf(stderr, "INFO: Sending diff view at %d\n", view_time);
     }
 
     // send the view

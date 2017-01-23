@@ -284,7 +284,7 @@ static int diff_paths(bvc_t *consumer, bgpview_t *view)
 
   /* for each prefix in view */
   for (bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ACTIVE); //
-       bgpview_iter_has_more_pfx(it); //
+       bgpview_iter_has_more_pfx(it);                       //
        bgpview_iter_next_pfx(it)) {
 
     pfx = bgpview_iter_pfx_get_pfx(it);
@@ -295,7 +295,7 @@ static int diff_paths(bvc_t *consumer, bgpview_t *view)
     }
 
     for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE); //
-         bgpview_iter_pfx_has_more_peer(it); //
+         bgpview_iter_pfx_has_more_peer(it);                    //
          bgpview_iter_pfx_next_peer(it)) {
 
       peer_id = bgpview_iter_peer_get_peer_id(it);
@@ -321,18 +321,17 @@ static int diff_paths(bvc_t *consumer, bgpview_t *view)
           bgpstream_as_path_snprintf(old_path_str, 4096, old_path);
           bgpstream_as_path_snprintf(new_path_str, 4096, new_path);
 
-          wandio_printf(STATE->outfile,
-                        "%" PRIu32 "|" /* time */
-                        "%s|"          /* prefix */
-                        "%s|"          /* collector */
-                        "%" PRIu32 "|" /* peer ASN */
-                        "%s|"          /* peer IP */
-                        "%s|"          /* old-path */
-                        "%s"          /* new-path */
-                        "\n",
-                        bgpview_get_time(view),
-                        pfx_str, ps->collector_str, ps->peer_asnumber,
-                        peer_str, old_path_str, new_path_str);
+          wandio_printf(STATE->outfile, "%" PRIu32 "|" /* time */
+                                        "%s|"          /* prefix */
+                                        "%s|"          /* collector */
+                                        "%" PRIu32 "|" /* peer ASN */
+                                        "%s|"          /* peer IP */
+                                        "%s|"          /* old-path */
+                                        "%s"           /* new-path */
+                                        "\n",
+                        bgpview_get_time(view), pfx_str, ps->collector_str,
+                        ps->peer_asnumber, peer_str, old_path_str,
+                        new_path_str);
         }
         bgpstream_as_path_destroy(old_path);
         bgpstream_as_path_destroy(new_path);
@@ -498,6 +497,6 @@ int bvc_pathchange_process_view(bvc_t *consumer, bgpview_t *view)
 
   return 0;
 
- err:
+err:
   return -1;
 }
