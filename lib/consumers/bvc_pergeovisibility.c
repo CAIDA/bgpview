@@ -201,6 +201,11 @@ typedef struct perpfx_cache {
 typedef struct bvc_pergeovisibility_state {
 
   /** ipmeta structures */
+  char *provider_config;
+  char *provider_name;
+  char *provider_arg;
+  int reload_freq;
+  uint32_t last_reload;
   ipmeta_t *ipmeta;
   ipmeta_provider_t *provider;
   ipmeta_record_set_t *records;
@@ -240,49 +245,6 @@ typedef struct bvc_pergeovisibility_state {
 
 /* ==================== PARSE ARGS FUNCTIONS ==================== */
 
-static int init_ipmeta(bvc_t *consumer, char *provider_name)
-{
-  char *provider_arg_ptr = NULL;
-
-  /* the string at provider_name will contain the name of the plugin, optionally
-     followed by a space and then the arguments to pass to the plugin */
-  if ((provider_arg_ptr = strchr(provider_name, ' ')) != NULL) {
-    /* set the space to a nul, which allows provider_names[i] to be used
-       for the provider name, and then increment plugin_arg_ptr to point
-       to the next character, which will be the start of the arg string
-       (or at worst case, the terminating \0 */
-    *provider_arg_ptr = '\0';
-    provider_arg_ptr++;
-  }
-
-  /* lookup the provider using the name given  */
-  if ((STATE->provider =
-         ipmeta_get_provider_by_name(STATE->ipmeta, provider_name)) == NULL) {
-    fprintf(stderr, "ERROR: Invalid provider name: %s\n", provider_name);
-    return -1;
-  }
-
-  /* for now we only support the netacq-edge provider */
-  if (ipmeta_get_provider_id(STATE->provider) != IPMETA_PROVIDER_NETACQ_EDGE) {
-    fprintf(stderr,
-            "ERROR: Only the netacq-edge provider is currently supported\n");
-  }
-
-  if (ipmeta_enable_provider(STATE->ipmeta, STATE->provider, provider_arg_ptr,
-                             IPMETA_PROVIDER_DEFAULT_YES) != 0) {
-    fprintf(stderr, "ERROR: Could not enable provider %s\n", provider_name);
-    return -1;
-  }
-
-  /* initialize a (reusable) record set structure  */
-  if ((STATE->records = ipmeta_record_set_init()) == NULL) {
-    fprintf(stderr, "ERROR: Could not init record set\n");
-    return -1;
-  }
-
-  return 0;
-}
-
 /** Print usage information to stderr */
 static void usage(bvc_t *consumer)
 {
@@ -293,20 +255,20 @@ static void usage(bvc_t *consumer)
 static int parse_args(bvc_t *consumer, int argc, char **argv)
 {
   int opt;
-  char *provider = NULL;
-
-  assert(STATE->ipmeta != NULL);
-
   assert(argc > 0 && argv != NULL);
 
   /* NB: remember to reset optind to 1 before using getopt! */
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while ((opt = getopt(argc, argv, ":p:?")) >= 0) {
+  while ((opt = getopt(argc, argv, ":p:r:?")) >= 0) {
     switch (opt) {
     case 'p':
-      provider = optarg;
+      STATE->provider_config = strdup(optarg);
+      assert(STATE->provider_config != NULL);
+      break;
+    case 'r':
+      STATE->reload_freq = atoi(optarg);
       break;
     case '?':
     case ':':
@@ -317,15 +279,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* ipmeta provider is required */
-  if (provider == NULL) {
+  if (STATE->provider_config == NULL) {
     fprintf(stderr,
             "ERROR: geolocation provider must be configured using -p\n");
-    usage(consumer);
-    return -1;
-  }
-
-  /* initialize ipmeta and provider */
-  if (init_ipmeta(consumer, provider) != 0) {
     usage(consumer);
     return -1;
   }
@@ -466,6 +422,178 @@ static void per_geo_destroy(per_geo_t *pg)
 }
 
 /* ==================== UTILITY FUNCTIONS ==================== */
+
+static int init_kp(bvc_t *consumer)
+{
+  /* init key package and meta metrics */
+  if ((STATE->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) ==
+      NULL) {
+    fprintf(stderr, "Error: Could not create timeseries key package\n");
+    return -1;
+  }
+
+  char buffer[BUFFER_LEN];
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "arrival_delay");
+  if ((STATE->arrival_delay_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
+      -1) {
+    return -1;
+  }
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "processed_delay");
+  if ((STATE->processed_delay_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
+      -1) {
+    return -1;
+  }
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, "processing_time");
+  if ((STATE->processing_time_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
+      -1) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int init_ipmeta(bvc_t *consumer)
+{
+  /* initialize ipmeta structure */
+  if ((STATE->ipmeta = ipmeta_init()) == NULL) {
+    fprintf(stderr, "Error: Could not initialize ipmeta \n");
+    return -1;
+  }
+
+  if (STATE->provider_name == NULL) {
+    /* need to parse the string given by the user */
+    assert(STATE->provider_arg == NULL);
+    STATE->provider_name = STATE->provider_config;
+
+    /* the string at STATE->provider_config will contain the name of the plugin,
+       optionally followed by a space and then the arguments to pass to the
+       plugin */
+    if ((STATE->provider_arg = strchr(STATE->provider_config, ' ')) != NULL) {
+      /* set the space to a nul, which allows STATE->provider_configs[i] to be
+         used for the provider name, and then increment plugin_arg_ptr to point
+         to
+         the next character, which will be the start of the arg string (or at
+         worst case, the terminating \0 */
+      *STATE->provider_arg = '\0';
+      STATE->provider_arg++;
+    }
+  }
+
+  /* lookup the provider using the name given  */
+  if ((STATE->provider = ipmeta_get_provider_by_name(
+         STATE->ipmeta, STATE->provider_name)) == NULL) {
+    fprintf(stderr, "ERROR: Invalid provider name: %s\n", STATE->provider_name);
+    return -1;
+  }
+
+  /* for now we only support the netacq-edge provider */
+  if (ipmeta_get_provider_id(STATE->provider) != IPMETA_PROVIDER_NETACQ_EDGE) {
+    fprintf(stderr,
+            "ERROR: Only the netacq-edge provider is currently supported\n");
+  }
+
+  if (ipmeta_enable_provider(STATE->ipmeta, STATE->provider,
+                             STATE->provider_arg,
+                             IPMETA_PROVIDER_DEFAULT_YES) != 0) {
+    fprintf(stderr, "ERROR: Could not enable provider %s\n",
+            STATE->provider_config);
+    return -1;
+  }
+
+  /* initialize a (reusable) record set structure  */
+  if ((STATE->records = ipmeta_record_set_init()) == NULL) {
+    fprintf(stderr, "ERROR: Could not init record set\n");
+    return -1;
+  }
+
+  return 0;
+}
+
+static void destroy_ipmeta(bvc_t *consumer)
+{
+  int i, j;
+
+  for (i = 0; i < METRIC_NETACQ_EDGE_ASCII_MAX; i++) {
+    /* continents */
+    if (STATE->continents != NULL && STATE->continents[i] != NULL) {
+      per_geo_destroy(STATE->continents[i]);
+      STATE->continents[i] = NULL;
+    }
+
+    /* countries */
+    if (STATE->countries != NULL && STATE->countries[i] != NULL) {
+      per_geo_destroy(STATE->countries[i]);
+      STATE->countries[i] = NULL;
+    }
+  }
+
+  for (i = 0; i < STATE->polygons_tbl_cnt; i++) {
+    for (j = 0; j < STATE->polygons_cnt[i]; j++) {
+      if (STATE->polygons != NULL && STATE->polygons[i][j] != NULL) {
+        per_geo_destroy(STATE->polygons[i][j]);
+        STATE->polygons[i][j] = NULL;
+      }
+    }
+    free(STATE->polygons[i]);
+    STATE->polygons[i] = NULL;
+    STATE->polygons_cnt[i] = 0;
+  }
+
+  if (STATE->ipmeta != NULL) {
+    ipmeta_free(STATE->ipmeta);
+    STATE->ipmeta = NULL;
+  }
+
+  if (STATE->records != NULL) {
+    ipmeta_record_set_free(&STATE->records);
+    STATE->records = NULL;
+  }
+}
+
+static void destroy_pfx_user_ptr(void *user)
+{
+  perpfx_cache_t *pfx_cache = (perpfx_cache_t *)user;
+  int i;
+
+  if (pfx_cache == NULL) {
+    return;
+  }
+
+  free(pfx_cache->continent_idxs);
+  pfx_cache->continent_idxs = NULL;
+  pfx_cache->continent_idxs_cnt = 0;
+
+  free(pfx_cache->country_idxs);
+  pfx_cache->country_idxs = NULL;
+  pfx_cache->country_idxs_cnt = 0;
+
+  for (i = 0; i < METRIC_NETACQ_EDGE_POLYS_TBL_CNT; i++) {
+    free(pfx_cache->poly_table_idxs[i]);
+    pfx_cache->poly_table_idxs[i] = NULL;
+    pfx_cache->poly_table_idxs_cnt[i] = 0;
+  }
+
+  free(pfx_cache);
+}
+
+static int clear_geocache(bvc_t *consumer, bgpview_t *view)
+{
+  bgpview_iter_t *it = bgpview_iter_create(view);
+  assert(it != NULL);
+
+  for (bgpview_iter_first_pfx(it, 0, BGPVIEW_FIELD_ALL_VALID); //
+       bgpview_iter_has_more_pfx(it);                    //
+       bgpview_iter_next_pfx(it)) {
+    // will call the destroy func itself
+    bgpview_iter_pfx_set_user(it, NULL);
+  }
+
+  bgpview_iter_destroy(it);
+  return 0;
+}
 
 static int create_geo_pfxs_vis(bvc_t *consumer)
 {
@@ -909,42 +1037,20 @@ int bvc_pergeovisibility_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
-  /* initialize ipmeta structure */
-  if ((state->ipmeta = ipmeta_init()) == NULL) {
-    fprintf(stderr, "Error: Could not initialize ipmeta \n");
+  if (init_kp(consumer) != 0) {
+    fprintf(stderr, "ERROR: Could not initialize timeseries KP\n");
     goto err;
-  }
-
-  /* init key package and meta metrics */
-  if ((state->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) ==
-      NULL) {
-    fprintf(stderr, "Error: Could not create timeseries key package\n");
-    goto err;
-  }
-
-  char buffer[BUFFER_LEN];
-  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "arrival_delay");
-  if ((state->arrival_delay_idx = timeseries_kp_add_key(state->kp, buffer)) ==
-      -1) {
-    return -1;
-  }
-  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "processed_delay");
-  if ((state->processed_delay_idx = timeseries_kp_add_key(state->kp, buffer)) ==
-      -1) {
-    return -1;
-  }
-  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, "processing_time");
-  if ((state->processing_time_idx = timeseries_kp_add_key(state->kp, buffer)) ==
-      -1) {
-    return -1;
   }
 
   /* parse the command line args */
   if (parse_args(consumer, argc, argv) != 0) {
     goto err;
+  }
+
+  /* initialize ipmeta and provider */
+  if (init_ipmeta(consumer) != 0) {
+    usage(consumer);
+    return -1;
   }
 
   /* the main hash table can be created only when ipmeta has been
@@ -961,71 +1067,18 @@ err:
   return -1;
 }
 
-static void bvc_destroy_pfx_user_ptr(void *user)
-{
-  perpfx_cache_t *pfx_cache = (perpfx_cache_t *)user;
-  int i;
-
-  free(pfx_cache->continent_idxs);
-  pfx_cache->continent_idxs = NULL;
-  pfx_cache->continent_idxs_cnt = 0;
-
-  free(pfx_cache->country_idxs);
-  pfx_cache->country_idxs = NULL;
-  pfx_cache->country_idxs_cnt = 0;
-
-  for (i = 0; i < METRIC_NETACQ_EDGE_POLYS_TBL_CNT; i++) {
-    free(pfx_cache->poly_table_idxs[i]);
-    pfx_cache->poly_table_idxs[i] = NULL;
-    pfx_cache->poly_table_idxs_cnt[i] = 0;
-  }
-
-  free(pfx_cache);
-}
-
 void bvc_pergeovisibility_destroy(bvc_t *consumer)
 {
-  int i, j;
-
   if (STATE == NULL) {
     return;
   }
 
-  for (i = 0; i < METRIC_NETACQ_EDGE_ASCII_MAX; i++) {
-    /* continents */
-    if (STATE->continents[i] != NULL) {
-      per_geo_destroy(STATE->continents[i]);
-      STATE->continents[i] = NULL;
-    }
+  destroy_ipmeta(consumer);
 
-    /* countries */
-    if (STATE->countries[i] != NULL) {
-      per_geo_destroy(STATE->countries[i]);
-      STATE->countries[i] = NULL;
-    }
-  }
-
-  for (i = 0; i < STATE->polygons_tbl_cnt; i++) {
-    for (j = 0; j < STATE->polygons_cnt[i]; j++) {
-      if (STATE->polygons[i][j] != NULL) {
-        per_geo_destroy(STATE->polygons[i][j]);
-        STATE->polygons[i][j] = NULL;
-      }
-    }
-    free(STATE->polygons[i]);
-    STATE->polygons[i] = NULL;
-    STATE->polygons_cnt[i] = 0;
-  }
-
-  if (STATE->ipmeta != NULL) {
-    ipmeta_free(STATE->ipmeta);
-    STATE->ipmeta = NULL;
-  }
-
-  if (STATE->records != NULL) {
-    ipmeta_record_set_free(&STATE->records);
-    STATE->records = NULL;
-  }
+  free(STATE->provider_config);
+  STATE->provider_config = NULL;
+  STATE->provider_name = NULL;
+  STATE->provider_arg = NULL;
 
   if (STATE->ff_asns != NULL) {
     bgpstream_id_set_destroy(STATE->ff_asns);
@@ -1045,6 +1098,46 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
   uint32_t arrival_delay;
   uint32_t processed_delay;
   uint32_t processing_time;
+
+  /* set the pfx user pointer destructor function */
+  bgpview_set_pfx_user_destructor(view, destroy_pfx_user_ptr);
+
+  if (STATE->last_reload == 0) {
+    STATE->last_reload = bgpview_get_time(view);
+  }
+
+  /* should we reload the ipmeta instance? (to pick up a new database) */
+  if (STATE->reload_freq > 0 &&
+      bgpview_get_time(view) >= (STATE->last_reload + STATE->reload_freq)) {
+    fprintf(stderr, "INFO: reloading libipmeta (after %"PRIu32" seconds)\n",
+            (bgpview_get_time(view) - STATE->last_reload));
+    /* clear our cache */
+    clear_geocache(consumer, view);
+
+    /* shut down our existing ipmeta instance */
+    destroy_ipmeta(consumer);
+
+    /* create a new key package */
+    timeseries_kp_free(&STATE->kp);
+    if (init_kp(consumer) != 0) {
+      fprintf(stderr, "ERROR: Could not re-initialize the timeseries KP\n");
+      return -1;
+    }
+
+    /* restart ipmeta */
+    if (init_ipmeta(consumer) != 0) {
+      fprintf(stderr, "ERROR: Could not restart ipmeta\n");
+      return -1;
+    }
+
+    /* recreate other ipmeta state */
+    if (create_geo_pfxs_vis(consumer) != 0) {
+      fprintf(stderr, "ERROR: Could not rebuild ipmeta lookup tables\n");
+      return -1;
+    }
+
+    STATE->last_reload = bgpview_get_time(view);
+  }
 
   if (BVC_GET_CHAIN_STATE(consumer)
         ->usable_table_flag[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] ==
@@ -1071,9 +1164,6 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
   if ((it = bgpview_iter_create(view)) == NULL) {
     return -1;
   }
-
-  /* set the pfx user pointer destructor function */
-  bgpview_set_pfx_user_destructor(view, bvc_destroy_pfx_user_ptr);
 
   /* compute the pfx visibility stats for each geo aggregation (continent,
      countrry, region, county) */
