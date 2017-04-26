@@ -396,14 +396,17 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 static int subpfxs_diff(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                         khash_t(pfx2pfx) *a, khash_t(pfx2pfx) *b, int diff_type)
 {
-  khiter_t k;
+  khiter_t k, j;
   for (k = kh_begin(a); k < kh_end(a); k++) {
     if (kh_exist(a, k) == 0) {
       continue;
     }
     bgpstream_pfx_storage_t *pfx = &kh_key(a, k);
-    if (kh_get(pfx2pfx, b, *pfx) != kh_end(b)) {
-      // this was in the previous view
+    bgpstream_pfx_storage_t *super_pfx = &kh_val(a, k);
+    // this prefix must have been a sub-prefix in the previous view,
+    // and it must have had the same super prefix
+    if ((j = kh_get(pfx2pfx, b, *pfx)) != kh_end(b) &&
+        bgpstream_pfx_storage_equal(super_pfx, &kh_val(b, j)) != 0) {
       continue;
     }
 
