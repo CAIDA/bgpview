@@ -132,6 +132,11 @@ CONSUMER_SRCS += \
 	bvc_pathchange.c \
 	bvc_pathchange.h
 
+# Subpfx consumer
+CONSUMER_SRCS += \
+	bvc_subpfx.c \
+	bvc_subpfx.h
+
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>

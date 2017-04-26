@@ -171,13 +171,17 @@ typedef enum bvc_id {
   /** Extracts information about path changes between successive views */
   BVC_ID_PATHCHANGE = 16,
 
+  /** Identifies prefixes that are nested in other prefixes. Replaces the
+      "submoas" consumer and adds the "defcon" consumer features */
+  BVC_ID_SUBPFX = 17,
+
   /** @todo add more consumers here */
 
   /** Lowest numbered bgpview consumer ID */
   BVC_ID_FIRST = BVC_ID_TEST,
 
   /** Highest numbered bgpview consumer ID */
-  BVC_ID_LAST = BVC_ID_PATHCHANGE,
+  BVC_ID_LAST = BVC_ID_SUBPFX,
 
 } bvc_id_t;
 

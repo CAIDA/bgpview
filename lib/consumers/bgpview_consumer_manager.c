@@ -85,6 +85,9 @@
 /* Path Change consumer */
 #include "bvc_pathchange.h"
 
+/* Sub-prefix consumer */
+#include "bvc_subpfx.h"
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -164,6 +167,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to pathchange alloc function */
   bvc_pathchange_alloc,
+
+  /** Pointer to subpfx alloc function */
+  bvc_subpfx_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
