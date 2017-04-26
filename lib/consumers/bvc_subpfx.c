@@ -49,8 +49,19 @@
 
 #define DEFAULT_OUTPUT_DIR "./"
 #define DEFAULT_COMPRESS_LEVEL 6
-#define OUTPUT_FILE_FORMAT "%s/" NAME ".%" PRIu32 ".events.gz"
+#define OUTPUT_FILE_FORMAT "%s/" NAME "-%s.%" PRIu32 ".events.gz"
 #define BUFFER_LEN 4096
+
+/* stores the set of ASes that announced a prefix */
+typedef struct pt_user {
+
+  // array of ASes that announced this prefix (origins)
+  uint32_t *ases;
+
+  // number of ASes in the array
+  int ases_cnt;
+
+} pt_user_t;
 
 /* Maps sub-prefixes to super prefixes */
 KHASH_INIT(pfx2pfx, bgpstream_pfx_storage_t, bgpstream_pfx_storage_t, 1,
@@ -66,6 +77,18 @@ static char *diff_type_strs[] = {
   "FINISHED",
 };
 
+enum {
+  INVALID_MODE = 0,
+  SUBMOAS = 1,
+  DEFCON = 2,
+};
+
+static char *mode_strs[] = {
+  "invalid-mode",
+  "submoas",
+  "defcon",
+};
+
 /* our 'class' */
 static bvc_t bvc_subpfx = { //
   BVC_ID_SUBPFX,
@@ -78,6 +101,7 @@ typedef struct bvc_subpfx_state {
 
   // options:
   char *outdir;
+  int mode; // SUBMOAS or DEFCON
 
   // Patricia tree used to find sub-prefixes in the current view
   bgpstream_patricia_tree_t *pt;
@@ -103,9 +127,13 @@ typedef struct bvc_subpfx_state {
 /** Print usage information to stderr */
 static void usage(bvc_t *consumer)
 {
-  fprintf(stderr, "consumer usage: %s\n"
+  fprintf(stderr,
+          "consumer usage: %s\n"
+          "       -m <mode>            either '%s' or '%s'\n"
           "       -o <output-dir>      output directory (default: %s)\n",
           consumer->name,
+          mode_strs[SUBMOAS],
+          mode_strs[DEFCON],
           DEFAULT_OUTPUT_DIR);
 }
 
@@ -120,8 +148,20 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while ((opt = getopt(argc, argv, ":o:?")) >= 0) {
+  while ((opt = getopt(argc, argv, ":m:o:?")) >= 0) {
     switch (opt) {
+    case 'm':
+      if (strcmp(optarg, mode_strs[SUBMOAS]) == 0) {
+        STATE->mode = SUBMOAS;
+      } else if (strcmp(optarg, mode_strs[DEFCON]) == 0) {
+        STATE->mode = DEFCON;
+      } else {
+        fprintf(stderr, "ERROR: Invalid mode type (%s)\n", optarg);
+        usage(consumer);
+        return -1;
+      }
+      break;
+
     case 'o':
       STATE->outdir = strdup(optarg);
       assert(STATE->outdir != NULL);
@@ -135,12 +175,69 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
     }
   }
 
+  if (STATE->mode == INVALID_MODE) {
+    fprintf(stderr, "ERROR: sub-pfx detection mode must be set using -m\n");
+    usage(consumer);
+    return -1;
+  }
+
+  return 0;
+}
+
+static void pt_user_destroy(void *user)
+{
+  if (user == NULL) {
+    return;
+  }
+  pt_user_t *ptu = (pt_user_t *)user;
+  free(ptu->ases);
+  ptu->ases = NULL;
+  ptu->ases_cnt = 0;
+  free(user);
+}
+
+static pt_user_t *pt_user_create()
+{
+  pt_user_t *ptu;
+
+  if ((ptu = malloc_zero(sizeof(pt_user_t))) == NULL) {
+    return NULL;
+  }
+
+  return ptu;
+}
+
+static int pt_user_contains_asn(pt_user_t *ptu, uint32_t asn)
+{
+  int i;
+  for (i=0; i<ptu->ases_cnt; i++) {
+    if (ptu->ases[i] == asn) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static int pt_user_add_asn(pt_user_t *ptu, uint32_t asn)
+{
+  // common case: its already there, and its probably the first AS in the set
+  if (pt_user_contains_asn(ptu, asn) != 0) {
+    return 0;
+  }
+
+  // not there... realloc, blah
+  if ((ptu->ases = realloc(ptu->ases,
+                           sizeof(uint32_t) * (ptu->ases_cnt+1))) == NULL) {
+    return -1;
+  }
+  ptu->ases[ptu->ases_cnt++] = asn;
   return 0;
 }
 
 static void find_subpfxs(bgpstream_patricia_tree_t *pt,
                          bgpstream_patricia_node_t *node, void *data)
 {
+  int i;
   bvc_t *consumer = (bvc_t*)data;
   bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(node);
 
@@ -154,10 +251,59 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
     bgpstream_patricia_tree_result_set_next(STATE->pt_res);
 
   if (super_node == NULL) {
-    // this is not a sub-prefix
+    // there is no way this can be a sub-prefix
     return;
   }
   bgpstream_pfx_t *super_pfx = bgpstream_patricia_tree_get_pfx(super_node);
+
+  // so, there is an overlapping prefix, but is it of the type we're interested in?
+
+  pt_user_t *ptu = bgpstream_patricia_tree_get_user(node);
+  assert(ptu->ases_cnt > 0);
+  pt_user_t *super_ptu = bgpstream_patricia_tree_get_user(super_node);
+  assert(super_ptu->ases_cnt > 0);
+
+  int is_wanted = 0;
+  if (STATE->mode == SUBMOAS) {
+    // in this case the (sub)prefix must have at least one origin that is
+    // DIFFERENT to the super prefix origins
+    // we're doing linear searches, but hopefully this isn't very expensive :/
+    // TODO: consider using an AS set in the pt_user_t
+    for (i = 0; i < ptu->ases_cnt; i++) {
+      if (pt_user_contains_asn(super_ptu, ptu->ases[i]) == 0) {
+        // pfx is originated by an AS that is not also originating the parent,
+        // so this is indeed a sub-moas
+        is_wanted = 1;
+        break;
+      }
+    }
+  } else {
+    assert(STATE->mode == DEFCON);
+    // in this case the (sub)prefix must have THE SAME origins as the super
+    // prefix
+    is_wanted = 1;
+    if (ptu->ases_cnt != super_ptu->ases_cnt) {
+      // origin set sizes differ, so they necessarily can't be the same
+      is_wanted = 0;
+    } else {
+      // ensure all ASes that originate this prefix also originate the super
+      // prefix
+      for (i = 0; i < ptu->ases_cnt; i++) {
+        if (pt_user_contains_asn(super_ptu, ptu->ases[i]) == 0) {
+          // an AS that originates this prefix does not announce the
+          // super-prefix, so we don't want this prefix
+          is_wanted = 0;
+          break;
+        }
+      }
+    }
+  }
+
+  if (is_wanted == 0) {
+    // its a sub-prefix, but not one that matches our mode, so give up and move
+    // on
+    return;
+  }
 
   bgpstream_pfx_storage_t tmp_pfx;
   bgpstream_pfx_copy((bgpstream_pfx_t*)&tmp_pfx, pfx);
@@ -285,7 +431,7 @@ int bvc_subpfx_init(bvc_t *consumer, int argc, char **argv)
   }
   BVC_SET_STATE(consumer, state);
 
-  if ((state->pt = bgpstream_patricia_tree_create(NULL)) == NULL) {
+  if ((state->pt = bgpstream_patricia_tree_create(pt_user_destroy)) == NULL) {
     fprintf(stderr, "ERROR: Could not create patricia tree\n");
     goto err;
   }
@@ -344,10 +490,14 @@ void bvc_subpfx_destroy(bvc_t *consumer)
 int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
 {
   bgpview_iter_t *it = NULL;
+  bgpstream_pfx_t *pfx = NULL;
+  pt_user_t *ptu = NULL;
+  bgpstream_as_path_seg_t *origin_seg;
+  bgpstream_patricia_node_t *node;
 
   // open the output file
   snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT,
-           STATE->outdir, bgpview_get_time(view));
+           STATE->outdir, mode_strs[STATE->mode], bgpview_get_time(view));
   if ((STATE->outfile = wandio_wcreate(STATE->outfile_name,
                                        wandio_detect_compression_type(STATE->outfile_name),
                                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
@@ -369,22 +519,57 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
        bgpview_iter_next_pfx(it)) {
     // we have to walk through the peers to see if this prefix is announced by
     // at least one FF peer
-    bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
+    pfx = bgpview_iter_pfx_get_pfx(it);
     int ipv_idx = bgpstream_ipv2idx(pfx->address.version);
+
+    // check if this is a "full-feed prefix", and build the origin AS set
     int is_ff = 0;
+    if ((ptu = pt_user_create()) == NULL) {
+      fprintf(stderr, "ERROR: Could not create patricia user structure\n");
+      goto err;
+    }
     for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE); //
          bgpview_iter_pfx_has_more_peer(it); //
          bgpview_iter_pfx_next_peer(it)) {
       if (bgpstream_id_set_exists(
             BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-            bgpview_iter_peer_get_peer_id(it))) {
-        is_ff = 1;
-        break;
+            bgpview_iter_peer_get_peer_id(it)) == 0) {
+        continue;
+      }
+      is_ff = 1;
+      /* get origin asn */
+      if ((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL) {
+        return -1;
+      }
+      if (origin_seg->type != BGPSTREAM_AS_PATH_SEG_ASN) {
+        /* skip sets and confederations */
+        continue;
+      }
+      if (pt_user_add_asn(ptu, ((bgpstream_as_path_seg_asn_t *)origin_seg)->asn)
+          != 0) {
+        fprintf(stderr, "ERROR: Could not add origin AS\n");
+        return -1;
       }
     }
-    if (is_ff != 0 && bgpstream_patricia_tree_insert(STATE->pt, pfx) == NULL) {
-      fprintf(stderr, "ERROR: Could not insert prefix in patricia tree\n");
-      goto err;
+
+    // now, add to the patricia tree if it is full-feed
+    if (is_ff == 0) {
+      // not a full-feed prefix, we wasted our time finding the origins ASes
+      pt_user_destroy(ptu);
+      ptu = NULL;
+    } else {
+      // first, insert this prefix into the tree
+      if ((node = bgpstream_patricia_tree_insert(STATE->pt, pfx)) == NULL) {
+        fprintf(stderr, "ERROR: Could not insert prefix in patricia tree\n");
+        goto err;
+      }
+      // now set the user data to the origin set
+      if (bgpstream_patricia_tree_set_user(STATE->pt, node, ptu) != 0) {
+        fprintf(stderr, "ERROR: Could not set patricia user data\n");
+        goto err;
+      }
+      // patricia now owns ptu
+      ptu = NULL;
     }
   }
 
@@ -420,7 +605,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
 
   /* generate the .done file */
   snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
-           STATE->outdir, bgpview_get_time(view));
+           STATE->outdir, mode_strs[STATE->mode], bgpview_get_time(view));
   if ((STATE->outfile = wandio_wcreate(STATE->outfile_name,
                                        wandio_detect_compression_type(STATE->outfile_name),
                                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
