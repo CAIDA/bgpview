@@ -52,6 +52,12 @@
 #define OUTPUT_FILE_FORMAT "%s/" NAME "-%s.%" PRIu32 ".events.gz"
 #define BUFFER_LEN 4096
 
+/* IPv4 default route */
+#define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
+
+/* IPv6 default route */
+#define IPV6_DEFAULT_ROUTE "0::/0"
+
 /* stores the set of ASes that announced a prefix */
 typedef struct pt_user {
 
@@ -115,6 +121,11 @@ typedef struct bvc_subpfx_state {
   // which subpfxs map should be filled for this view
   // ((current_subpfxs_idx+1)%2) is the map for the previous view
   int current_subpfxs_idx;
+
+  // IPv4 default route prefix
+  bgpstream_pfx_storage_t v4_default_pfx;
+  // IPv6 default route prefix
+  bgpstream_pfx_storage_t v6_default_pfx;
 
   // current output file name
   char outfile_name[BUFFER_LEN];
@@ -453,6 +464,13 @@ int bvc_subpfx_init(bvc_t *consumer, int argc, char **argv)
   }
   STATE->current_subpfxs_idx = 0;
 
+  /* build blacklist prefixes */
+  if (bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &STATE->v4_default_pfx) == NULL ||
+      bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &STATE->v6_default_pfx) != NULL) {
+    fprintf(stderr, "Could not build blacklist prefixes\n");
+    goto err;
+  }
+
   /* parse the command line args */
   if (parse_args(consumer, argc, argv) != 0) {
     goto err;
@@ -521,8 +539,17 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
        bgpview_iter_has_more_pfx(it); //
        bgpview_iter_next_pfx(it)) {
     // we have to walk through the peers to see if this prefix is announced by
-    // at least one FF peer
+    // at least one FF peer and to collect origin ASNs
     pfx = bgpview_iter_pfx_get_pfx(it);
+
+    // ignore default prefixes
+    if (bgpstream_pfx_equal((bgpstream_pfx_t*)&STATE->v4_default_pfx,
+                            (bgpstream_pfx_t*)pfx) != 0 ||
+        bgpstream_pfx_equal((bgpstream_pfx_t*)&STATE->v6_default_pfx,
+                            (bgpstream_pfx_t*)pfx) != 0) {
+      continue;
+    }
+
     int ipv_idx = bgpstream_ipv2idx(pfx->address.version);
 
     // check if this is a "full-feed prefix", and build the origin AS set
