@@ -54,9 +54,15 @@
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
-
 /* IPv6 default route */
 #define IPV6_DEFAULT_ROUTE "0::/0"
+
+// <metric-prefix>.subpfx.<mode-str>.<metric>
+#define METRIC_PREFIX_FORMAT                                                   \
+  "%s." NAME ".%s.%s"
+// <metric-prefix>.meta.bgpview.consumer.subpfx.<mode-str>.<metric>
+#define META_METRIC_PREFIX_FORMAT                                              \
+  "%s.meta.bgpview.consumer." NAME ".%s.%s"
 
 /* stores the set of ASes that announced a prefix */
 typedef struct pt_user {
@@ -132,6 +138,16 @@ typedef struct bvc_subpfx_state {
 
   // current output file handle
   iow_t *outfile;
+
+  // Timeseries Key Package
+  timeseries_kp_t *kp;
+
+  // Metric indices
+  int arrival_delay_idx;
+  int processed_delay_idx;
+  int processing_time_idx;
+  int new_subpfxs_cnt_idx;
+  int finished_subpfxs_cnt_idx;
 
 } bvc_subpfx_state_t;
 
@@ -404,10 +420,12 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   return 0;
 }
 
-static int subpfxs_diff(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
-                        khash_t(pfx2pfx) *a, khash_t(pfx2pfx) *b, int diff_type)
+static uint64_t subpfxs_diff(bvc_t *consumer, bgpview_t *view,
+                             bgpview_iter_t *it, khash_t(pfx2pfx) *a,
+                             khash_t(pfx2pfx) *b, int diff_type)
 {
   khiter_t k, j;
+  uint64_t cnt = 0;
   for (k = kh_begin(a); k < kh_end(a); k++) {
     if (kh_exist(a, k) == 0) {
       continue;
@@ -423,9 +441,56 @@ static int subpfxs_diff(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 
     // this is a new/finished sub-pfx!
     if (dump_subpfx(consumer, view, it, pfx, &kh_val(a, k), diff_type) != 0) {
-      return -1;
+      return UINT64_MAX;
     }
+    cnt++;
   }
+  return cnt;
+}
+
+static int create_ts_metrics(bvc_t *consumer)
+{
+  char buffer[BUFFER_LEN];
+
+  /* meta metrics */
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode], "arrival_delay");
+  if ((STATE->arrival_delay_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
+      -1) {
+    return -1;
+  }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode], "processed_delay");
+  if ((STATE->processed_delay_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
+      -1) {
+    return -1;
+  }
+
+  snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode], "processing_time");
+  if ((STATE->processing_time_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
+      -1) {
+    return -1;
+  }
+
+  /* new/finished counters */
+  snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode],
+           "new_subpfxs_cnt");
+  if ((STATE->new_subpfxs_cnt_idx =
+       timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+    return -1;
+  }
+
+  snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_FORMAT,
+           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode],
+           "finished_subpfxs_cnt");
+  if ((STATE->finished_subpfxs_cnt_idx =
+       timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+    return -1;
+  }
+
   return 0;
 }
 
@@ -471,6 +536,16 @@ int bvc_subpfx_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  if ((STATE->kp = timeseries_kp_init(BVC_GET_TIMESERIES(consumer), 1)) ==
+      NULL) {
+    fprintf(stderr, "Error: Could not create timeseries key package\n");
+    goto err;
+  }
+
+  if (create_ts_metrics(consumer) != 0) {
+    goto err;
+  }
+
   /* parse the command line args */
   if (parse_args(consumer, argc, argv) != 0) {
     goto err;
@@ -503,6 +578,8 @@ void bvc_subpfx_destroy(bvc_t *consumer)
     state->subpfxs[i] = NULL;
   }
 
+  timeseries_kp_free(&state->kp);
+
   free(state);
 
   BVC_SET_STATE(consumer, NULL);
@@ -516,9 +593,15 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   bgpstream_as_path_seg_t *origin_seg;
   bgpstream_patricia_node_t *node;
 
+  uint32_t start_time = epoch_sec();
+  uint32_t view_time = bgpview_get_time(view);
+  uint32_t arrival_delay = start_time - view_time;
+  uint32_t new_cnt = 0;
+  uint32_t finished_cnt = 0;
+
   // open the output file
   snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT,
-           STATE->outdir, mode_strs[STATE->mode], bgpview_get_time(view));
+           STATE->outdir, mode_strs[STATE->mode], view_time);
   if ((STATE->outfile = wandio_wcreate(STATE->outfile_name,
                                        wandio_detect_compression_type(STATE->outfile_name),
                                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
@@ -533,8 +616,6 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* build the patricia tree of prefixes in the current view */
-  /* TODO: add a utility function to the view which constructs this so it can be
-     reused by others */
   for (bgpview_iter_first_pfx(it, 0 /* all ip versions*/, BGPVIEW_FIELD_ACTIVE);
        bgpview_iter_has_more_pfx(it); //
        bgpview_iter_next_pfx(it)) {
@@ -608,13 +689,15 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
 
   // now that we have a table of sub-prefixes, find out which are new
   // (i.e., which are in this view but not in the previous one)
-  if (subpfxs_diff(consumer, view, it, CUR_SUBPFXS, PREV_SUBPFXS, NEW) != 0) {
+  if ((new_cnt = subpfxs_diff(consumer, view, it, CUR_SUBPFXS, PREV_SUBPFXS, NEW))
+      == UINT64_MAX) {
     fprintf(stderr, "ERROR: Failed to find NEW sub prefixes\n");
     goto err;
   }
   // and then do the complement to find finished sub-pfxs
-  if (subpfxs_diff(consumer, view, it,
-                   PREV_SUBPFXS, CUR_SUBPFXS, FINISHED) != 0) {
+  if ((finished_cnt = subpfxs_diff(consumer, view, it,
+                                   PREV_SUBPFXS, CUR_SUBPFXS, FINISHED))
+      == UINT64_MAX) {
     fprintf(stderr, "ERROR: Failed to find NEW sub prefixes\n");
     goto err;
   }
@@ -635,7 +718,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
 
   /* generate the .done file */
   snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
-           STATE->outdir, mode_strs[STATE->mode], bgpview_get_time(view));
+           STATE->outdir, mode_strs[STATE->mode], view_time);
   if ((STATE->outfile = wandio_wcreate(STATE->outfile_name,
                                        wandio_detect_compression_type(STATE->outfile_name),
                                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
@@ -644,6 +727,22 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   }
   wandio_wdestroy(STATE->outfile);
   STATE->outfile = NULL;
+
+  // update and dump timeseries
+  uint32_t now = epoch_sec();
+  // meta series
+  timeseries_kp_set(STATE->kp, STATE->arrival_delay_idx, arrival_delay);
+  timeseries_kp_set(STATE->kp, STATE->processed_delay_idx, (now - view_time));
+  timeseries_kp_set(STATE->kp, STATE->processing_time_idx, (now - start_time));
+
+  // event counters
+  timeseries_kp_set(STATE->kp, STATE->new_subpfxs_cnt_idx, new_cnt);
+  timeseries_kp_set(STATE->kp, STATE->finished_subpfxs_cnt_idx, finished_cnt);
+
+  if (timeseries_kp_flush(STATE->kp, view_time) != 0) {
+    fprintf(stderr, "Warning: %s could not flush timeseries at %" PRIu32 "\n",
+            NAME, view_time);
+  }
 
   return 0;
 
