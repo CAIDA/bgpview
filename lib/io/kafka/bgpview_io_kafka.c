@@ -199,6 +199,12 @@ int bgpview_io_kafka_common_config(bgpview_io_kafka_t *client,
     goto err;
   }
 
+  if (rd_kafka_conf_set(conf, "api.version.request", "true", errstr,
+                        sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+    fprintf(stderr, "ERROR: %s\n", errstr);
+    goto err;
+  }
+
   return 0;
 
 err:

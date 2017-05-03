@@ -373,7 +373,8 @@ again:
   if ((msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
                               BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
                               2000000000)) == NULL) {
-    goto err;
+    fprintf(stderr, "WARN: Failed to get metadata message, retrying...\n");
+    goto again;
   }
 
   if (msg->payload == NULL) {
