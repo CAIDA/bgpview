@@ -370,22 +370,29 @@ again:
     metas = NULL;
   }
   /* Grab the next metadata message */
-  if ((msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
-                              BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
-                              2000000000)) == NULL) {
-    fprintf(stderr, "WARN: Failed to get metadata message, retrying...\n");
+  msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
+                         BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
+                         2000000000);
+  /* check for a non-standard response */
+  if (msg == NULL) {
     goto again;
   }
-
-  if (msg->payload == NULL) {
-    if (msg->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
-      rd_kafka_message_destroy(msg);
-      msg = NULL;
-      goto again;
-    }
+  if (msg->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
+    rd_kafka_message_destroy(msg);
+    msg = NULL;
+    goto again;
+  }
+  if (msg->err != 0) {
     /* TODO: handle this failure -- maybe reconnect? */
-    fprintf(stderr, "ERROR: Could not consume metadata message\n");
+    fprintf(stderr, "ERROR: Could not consume metadata message (err: %d)\n",
+            msg->err);
     goto err;
+  }
+  if (msg->payload == NULL || msg->len == 0) {
+    fprintf(stderr, "WARN: Empty metadata message, retrying...\n");
+    rd_kafka_message_destroy(msg);
+    msg = NULL;
+    goto again;
   }
 
   /* extract the information from the message */
