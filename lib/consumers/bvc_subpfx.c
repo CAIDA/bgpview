@@ -647,7 +647,6 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
             bgpview_iter_peer_get_peer_id(it)) == 0) {
         continue;
       }
-      is_ff = 1;
       /* get origin asn */
       if ((origin_seg = bgpview_iter_pfx_peer_get_origin_seg(it)) == NULL) {
         return -1;
@@ -661,6 +660,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
         fprintf(stderr, "ERROR: Could not add origin AS\n");
         return -1;
       }
+      is_ff = 1;
     }
 
     // now, add to the patricia tree if it is full-feed
