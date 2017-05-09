@@ -536,7 +536,7 @@ int bvc_subpfx_init(bvc_t *consumer, int argc, char **argv)
 
   /* build blacklist prefixes */
   if (bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &STATE->v4_default_pfx) == NULL ||
-      bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &STATE->v6_default_pfx) != NULL) {
+      bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &STATE->v6_default_pfx) == NULL) {
     fprintf(stderr, "Could not build blacklist prefixes\n");
     goto err;
   }
