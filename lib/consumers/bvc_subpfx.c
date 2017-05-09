@@ -510,6 +510,11 @@ int bvc_subpfx_init(bvc_t *consumer, int argc, char **argv)
   }
   BVC_SET_STATE(consumer, state);
 
+  /* parse the command line args */
+  if (parse_args(consumer, argc, argv) != 0) {
+    goto err;
+  }
+
   if ((state->pt = bgpstream_patricia_tree_create(pt_user_destroy)) == NULL) {
     fprintf(stderr, "ERROR: Could not create patricia tree\n");
     goto err;
@@ -543,11 +548,6 @@ int bvc_subpfx_init(bvc_t *consumer, int argc, char **argv)
   }
 
   if (create_ts_metrics(consumer) != 0) {
-    goto err;
-  }
-
-  /* parse the command line args */
-  if (parse_args(consumer, argc, argv) != 0) {
     goto err;
   }
 
