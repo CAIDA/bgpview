@@ -596,8 +596,8 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   uint32_t start_time = epoch_sec();
   uint32_t view_time = bgpview_get_time(view);
   uint32_t arrival_delay = start_time - view_time;
-  uint32_t new_cnt = 0;
-  uint32_t finished_cnt = 0;
+  uint64_t new_cnt = 0;
+  uint64_t finished_cnt = 0;
 
   // open the output file
   snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT,
