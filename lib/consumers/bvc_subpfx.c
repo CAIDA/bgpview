@@ -675,7 +675,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
         goto err;
       }
       // now set the user data to the origin set
-      if (bgpstream_patricia_tree_set_user(STATE->pt, node, ptu) != 0) {
+      if (bgpstream_patricia_tree_set_user(STATE->pt, node, ptu) != 1) {
         fprintf(stderr, "ERROR: Could not set patricia user data\n");
         goto err;
       }
