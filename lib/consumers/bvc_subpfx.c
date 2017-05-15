@@ -344,6 +344,31 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
   kh_val(CUR_SUBPFXS, k) = tmp_super_pfx;
 }
 
+static int dump_origins(bvc_t *consumer, bgpview_iter_t *it, bgpstream_pfx_t *pfx)
+{
+  bvc_subpfx_state_t *state = STATE;
+
+ //TODO: avoid to search in the patricia tree 
+ bgpstream_patricia_node_t *node =
+ bgpstream_patricia_tree_search_exact(state->pt, pfx);
+
+ pt_user_t *ptu = bgpstream_patricia_tree_get_user(node);
+ assert(ptu->ases_cnt > 0);
+ int i;
+
+ for (i = 0; i < ptu->ases_cnt; i++) {
+    if (i != 0) {
+
+    wandio_printf(STATE->outfile, " %"PRIu32"",ptu->ases[i]);
+
+    } else{
+    wandio_printf(STATE->outfile,"%"PRIu32"",ptu->ases[i]);
+
+    }      
+ }
+ return 0;
+}
+
 static int dump_as_paths(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                          bgpstream_pfx_t *pfx)
 {
@@ -405,6 +430,11 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                 super_pfx_str,
                 pfx_str,
                 diff_type_strs[diff_type]);
+
+  dump_origins(consumer, it, (bgpstream_pfx_t*)super_pfx);
+  wandio_printf(STATE->outfile, "|");
+  dump_origins(consumer, it, (bgpstream_pfx_t*)pfx);
+  wandio_printf(STATE->outfile, "|");
 
   if (diff_type == NEW) {
     // dump the AS paths
