@@ -354,16 +354,13 @@ static int dump_origins(bvc_t *consumer, bgpview_iter_t *it, bgpstream_pfx_t *pf
 
  pt_user_t *ptu = bgpstream_patricia_tree_get_user(node);
  assert(ptu->ases_cnt > 0);
+  
  int i;
-
  for (i = 0; i < ptu->ases_cnt; i++) {
     if (i != 0) {
-
     wandio_printf(STATE->outfile, " %"PRIu32"",ptu->ases[i]);
-
     } else{
     wandio_printf(STATE->outfile,"%"PRIu32"",ptu->ases[i]);
-
     }      
  }
  return 0;
