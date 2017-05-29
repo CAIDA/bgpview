@@ -938,7 +938,6 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
           /* checking if a segment is a regular asn */
           if (seg->type == BGPSTREAM_AS_PATH_SEG_ASN) {
             asn = ((bgpstream_as_path_seg_asn_t *)seg)->asn;
-
             normal_asn = 1;
           }
           // Check whether asn is a regular asn
