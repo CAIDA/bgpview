@@ -1180,7 +1180,7 @@ int bgpview_io_kafka_consumer_topic_connect(bgpview_io_kafka_t *client,
 
   if (rd_kafka_consume_start(*rkt, 0, RD_KAFKA_OFFSET_TAIL(1)) == -1) {
     fprintf(stderr, "ERROR: Failed to start consuming: %s\n",
-            rd_kafka_err2str(rd_kafka_errno2err(errno)));
+            rd_kafka_err2str(rd_kafka_last_error()));
     return -1;
   }
 
