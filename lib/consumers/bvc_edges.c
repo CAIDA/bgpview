@@ -493,11 +493,18 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
       // printf("edge1 %s : edge2 %s\n",asn1,asn2);
       edge_info = get_edge_struct(consumer, asn1, asn2);
       // printf("printing\n");
+      /*DEPRECATED
       if (wandio_printf(
             state->file_newedges, "%" PRIu32 "|%" PRIu32 "-%" PRIu32
                                   "|NEW|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|%s",
             state->time_now, edge_info.asn1, edge_info.asn2,
             edge_info.first_seen, edge_info.start, edge_info.first_seen,
+            bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1)
+
+      */
+      if (wandio_printf(
+            state->file_newedges, "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|NEW|%s|",
+            state->time_now, edge_info.asn1, edge_info.asn2,
             bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1)
 
       {
@@ -525,12 +532,12 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
               fprintf(stderr, "ERROR: ASn print truncated output\n");
               return -1;
             }
-            if (wandio_printf(state->file_newedges, "|%s", asn_buffer) == -1) {
+            if (wandio_printf(state->file_newedges, "%s", asn_buffer) == -1) {
               fprintf(stderr, "ERROR: Could not write data to file\n");
               return -1;
             }
           }
-          // second -> origin ASn
+          // from the second ASN to the last one (origin ASn)
           while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
             // printing each segment
             if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
@@ -542,6 +549,10 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
               fprintf(stderr, "ERROR: Could not write data to file\n");
               return -1;
             }
+          }
+          if (wandio_printf(state->file_newedges, ":") == -1) {
+          fprintf(stderr, "ERROR: Could not write data to file\n");
+            return -1;
           }
         }
       }
@@ -564,10 +575,8 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
       // printf("printing\n");
       if (wandio_printf(
             state->file_newedges,
-            "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|NEWREC|%" PRIu32 "|%" PRIu32
-            "|%" PRIu32 "|%s",
+            "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|NEWREC|%s|",
             state->time_now, edge_info.asn1, edge_info.asn2,
-            edge_info.first_seen, edge_info.start, edge_info.first_seen,
             bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx)) == -1)
 
       {
@@ -595,7 +604,7 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
               fprintf(stderr, "ERROR: ASn print truncated output\n");
               return -1;
             }
-            if (wandio_printf(state->file_newedges, "|%s", asn_buffer) == -1) {
+            if (wandio_printf(state->file_newedges, "%s", asn_buffer) == -1) {
               fprintf(stderr, "ERROR: Could not write data to file\n");
               return -1;
             }
@@ -612,6 +621,10 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
               fprintf(stderr, "ERROR: Could not write data to file\n");
               return -1;
             }
+          }
+          if (wandio_printf(state->file_newedges, ":") == -1) {
+          fprintf(stderr, "ERROR: Could not write data to file\n");
+            return -1;
           }
         }
       }
@@ -634,11 +647,8 @@ static void print_to_file_newedges(bvc_t *consumer, int status,
 
   if (status == FINISHED) {
     if (wandio_printf(state->file_newedges,
-                      "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|FINISHED|%" PRIu32
-                      "|%" PRIu32 "|%" PRIu32 "\n",
-                      state->time_now, edge_info.asn1, edge_info.asn2,
-                      edge_info.first_seen, edge_info.start,
-                      edge_info.end) == -1) {
+                      "%" PRIu32 "|%" PRIu32 "-%" PRIu32 "|FINISHED|\n",
+                      state->time_now, edge_info.asn1, edge_info.asn2) == -1) {
       fprintf(stderr, "ERROR: Could not write %s file\n",
               state->filename_newedges);
       return;
@@ -646,6 +656,7 @@ static void print_to_file_newedges(bvc_t *consumer, int status,
   }
 }
 
+/* DEPRECATED: we are not printing anymore the ongoing events
 static void print_ongoing_newedges(bvc_t *consumer)
 {
   bvc_edges_state_t *state = STATE;
@@ -675,6 +686,7 @@ static void print_ongoing_newedges(bvc_t *consumer)
     }
   }
 }
+*/
 
 // Scans all ongoing edges and remove stale ones
 static void remove_stale_link(bvc_t *consumer)
@@ -867,7 +879,8 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   uint32_t prev_asn;
   char pfx_str[MAX_BUFFER_LEN];
   // prints  ongoing edges
-  print_ongoing_newedges(consumer);
+  //DANILO: we will not print the ongoing events
+  //print_ongoing_newedges(consumer);
   state->vc++;
 
   /* check visibility has been computed */
