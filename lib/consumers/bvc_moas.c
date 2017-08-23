@@ -338,24 +338,36 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 
   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
 
-  /* FILE FORMAT:
+  /* NEW FILE FORMAT:
+   * TIME|PFX|NEW/NEWREC/FINISHED|PFX_PATHS 
+   * NB: in FINISHED events, the PATHS fields will be empty 
+   * since AS path strings can contain commas, the AS paths with be
+   * colon-separated, e.g.:
+   * AS1 AS2 {AS3,AS4}:AS1 AS2 AS5
+   * 
    *
-   * view-timestamp|prefix|CATEGORY|first_seen_ts|start_ts|end_ts|announcing
+   * deprecated:
+   *  view-timestamp|prefix|CATEGORY|first_seen_ts|start_ts|end_ts|announcing
    * ASns[|ASPATHS]
    *
    * the list of aspaths observed for the prefix are outputted only if the moas
    * is new or
    * new-recurring
    */
-
+  /*
+  old version:
   if (wandio_printf(state->wandio_fh,
                     "%" PRIu32 "|%s|%s|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|",
                     ts, pfx_str, get_category_str(mc), mp->first_seen,
                     mp->start, mp->end) == -1) {
+  */
+  if (wandio_printf(state->wandio_fh,
+                    "%" PRIu32 "|%s|%s|",
+                    ts, pfx_str, get_category_str(mc)) == -1) {
     fprintf(stderr, "ERROR: Could not write data to file\n");
     return -1;
   }
-
+  /*
   int i;
   int ret;
   for (i = 0; i < ms->n; i++) {
@@ -370,7 +382,7 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
       return -1;
     }
   }
-
+  */
   if (mc == NEW || mc == NEWREC) {
     /* mc is either NEW or NEWREC, hence we print the set of AS paths
      * as observed by all full feed peers */
@@ -394,12 +406,12 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
             fprintf(stderr, "ERROR: ASn print truncated output\n");
             return -1;
           }
-          if (wandio_printf(state->wandio_fh, "|%s", asn_buffer) == -1) {
+          if (wandio_printf(state->wandio_fh, "%s", asn_buffer) == -1) {
             fprintf(stderr, "ERROR: Could not write data to file\n");
             return -1;
           }
         }
-        // second -> origin ASn
+        // from the second ASN to the last one (origin ASn)
         while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
           // printing each segment
           if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
@@ -412,6 +424,10 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
             return -1;
           }
         }
+        if (wandio_printf(state->wandio_fh, ":") == -1) {
+          fprintf(stderr, "ERROR: Could not write data to file\n");
+            return -1;
+          }
       }
     }
   }
@@ -529,10 +545,13 @@ static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
       }
       kh_value(per_pfx_moases, k).start = ts;
       kh_value(per_pfx_moases, k).end = ts;
-    } else { /* otherwise is a moas which is continuing */
+    } 
+    /* DANILO: removed print ongoing MOAS
+    else { // otherwise is a moas which is continuing 
       mc = ONGOING;
       kh_value(per_pfx_moases, k).end = ts;
     }
+    */
   }
 
   moas_properties = &kh_value(per_pfx_moases, k);
