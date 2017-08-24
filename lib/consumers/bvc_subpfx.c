@@ -406,8 +406,8 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                        bgpstream_pfx_storage_t *super_pfx, int diff_type)
 {
   /* output file format: */
-  /* TIME|SUPER_PFX|SUB_PFX|NEW/FINISHED|SUPER_PFX_PATHS|SUB_PFX_PATHS */
-  /* NB: in FINISHED events, the PATHS fields will be empty */
+  /* TIME|SUPER_PFX|SUB_PFX|NEW/FINISHED|SUPER_PFX_ORIGINS|SUB_PFX_ORIGINS|SUPER_PFX_PATHS|SUB_PFX_PATHS */
+  /* NB: in FINISHED events, the ORIGINS and PATHS fields will be empty */
   /* since AS path strings can contain commas, the AS paths with be
      colon-separated, e.g.:
      AS1 AS2 {AS3,AS4}:AS1 AS2 AS5
@@ -419,23 +419,28 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   bgpstream_pfx_snprintf(super_pfx_str, INET6_ADDRSTRLEN + 3,
                          (bgpstream_pfx_t *)super_pfx);
 
-  wandio_printf(STATE->outfile, "%" PRIu32 "|%s|%s|%s|", bgpview_get_time(view),
-                super_pfx_str, pfx_str, diff_type_strs[diff_type]);
-
-  dump_origins(consumer, it, (bgpstream_pfx_t *)super_pfx);
-  wandio_printf(STATE->outfile, "|");
-  dump_origins(consumer, it, (bgpstream_pfx_t *)pfx);
-  wandio_printf(STATE->outfile, "|");
+  wandio_printf(STATE->outfile, "%" PRIu32 "|%s|%s|%s|",
+                bgpview_get_time(view),   // col 1
+                super_pfx_str,            // col 2
+                pfx_str,                  // col 3
+                diff_type_strs[diff_type] // col 4
+  );
 
   if (diff_type == NEW) {
-    // dump the AS paths
-    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)super_pfx);
+    // dump the origins
+    dump_origins(consumer, it, (bgpstream_pfx_t *)super_pfx); // col 5
     wandio_printf(STATE->outfile, "|");
-    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)pfx);
+    dump_origins(consumer, it, (bgpstream_pfx_t *)pfx); // col 6
+    wandio_printf(STATE->outfile, "|");
+
+    // dump the AS paths
+    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)super_pfx); // col 7
+    wandio_printf(STATE->outfile, "|");
+    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)pfx); // col 8
     wandio_printf(STATE->outfile, "\n");
   } else {
-    // just finish the record with nulls
-    wandio_printf(STATE->outfile, "|\n");
+    // just finish the record with nulls // col-5|col-6|col-7|col-8
+    wandio_printf(STATE->outfile, "|||\n");
   }
 
   return 0;
