@@ -21,19 +21,19 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bvc_subpfx.h"
+#include "bgpview_consumer_interface.h"
+#include "bgpstream_utils_patricia.h"
+#include "khash.h"
+#include "utils.h"
+#include "wandio_utils.h"
+#include "wandio.h"
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "bgpview_consumer_interface.h"
-#include "bgpstream_utils_patricia.h"
-#include "khash.h"
-#include "utils.h"
-#include "wandio.h"
-#include "wandio_utils.h"
-#include "bvc_subpfx.h"
 
 #define NAME "subpfx"
 
@@ -58,11 +58,9 @@
 #define IPV6_DEFAULT_ROUTE "0::/0"
 
 // <metric-prefix>.subpfx.<mode-str>.<metric>
-#define METRIC_PREFIX_FORMAT                                                   \
-  "%s." NAME ".%s.%s"
+#define METRIC_PREFIX_FORMAT "%s." NAME ".%s.%s"
 // <metric-prefix>.meta.bgpview.consumer.subpfx.<mode-str>.<metric>
-#define META_METRIC_PREFIX_FORMAT                                              \
-  "%s.meta.bgpview.consumer." NAME ".%s.%s"
+#define META_METRIC_PREFIX_FORMAT "%s.meta.bgpview.consumer." NAME ".%s.%s"
 
 /* stores the set of ASes that announced a prefix */
 typedef struct pt_user {
@@ -85,8 +83,8 @@ enum {
 };
 
 static char *diff_type_strs[] = {
-  "NEW",
-  "FINISHED",
+  "NEW",      //
+  "FINISHED", //
 };
 
 enum {
@@ -96,15 +94,16 @@ enum {
 };
 
 static char *mode_strs[] = {
-  "invalid-mode",
-  "submoas",
-  "defcon",
+  "invalid-mode", //
+  "submoas",      //
+  "defcon",       //
 };
 
 /* our 'class' */
-static bvc_t bvc_subpfx = { //
+static bvc_t bvc_subpfx = {
+  //
   BVC_ID_SUBPFX,
-  NAME, //
+  NAME,                     //
   BVC_GENERATE_PTRS(subpfx) //
 };
 
@@ -122,7 +121,7 @@ typedef struct bvc_subpfx_state {
   bgpstream_patricia_tree_result_set_t *pt_res;
 
   // Flip-flop buffer for current and previous sub-prefix to super-prefix maps
-  khash_t(pfx2pfx) *subpfxs[2];
+  khash_t(pfx2pfx) * subpfxs[2];
 
   // which subpfxs map should be filled for this view
   // ((current_subpfxs_idx+1)%2) is the map for the previous view
@@ -158,9 +157,7 @@ static void usage(bvc_t *consumer)
           "consumer usage: %s\n"
           "       -m <mode>            either '%s' or '%s'\n"
           "       -o <output-dir>      output directory (default: %s)\n",
-          consumer->name,
-          mode_strs[SUBMOAS],
-          mode_strs[DEFCON],
+          consumer->name, mode_strs[SUBMOAS], mode_strs[DEFCON],
           DEFAULT_OUTPUT_DIR);
 }
 
@@ -237,7 +234,7 @@ static pt_user_t *pt_user_create()
 static int pt_user_contains_asn(pt_user_t *ptu, uint32_t asn)
 {
   int i;
-  for (i=0; i<ptu->ases_cnt; i++) {
+  for (i = 0; i < ptu->ases_cnt; i++) {
     if (ptu->ases[i] == asn) {
       return 1;
     }
@@ -253,8 +250,8 @@ static int pt_user_add_asn(pt_user_t *ptu, uint32_t asn)
   }
 
   // not there... realloc, blah
-  if ((ptu->ases = realloc(ptu->ases,
-                           sizeof(uint32_t) * (ptu->ases_cnt+1))) == NULL) {
+  if ((ptu->ases =
+         realloc(ptu->ases, sizeof(uint32_t) * (ptu->ases_cnt + 1))) == NULL) {
     return -1;
   }
   ptu->ases[ptu->ases_cnt++] = asn;
@@ -265,12 +262,12 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
                          bgpstream_patricia_node_t *node, void *data)
 {
   int i;
-  bvc_t *consumer = (bvc_t*)data;
+  bvc_t *consumer = (bvc_t *)data;
   bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(node);
 
   // does this prefix have a super-prefix?
-  if (bgpstream_patricia_tree_get_mincovering_prefix(pt, node,
-                                                     STATE->pt_res) != 0) {
+  if (bgpstream_patricia_tree_get_mincovering_prefix(pt, node, STATE->pt_res) !=
+      0) {
     // TODO: change the patricia tree walk func to allow me to error out!
     assert(0);
   }
@@ -283,7 +280,8 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
   }
   bgpstream_pfx_t *super_pfx = bgpstream_patricia_tree_get_pfx(super_node);
 
-  // so, there is an overlapping prefix, but is it of the type we're interested in?
+  // so, there is an overlapping prefix, but is it of the type we're interested
+  // in?
 
   pt_user_t *ptu = bgpstream_patricia_tree_get_user(node);
   assert(ptu->ases_cnt > 0);
@@ -333,9 +331,9 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
   }
 
   bgpstream_pfx_storage_t tmp_pfx;
-  bgpstream_pfx_copy((bgpstream_pfx_t*)&tmp_pfx, pfx);
+  bgpstream_pfx_copy((bgpstream_pfx_t *)&tmp_pfx, pfx);
   bgpstream_pfx_storage_t tmp_super_pfx;
-  bgpstream_pfx_copy((bgpstream_pfx_t*)&tmp_super_pfx, super_pfx);
+  bgpstream_pfx_copy((bgpstream_pfx_t *)&tmp_super_pfx, super_pfx);
 
   // this is a sub-prefix, add it to our table
   int ret;
@@ -344,26 +342,27 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
   kh_val(CUR_SUBPFXS, k) = tmp_super_pfx;
 }
 
-static int dump_origins(bvc_t *consumer, bgpview_iter_t *it, bgpstream_pfx_t *pfx)
+static int dump_origins(bvc_t *consumer, bgpview_iter_t *it,
+                        bgpstream_pfx_t *pfx)
 {
   bvc_subpfx_state_t *state = STATE;
 
- //TODO: avoid to search in the patricia tree 
- bgpstream_patricia_node_t *node =
- bgpstream_patricia_tree_search_exact(state->pt, pfx);
+  // TODO: avoid to search in the patricia tree
+  bgpstream_patricia_node_t *node =
+    bgpstream_patricia_tree_search_exact(state->pt, pfx);
 
- pt_user_t *ptu = bgpstream_patricia_tree_get_user(node);
- assert(ptu->ases_cnt > 0);
-  
- int i;
- for (i = 0; i < ptu->ases_cnt; i++) {
+  pt_user_t *ptu = bgpstream_patricia_tree_get_user(node);
+  assert(ptu->ases_cnt > 0);
+
+  int i;
+  for (i = 0; i < ptu->ases_cnt; i++) {
     if (i != 0) {
-    wandio_printf(STATE->outfile, " %"PRIu32"",ptu->ases[i]);
-    } else{
-    wandio_printf(STATE->outfile,"%"PRIu32"",ptu->ases[i]);
-    }      
- }
- return 0;
+      wandio_printf(STATE->outfile, " %" PRIu32, ptu->ases[i]);
+    } else {
+      wandio_printf(STATE->outfile, "%" PRIu32, ptu->ases[i]);
+    }
+  }
+  return 0;
 }
 
 static int dump_as_paths(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
@@ -381,7 +380,7 @@ static int dump_as_paths(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   int first_path = 1;
   // spin through the peers for this prefix and dump out their AS paths
   for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE); //
-       bgpview_iter_pfx_has_more_peer(it); //
+       bgpview_iter_pfx_has_more_peer(it);                    //
        bgpview_iter_pfx_next_peer(it)) {
     if (first_path == 0) {
       wandio_printf(STATE->outfile, ":");
@@ -404,8 +403,7 @@ static int dump_as_paths(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 
 static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                        bgpstream_pfx_storage_t *pfx,
-                       bgpstream_pfx_storage_t *super_pfx,
-                       int diff_type)
+                       bgpstream_pfx_storage_t *super_pfx, int diff_type)
 {
   /* output file format: */
   /* TIME|SUPER_PFX|SUB_PFX|NEW/FINISHED|SUPER_PFX_PATHS|SUB_PFX_PATHS */
@@ -415,29 +413,25 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
      AS1 AS2 {AS3,AS4}:AS1 AS2 AS5
   */
 
-  char pfx_str[INET6_ADDRSTRLEN+3];
-  bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, (bgpstream_pfx_t*)pfx);
-  char super_pfx_str[INET6_ADDRSTRLEN+3];
+  char pfx_str[INET6_ADDRSTRLEN + 3];
+  bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, (bgpstream_pfx_t *)pfx);
+  char super_pfx_str[INET6_ADDRSTRLEN + 3];
   bgpstream_pfx_snprintf(super_pfx_str, INET6_ADDRSTRLEN + 3,
-                         (bgpstream_pfx_t*)super_pfx);
+                         (bgpstream_pfx_t *)super_pfx);
 
-  wandio_printf(STATE->outfile,
-                "%"PRIu32"|%s|%s|%s|",
-                bgpview_get_time(view),
-                super_pfx_str,
-                pfx_str,
-                diff_type_strs[diff_type]);
+  wandio_printf(STATE->outfile, "%" PRIu32 "|%s|%s|%s|", bgpview_get_time(view),
+                super_pfx_str, pfx_str, diff_type_strs[diff_type]);
 
-  dump_origins(consumer, it, (bgpstream_pfx_t*)super_pfx);
+  dump_origins(consumer, it, (bgpstream_pfx_t *)super_pfx);
   wandio_printf(STATE->outfile, "|");
-  dump_origins(consumer, it, (bgpstream_pfx_t*)pfx);
+  dump_origins(consumer, it, (bgpstream_pfx_t *)pfx);
   wandio_printf(STATE->outfile, "|");
 
   if (diff_type == NEW) {
     // dump the AS paths
-    dump_as_paths(consumer, view, it, (bgpstream_pfx_t*)super_pfx);
+    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)super_pfx);
     wandio_printf(STATE->outfile, "|");
-    dump_as_paths(consumer, view, it, (bgpstream_pfx_t*)pfx);
+    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)pfx);
     wandio_printf(STATE->outfile, "\n");
   } else {
     // just finish the record with nulls
@@ -448,8 +442,8 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 }
 
 static uint64_t subpfxs_diff(bvc_t *consumer, bgpview_t *view,
-                             bgpview_iter_t *it, khash_t(pfx2pfx) *a,
-                             khash_t(pfx2pfx) *b, int diff_type)
+                             bgpview_iter_t *it, khash_t(pfx2pfx) * a,
+                             khash_t(pfx2pfx) * b, int diff_type)
 {
   khiter_t k, j;
   uint64_t cnt = 0;
@@ -488,33 +482,33 @@ static int create_ts_metrics(bvc_t *consumer)
   }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode], "processed_delay");
+           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode],
+           "processed_delay");
   if ((STATE->processed_delay_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
       -1) {
     return -1;
   }
 
   snprintf(buffer, BUFFER_LEN, META_METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode], "processing_time");
+           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode],
+           "processing_time");
   if ((STATE->processing_time_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
       -1) {
     return -1;
   }
 
   /* new/finished counters */
-  snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode],
-           "new_subpfxs_cnt");
-  if ((STATE->new_subpfxs_cnt_idx =
-       timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+  snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_FORMAT, CHAIN_STATE->metric_prefix,
+           mode_strs[STATE->mode], "new_subpfxs_cnt");
+  if ((STATE->new_subpfxs_cnt_idx = timeseries_kp_add_key(STATE->kp, buffer)) ==
+      -1) {
     return -1;
   }
 
-  snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_FORMAT,
-           CHAIN_STATE->metric_prefix, mode_strs[STATE->mode],
-           "finished_subpfxs_cnt");
+  snprintf(buffer, BUFFER_LEN, METRIC_PREFIX_FORMAT, CHAIN_STATE->metric_prefix,
+           mode_strs[STATE->mode], "finished_subpfxs_cnt");
   if ((STATE->finished_subpfxs_cnt_idx =
-       timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
+         timeseries_kp_add_key(STATE->kp, buffer)) == -1) {
     return -1;
   }
 
@@ -553,7 +547,7 @@ int bvc_subpfx_init(bvc_t *consumer, int argc, char **argv)
   }
 
   int i;
-  for (i=0; i<2; i++) {
+  for (i = 0; i < 2; i++) {
     if ((STATE->subpfxs[i] = kh_init(pfx2pfx)) == NULL) {
       fprintf(stderr, "ERROR: Could not create subpfx map\n");
       goto err;
@@ -600,7 +594,7 @@ void bvc_subpfx_destroy(bvc_t *consumer)
   bgpstream_patricia_tree_result_set_destroy(&state->pt_res);
 
   int i;
-  for (i=0; i<2; i++) {
+  for (i = 0; i < 2; i++) {
     kh_destroy(pfx2pfx, state->subpfxs[i]);
     state->subpfxs[i] = NULL;
   }
@@ -627,11 +621,12 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   uint64_t finished_cnt = 0;
 
   // open the output file
-  snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT,
-           STATE->outdir, mode_strs[STATE->mode], view_time);
-  if ((STATE->outfile = wandio_wcreate(STATE->outfile_name,
-                                       wandio_detect_compression_type(STATE->outfile_name),
-                                       DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+  snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT, STATE->outdir,
+           mode_strs[STATE->mode], view_time);
+  if ((STATE->outfile =
+         wandio_wcreate(STATE->outfile_name,
+                        wandio_detect_compression_type(STATE->outfile_name),
+                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
     fprintf(stderr, "ERROR: Could not open %s for writing\n",
             STATE->outfile_name);
     goto err;
@@ -651,10 +646,10 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
     pfx = bgpview_iter_pfx_get_pfx(it);
 
     // ignore default prefixes
-    if (bgpstream_pfx_equal((bgpstream_pfx_t*)&STATE->v4_default_pfx,
-                            (bgpstream_pfx_t*)pfx) != 0 ||
-        bgpstream_pfx_equal((bgpstream_pfx_t*)&STATE->v6_default_pfx,
-                            (bgpstream_pfx_t*)pfx) != 0) {
+    if (bgpstream_pfx_equal((bgpstream_pfx_t *)&STATE->v4_default_pfx,
+                            (bgpstream_pfx_t *)pfx) != 0 ||
+        bgpstream_pfx_equal((bgpstream_pfx_t *)&STATE->v6_default_pfx,
+                            (bgpstream_pfx_t *)pfx) != 0) {
       continue;
     }
 
@@ -667,7 +662,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
       goto err;
     }
     for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE); //
-         bgpview_iter_pfx_has_more_peer(it); //
+         bgpview_iter_pfx_has_more_peer(it);                    //
          bgpview_iter_pfx_next_peer(it)) {
       if (bgpstream_id_set_exists(
             BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
@@ -682,8 +677,8 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
         /* skip sets and confederations */
         continue;
       }
-      if (pt_user_add_asn(ptu, ((bgpstream_as_path_seg_asn_t *)origin_seg)->asn)
-          != 0) {
+      if (pt_user_add_asn(
+            ptu, ((bgpstream_as_path_seg_asn_t *)origin_seg)->asn) != 0) {
         fprintf(stderr, "ERROR: Could not add origin AS\n");
         return -1;
       }
@@ -716,15 +711,14 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
 
   // now that we have a table of sub-prefixes, find out which are new
   // (i.e., which are in this view but not in the previous one)
-  if ((new_cnt = subpfxs_diff(consumer, view, it, CUR_SUBPFXS, PREV_SUBPFXS, NEW))
-      == UINT64_MAX) {
+  if ((new_cnt = subpfxs_diff(consumer, view, it, CUR_SUBPFXS, PREV_SUBPFXS,
+                              NEW)) == UINT64_MAX) {
     fprintf(stderr, "ERROR: Failed to find NEW sub prefixes\n");
     goto err;
   }
   // and then do the complement to find finished sub-pfxs
-  if ((finished_cnt = subpfxs_diff(consumer, view, it,
-                                   PREV_SUBPFXS, CUR_SUBPFXS, FINISHED))
-      == UINT64_MAX) {
+  if ((finished_cnt = subpfxs_diff(consumer, view, it, PREV_SUBPFXS,
+                                   CUR_SUBPFXS, FINISHED)) == UINT64_MAX) {
     fprintf(stderr, "ERROR: Failed to find NEW sub prefixes\n");
     goto err;
   }
@@ -746,10 +740,12 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   /* generate the .done file */
   snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
            STATE->outdir, mode_strs[STATE->mode], view_time);
-  if ((STATE->outfile = wandio_wcreate(STATE->outfile_name,
-                                       wandio_detect_compression_type(STATE->outfile_name),
-                                       DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", STATE->outfile_name);
+  if ((STATE->outfile =
+         wandio_wcreate(STATE->outfile_name,
+                        wandio_detect_compression_type(STATE->outfile_name),
+                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
+    fprintf(stderr, "ERROR: Could not open %s for writing\n",
+            STATE->outfile_name);
     return -1;
   }
   wandio_wdestroy(STATE->outfile);
@@ -773,7 +769,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
 
   return 0;
 
- err:
+err:
   bgpview_iter_destroy(it);
   wandio_wdestroy(STATE->outfile);
   return -1;
