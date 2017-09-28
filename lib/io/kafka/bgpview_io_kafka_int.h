@@ -226,6 +226,10 @@ struct bgpview_io_kafka {
   /** String that uniquely IDs a producer within the namespace */
   char *identity;
 
+  /** Global meta channel to use (to allow multiple global meta servers to be
+      run) */
+  char *channel;
+
   /* STATE */
 
   /** RD Kafka connection handle */

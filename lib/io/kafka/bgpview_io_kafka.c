@@ -137,7 +137,9 @@ static void usage()
     "producers)\n"
     "       -k <kafka-brokers>    List of Kafka brokers (default: %s)\n"
     "       -n <namespace>        Kafka topic namespace to use (default: "
-    "%s)\n",
+    "%s)\n"
+    "       -c <channel>          Global metadata channel to use (default: "
+    "unused)\n",
     BGPVIEW_IO_KAFKA_BROKER_URI_DEFAULT, BGPVIEW_IO_KAFKA_NAMESPACE_DEFAULT);
 }
 
@@ -149,8 +151,12 @@ static int parse_args(bgpview_io_kafka_t *client, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while ((opt = getopt(argc, argv, ":i:k:n:?")) >= 0) {
+  while ((opt = getopt(argc, argv, ":c:i:k:n:?")) >= 0) {
     switch (opt) {
+    case 'c':
+      client->channel = strdup(optarg);
+      break;
+
     case 'i':
       client->identity = strdup(optarg);
       break;
@@ -240,15 +246,22 @@ int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
   // build the name
   if (id == BGPVIEW_IO_KAFKA_TOPIC_ID_MEMBERS ||
       id == BGPVIEW_IO_KAFKA_TOPIC_ID_META ||
-      id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA) {
+      (id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA && client->channel == NULL)) {
     // format: <namespace>.<name>
     if (snprintf(topic->name, IDENTITY_MAX_LEN, "%s.%s", client->namespace,
                  names[id]) >= IDENTITY_MAX_LEN) {
       return -1;
     }
+  } else if (id == BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA) {
+    // format: <namespace>.<name>.<channel>
+    assert(client->channel != NULL);
+    if (snprintf(topic->name, IDENTITY_MAX_LEN, "%s.%s.%s", client->namespace,
+                 names[id], client->channel) >= IDENTITY_MAX_LEN) {
+      return -1;
+    }
   } else {
-    assert(identity != NULL);
     // format: <namespace>.<identity>.<name>
+    assert(identity != NULL);
     if (snprintf(topic->name, IDENTITY_MAX_LEN, "%s.%s.%s", client->namespace,
                  identity, names[id]) >= IDENTITY_MAX_LEN) {
       return -1;
@@ -377,6 +390,9 @@ void bgpview_io_kafka_destroy(bgpview_io_kafka_t *client)
 
   free(client->namespace);
   client->namespace = NULL;
+
+  free(client->channel);
+  client->channel = NULL;
 
   fprintf(stderr, "INFO: Shutting down topics\n");
   bgpview_io_kafka_topic_id_t id;
