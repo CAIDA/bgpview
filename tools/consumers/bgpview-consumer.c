@@ -35,6 +35,7 @@
 #include "zmq/bgpview_io_zmq.h"
 #endif
 #include "bgpview.h"
+#include "bgpview_io.h"
 #include "bgpview_consumer_manager.h"
 #include "config.h"
 #include "utils.h"
@@ -618,8 +619,8 @@ int main(int argc, char **argv)
 
     case '?':
     case 'v':
-      fprintf(stderr, "bgpview version %d.%d.%d\n", BGPSTREAM_MAJOR_VERSION,
-              BGPSTREAM_MID_VERSION, BGPSTREAM_MINOR_VERSION);
+      fprintf(stderr, "bgpview version %d.%d.%d\n", BGPVIEW_MAJOR_VERSION,
+              BGPVIEW_MID_VERSION, BGPVIEW_MINOR_VERSION);
       usage(argv[0]);
       return 0;
       break;

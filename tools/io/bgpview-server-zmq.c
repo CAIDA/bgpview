@@ -139,7 +139,7 @@ int main(int argc, char **argv)
 
     case '?':
     case 'v':
-      fprintf(stderr, "bgpview version %d.%d.%d\n", BGPSTREAM_MAJOR_VERSION,
+      fprintf(stderr, "bgpview version %d.%d.%d\n", BGPVIEW_MAJOR_VERSION,
               BGPSTREAM_MID_VERSION, BGPSTREAM_MINOR_VERSION);
       usage(argv[0]);
       return 0;

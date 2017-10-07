@@ -25,29 +25,26 @@ SUBDIRS = io consumers
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
-                -I$(top_srcdir)/lib \
-                -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib/consumers \
-                -I$(top_srcdir)/bgpview/lib/io
+                -I$(top_srcdir)/lib/consumers \
+                -I$(top_srcdir)/lib/io
 
-lib_LTLIBRARIES = libbgpviewcaida.la
+lib_LTLIBRARIES = libbgpview.la
 
 include_HEADERS = 			\
 	bgpview.h
 
-libbgpviewcaida_la_SOURCES = 	\
+libbgpview_la_SOURCES = 	\
 	bgpview.h		\
 	bgpview.c		\
 	bgpview_debug.c		\
 	bgpview_debug.h
 
-libbgpviewcaida_la_LIBADD = \
-			$(top_builddir)/lib/libbgpstreamcaida.la \
-		       	$(top_builddir)/common/libcccommon.la \
-		       	$(top_builddir)/bgpview/lib/io/libbgpview_io.la \
-		       	$(top_builddir)/bgpview/lib/consumers/libbgpview_consumers.la
+libbgpview_la_LIBADD = \
+	$(top_builddir)/common/libcccommon.la \
+	$(top_builddir)/lib/io/libbgpview_io.la \
+	$(top_builddir)/lib/consumers/libbgpview_consumers.la
 
-libbgpviewcaida_la_LDFLAGS = -version-info @LIBBGPSTREAM_MAJOR_VERSION@:@LIBBGPSTREAM_MID_VERSION@:@LIBBGPSTREAM_MINOR_VERSION@
+libbgpview_la_LDFLAGS = -version-info @LIBBGPVIEW_MAJOR_VERSION@:@LIBBGPVIEW_MID_VERSION@:@LIBBGPVIEW_MINOR_VERSION@
 
 ACLOCAL_AMFLAGS = -I m4
 

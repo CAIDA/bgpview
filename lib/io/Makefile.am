@@ -25,13 +25,11 @@ SUBDIRS =
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
-                -I$(top_srcdir)/lib \
-                -I$(top_srcdir)/lib/utils \
-                -I$(top_srcdir)/bgpview/lib
+                -I$(top_srcdir)/lib
 
 noinst_LTLIBRARIES = libbgpview_io.la
 
-include_HEADERS =
+include_HEADERS = bgpview_io.h
 
 libbgpview_io_la_SOURCES = 		\
 	bgpview_io.c			\
@@ -41,22 +39,22 @@ MOD_LIBS=
 
 if WITH_BGPVIEW_IO_FILE
 SUBDIRS+=file
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/file/libbgpview_io_file.la
+MOD_LIBS+=$(top_builddir)/lib/io/file/libbgpview_io_file.la
 endif
 
 if WITH_BGPVIEW_IO_ZMQ
 SUBDIRS+=zmq
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/zmq/libbgpview_io_zmq.la
+MOD_LIBS+=$(top_builddir)/lib/io/zmq/libbgpview_io_zmq.la
 endif
 
 if WITH_BGPVIEW_IO_KAFKA
 SUBDIRS+=kafka
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/kafka/libbgpview_io_kafka.la
+MOD_LIBS+=$(top_builddir)/lib/io/kafka/libbgpview_io_kafka.la
 endif
 
 if WITH_BGPVIEW_IO_TEST
 SUBDIRS+=test
-MOD_LIBS+=$(top_builddir)/bgpview/lib/io/test/libbgpview_io_test.la
+MOD_LIBS+=$(top_builddir)/lib/io/test/libbgpview_io_test.la
 endif
 
 libbgpview_io_la_LIBADD = \

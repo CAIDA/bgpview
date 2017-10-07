@@ -1,10 +1,11 @@
+#!/bin/sh
 #
 # This file is part of bgpstream
 #
 # CAIDA, UC San Diego
 # bgpstream-info@caida.org
 #
-# Copyright (C) 2012 The Regents of the University of California.
+# Copyright (C) 2015 The Regents of the University of California.
 # Authors: Alistair King, Chiara Orsini
 #
 # This program is free software; you can redistribute it and/or modify it under
@@ -21,33 +22,10 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-AM_CPPFLAGS = -I$(top_srcdir) \
-	      -I$(top_srcdir)/common \
-	      -I$(top_srcdir)/lib \
-	      -I$(top_srcdir)/lib/io
+echo "Initializing submodules"
+git submodule init
+git submodule update
+echo "Running autoconf"
+autoreconf -vfi
 
-dist_bin_SCRIPTS =
 
-bin_PROGRAMS =
-
-if WITH_BGPVIEW_IO_ZMQ
-AM_CPPFLAGS+=	-I$(top_srcdir)/lib/io/zmq
-# runs the bgpview server
-bin_PROGRAMS+=bgpview-server-zmq
-bgpview_server_zmq_SOURCES = \
-	bgpview-server-zmq.c
-bgpview_server_zmq_LDADD = $(top_builddir)/lib/libbgpview.la
-endif
-
-if WITH_BGPVIEW_IO_FILE
-# BGPView Cat
-AM_CPPFLAGS+=-I$(top_srcdir)/lib/io/file
-bin_PROGRAMS+=bvcat
-bvcat_SOURCES = \
-	bvcat.c
-bvcat_LDADD = $(top_builddir)/lib/libbgpview.la
-endif
-
-ACLOCAL_AMFLAGS = -I m4
-
-CLEANFILES = *~

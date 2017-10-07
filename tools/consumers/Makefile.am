@@ -24,10 +24,8 @@
 AM_CPPFLAGS = -I$(top_srcdir) \
 	      -I$(top_srcdir)/common \
 	      -I$(top_srcdir)/lib \
-	      -I$(top_srcdir)/lib/utils \
-	      -I$(top_srcdir)/bgpview/lib \
-	      -I$(top_srcdir)/bgpview/lib/io \
-	      -I$(top_srcdir)/bgpview/lib/consumers
+	      -I$(top_srcdir)/lib/io \
+	      -I$(top_srcdir)/lib/consumers
 
 dist_bin_SCRIPTS =
 
@@ -37,8 +35,7 @@ bin_PROGRAMS =
 bin_PROGRAMS += bgpview-consumer
 bgpview_consumer_SOURCES = \
 	bgpview-consumer.c
-bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpstreamcaida.la \
-		         $(top_builddir)/bgpview/lib/libbgpviewcaida.la
+bgpview_consumer_LDADD = $(top_builddir)/lib/libbgpview.la
 
 ACLOCAL_AMFLAGS = -I m4
 
