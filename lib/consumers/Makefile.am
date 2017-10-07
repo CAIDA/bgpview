@@ -33,7 +33,7 @@ AM_CPPFLAGS = 	-I$(top_srcdir)				\
 
 noinst_LTLIBRARIES = libbgpview_consumers.la
 
-include_HEADERS =
+include_HEADERS = bgpview_consumer_manager.h
 
 CONSUMER_SRCS=
 CONSUMER_LIBS=

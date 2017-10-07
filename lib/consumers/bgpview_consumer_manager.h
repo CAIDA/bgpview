@@ -26,7 +26,6 @@
 
 #include "bgpstream_utils_id_set.h"
 #include "bgpview.h"
-#include "config.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <timeseries.h>
@@ -136,10 +135,8 @@ typedef enum bvc_id {
    *  origin ASns, i.e. MOAS */
   BVC_ID_MOAS = 7,
 
-#ifdef WITH_BGPVIEW_IO_FILE
   /** Writes views to files */
   BVC_ID_ARCHIVER = 8,
-#endif
 
   /** Writes information about prefixes whose more specific prefixes are
       announced by different ASNs */
@@ -158,10 +155,8 @@ typedef enum bvc_id {
   /** Generates information about routed prefixes in a given time window  */
   BVC_ID_ROUTEDSPACE = 13,
 
-#if defined(WITH_BGPVIEW_IO_KAFKA) || defined(WITH_BGPVIEW_IO_ZMQ)
   /** Sends views to Kafka or ZMQ-Server */
   BVC_ID_VIEWSENDER = 14,
-#endif
 
   /** It can be used as a template, it writes generic information about the
    *  number of view processed and the number of elements in the current
