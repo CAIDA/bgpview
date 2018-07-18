@@ -133,8 +133,8 @@ CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 CC="$PTHREAD_CC"
 
 # Check that BGPStream is installed
-AC_CHECK_LIB([bgpstreamcaida], [bgpstream_create], ,
-  [AC_MSG_ERROR( [libbgpstreamcaida is required (https://bgpstream.caida.org)])])
+AC_CHECK_LIB([bgpstream], [bgpstream_create], ,
+  [AC_MSG_ERROR( [libbgpstream is required (https://bgpstream.caida.org)])])
 
 
 # CONSUMERS
