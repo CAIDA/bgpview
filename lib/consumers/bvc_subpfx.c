@@ -205,6 +205,10 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
     return -1;
   }
 
+  if (STATE->outdir == NULL) {
+    STATE->outdir = strdup(DEFAULT_OUTPUT_DIR);
+  }
+
   return 0;
 }
 
