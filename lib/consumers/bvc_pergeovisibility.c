@@ -1166,7 +1166,7 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute the pfx visibility stats for each geo aggregation (continent,
-     countrry, region, county) */
+     country, region, county) */
   if (compute_geo_pfx_visibility(consumer, it) != 0) {
     return -1;
   }
