@@ -335,6 +335,7 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   bgpstream_peer_id_t peerid;
   bgpstream_as_path_seg_t *seg;
   int ipv_idx;
+  int first_path = 1;
 
   // avoid printing out onging events
   if (mc == ONGOING){
@@ -405,6 +406,12 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
             peerid)) {
         bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
+        // if it's not the first path, print ":" at the beginning of the path
+        if (first_path != 1 && wandio_printf(state->wandio_fh, ":") == -1) {
+          fprintf(stderr, "ERROR: Could not write data to file\n");
+          return -1;
+        }
+
         // first ASn
         seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
         if (seg != NULL) {
@@ -431,10 +438,9 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
             return -1;
           }
         }
-        if (wandio_printf(state->wandio_fh, ":") == -1) {
-          fprintf(stderr, "ERROR: Could not write data to file\n");
-            return -1;
-          }
+
+        // not first path anymore, start printing ":" at the beginning of each path
+        first_path = 0;
       }
     }
   }
