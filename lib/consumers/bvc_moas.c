@@ -336,6 +336,12 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   bgpstream_as_path_seg_t *seg;
   int ipv_idx;
 
+  // avoid printing out onging events
+  if (mc == ONGOING){
+    update_moas_counters(consumer, mc);
+    return 0;
+  }
+
   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
 
   /* NEW FILE FORMAT:
@@ -361,12 +367,6 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                     ts, pfx_str, get_category_str(mc), mp->first_seen,
                     mp->start, mp->end) == -1) {
   */
-
-  // avoid printing out onging events
-  if (mc == ONGOING){
-    update_moas_counters(consumer, mc);
-    return 0;
-  }
 
   if (wandio_printf(state->wandio_fh,
                     "%" PRIu32 "|%s|%s|",
