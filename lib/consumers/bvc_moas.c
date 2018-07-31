@@ -336,6 +336,12 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   bgpstream_as_path_seg_t *seg;
   int ipv_idx;
 
+  // avoid printing out onging events
+  if (mc == ONGOING){
+    update_moas_counters(consumer, mc);
+    return 0;
+  }
+
   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
 
   /* NEW FILE FORMAT:
@@ -361,6 +367,7 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                     ts, pfx_str, get_category_str(mc), mp->first_seen,
                     mp->start, mp->end) == -1) {
   */
+
   if (wandio_printf(state->wandio_fh,
                     "%" PRIu32 "|%s|%s|",
                     ts, pfx_str, get_category_str(mc)) == -1) {
@@ -547,11 +554,12 @@ static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
       kh_value(per_pfx_moases, k).end = ts;
     } 
     /* DANILO: removed print ongoing MOAS
-    else { // otherwise is a moas which is continuing 
+       MINGWEI: uncommented out the following block. it causes bug that generates duplicated NEW events.
+    */
+    else { // otherwise is a moas which is continuing
       mc = ONGOING;
       kh_value(per_pfx_moases, k).end = ts;
     }
-    */
   }
 
   moas_properties = &kh_value(per_pfx_moases, k);
