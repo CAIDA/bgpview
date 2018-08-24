@@ -596,18 +596,15 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
       for (j = 0; j < STATE->valid_origins; j++) {
         bgpstream_id_set_insert(pg->thresholds[i].asns, STATE->origin_asns[j]);
       }
-      /* add /24s to set */
-      if (runs != NULL) {
-        /* "Explode" each run into a series of /24 networks and add them to the
-         * set.
-         */
-        for (j = 0; j < num_runs; j++) {
-          /* Round up to the next-highest number of /24 */
-          num_slash24s = (runs[j].num_ips + 255) / 256;
-          for (k = 0; k < num_slash24s; k++) {
-            slash24_id_set_insert(pg->thresholds[i].slash24s,
-                                  runs[j].network_addr + (k << 8));
-          }
+      /* "Explode" each run into a series of /24 networks and add them to the
+        * set.
+        */
+      for (j = 0; j < num_runs; j++) {
+        /* Round up to the next-highest number of /24 */
+        num_slash24s = (runs[j].num_ips + 255) / 256;
+        for (k = 0; k < num_slash24s; k++) {
+          slash24_id_set_insert(pg->thresholds[i].slash24s,
+                                runs[j].network_addr + (k << 8));
         }
       }
       break;
