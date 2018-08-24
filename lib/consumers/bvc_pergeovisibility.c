@@ -100,7 +100,6 @@ KHASH_INIT(slash24_id_set /* name */, uint32_t /* khkey_t */,
  * function for dealing with our /24s.
  */
 typedef struct slash24_id_set {
-  khiter_t k;
   khash_t(slash24_id_set) * hash;
 } slash24_id_set_t;
 
@@ -418,7 +417,6 @@ static slash24_id_set_t *slash24_id_set_create()
     free(set);
     return NULL;
   }
-  set->k = kh_begin(set->hash);
   return set;
 }
 
@@ -433,15 +431,12 @@ static int slash24_id_set_merge(slash24_id_set_t *dst_set,
       }
     }
   }
-  dst_set->k = kh_begin(dst_set->hash);
-  src_set->k = kh_begin(src_set->hash);
 
   return 0;
 }
 
 static void slash24_id_set_clear(slash24_id_set_t *set)
 {
-  set->k = kh_begin(set->hash);
   kh_clear(slash24_id_set, set->hash);
 }
 
