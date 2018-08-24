@@ -134,7 +134,7 @@ typedef struct slash24_id_set {
       return -1;                                                               \
     }                                                                          \
     (runs)[(size)] = NULL;                                                     \
-    if (((num_runs) = realloc((num_runs), sizeof(uint32_t *) *                 \
+    if (((num_runs) = realloc((num_runs), sizeof(uint32_t) *                   \
                                           ((size) + 1))) == NULL) {            \
       return -1;                                                               \
     }                                                                          \
