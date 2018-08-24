@@ -467,7 +467,7 @@ static ip_addr_run_t *update_ip_addr_run(ip_addr_run_t *addr_runs,
     }
     (*num_runs)++;
 
-    run = &(addr_runs[(*num_runs) - 1]);
+    run = addr_runs;
     /* We store /24 networks, so we can remove the least significant byte. */
     run->network_addr = cur_address & 0xffffff00;
     run->num_ips = num_ips;
