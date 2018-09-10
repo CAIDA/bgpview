@@ -417,6 +417,10 @@ static slash24_id_set_t *slash24_id_set_create()
     free(set);
     return NULL;
   }
+  /* Pre-allocate to reduce the number of expensive realloc calls. The minimum
+   * number that kh_resize accepts is 4. */
+  kh_resize(slash24_id_set, set->hash, 4);
+
   return set;
 }
 
