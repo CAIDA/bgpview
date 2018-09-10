@@ -440,7 +440,7 @@ static void slash24_id_set_clear(slash24_id_set_t *set)
   kh_clear(slash24_id_set, set->hash);
 }
 
-int slash24_id_set_size(slash24_id_set_t *set)
+static int slash24_id_set_size(slash24_id_set_t *set)
 {
   return kh_size(set->hash);
 }
