@@ -395,13 +395,9 @@ static void add_origin(bvc_pergeovisibility_state_t *state,
 static int slash24_id_set_insert(slash24_id_set_t *set, uint32_t id)
 {
   int khret;
-  khiter_t k;
-  /* Insert id if it's not part of the hash table already. */
-  if ((k = kh_get(slash24_id_set, set->hash, id)) == kh_end(set->hash)) {
-    k = kh_put(slash24_id_set, set->hash, id, &khret);
-    return khret;
-  }
-  return 0;
+
+  kh_put(slash24_id_set, set->hash, id, &khret);
+  return khret;
 }
 
 static slash24_id_set_t *slash24_id_set_create()
