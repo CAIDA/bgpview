@@ -88,7 +88,7 @@ KHASH_INIT(strstr, char *, char *, 1, kh_str_hash_func, kh_str_hash_equal)
 
 /** Define our own hash function that doesn't consider a /24's (empty) least
  * significant byte.  We simply right-shift the unused host bits away. */
-#define kh_slash24_hash_func(key)   (khint32_t) ((key) >> 8)
+#define kh_slash24_hash_func(key)   (khint32_t) (((key) >> 8) * 59)
 #define kh_slash24_hash_equal(a, b) ((a) == (b))
 
 KHASH_INIT(slash24_id_set /* name */, uint32_t /* khkey_t */,
