@@ -87,7 +87,9 @@ const int netacq_cont_map[] = {
 KHASH_INIT(strstr, char *, char *, 1, kh_str_hash_func, kh_str_hash_equal)
 
 /** Define our own hash function that doesn't consider a /24's (empty) least
- * significant byte.  We simply right-shift the unused host bits away. */
+ * significant byte.  We simply right-shift the unused host bits away and
+ * multiply the result by the prime number 59, to distribute our keys more
+ * uniformly across the hash table's buckets. */
 #define kh_slash24_hash_func(key)   (khint32_t) (((key) >> 8) * 59)
 #define kh_slash24_hash_equal(a, b) ((a) == (b))
 
