@@ -191,7 +191,6 @@ typedef struct ip_addr_run {
   uint32_t network_addr;
 
   /* The number of subsequent IP addresses. */
-  // TODO: Try to encode number of /24s instead of addresses to save space.
   uint32_t num_ips;
 
 } ip_addr_run_t;
