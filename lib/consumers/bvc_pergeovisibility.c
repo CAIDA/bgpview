@@ -456,9 +456,6 @@ static ip_addr_run_t *update_ip_addr_run(ip_addr_run_t *addr_runs,
 {
   ip_addr_run_t *run = NULL;
 
-  // TODO: We gotta iterate over all runs and see if the current network address
-  // is a continuation of *any* run, not just the latest!
-
   /* If the given addr_runs has not been allocated yet, we are dealing with a
    * new location.  In this case, we allocate storage, populate it with our
    * genesis address, and return a pointer to the newly-allocated storage.
@@ -470,8 +467,7 @@ static ip_addr_run_t *update_ip_addr_run(ip_addr_run_t *addr_runs,
     (*num_runs)++;
 
     run = addr_runs;
-    /* We store /24 networks, so we can remove the least significant byte. */
-    run->network_addr = cur_address & 0xffffff00;
+    run->network_addr = cur_address;
     run->num_ips = num_ips;
 
     return addr_runs;
@@ -571,7 +567,7 @@ static per_geo_t *per_geo_init(bvc_t *consumer, const char *metric_pfx)
 static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
                           ip_addr_run_t *runs, uint32_t num_runs)
 {
-  uint32_t num_slash24s = 0;
+  uint32_t num_slash24s, offset = 0;
   /* number of full feed ASNs for the current IP version*/
   int totalfullfeed =
     CHAIN_STATE
@@ -599,14 +595,16 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
         bgpstream_id_set_insert(pg->thresholds[i].asns, STATE->origin_asns[j]);
       }
       /* "Explode" each run into a series of /24 networks and add them to the
-        * set.
-        */
+       * set.
+       */
       for (j = 0; j < num_runs; j++) {
+        /* Determine the offset to the beginning of the /24. */
+        offset = runs[j].network_addr & 0x000000ff;
         /* Round up to the next-highest number of /24 */
-        num_slash24s = (runs[j].num_ips + 255) / 256;
+        num_slash24s = (runs[j].num_ips + offset + 255) / 256;
         for (k = 0; k < num_slash24s; k++) {
           slash24_id_set_insert(pg->thresholds[i].slash24s,
-                                runs[j].network_addr + (k << 8));
+                                (runs[j].network_addr & 0xffffff00) + (k << 8));
         }
       }
       break;
