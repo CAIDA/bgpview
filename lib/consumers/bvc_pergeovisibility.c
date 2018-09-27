@@ -446,6 +446,12 @@ static int slash24_id_set_size(slash24_id_set_t *set)
   return kh_size(set->hash);
 }
 
+static void slash24_id_set_destroy(slash24_id_set_t *set)
+{
+  kh_destroy(slash24_id_set, set->hash);
+  free(set);
+}
+
 /* ==================== PER-GEO-INFO FUNCTIONS ==================== */
 
 static ip_addr_run_t *update_ip_addr_run(ip_addr_run_t *addr_runs,
@@ -618,6 +624,7 @@ static void per_geo_destroy(per_geo_t *pg)
   for (i = 0; i < VIS_THRESHOLDS_CNT; i++) {
     bgpstream_patricia_tree_destroy(pg->thresholds[i].pfxs);
     bgpstream_id_set_destroy(pg->thresholds[i].asns);
+    slash24_id_set_destroy(pg->thresholds[i].slash24s);
   }
   free(pg);
 }
