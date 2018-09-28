@@ -86,6 +86,25 @@ const int netacq_cont_map[] = {
 /** a hash type to map ISO3 country codes to a continent.ISO2 string */
 KHASH_INIT(strstr, char *, char *, 1, kh_str_hash_func, kh_str_hash_equal)
 
+/** Define our own hash function that doesn't consider a /24's (empty) least
+ * significant byte.  We simply right-shift the unused host bits away and
+ * multiply the result by the prime number 59, to distribute our keys more
+ * uniformly across the hash table's buckets. */
+#define kh_slash24_hash_func(key)   (khint32_t) (((key) >> 8) * 59)
+#define kh_slash24_hash_equal(a, b) ((a) == (b))
+
+KHASH_INIT(slash24_id_set /* name */, uint32_t /* khkey_t */,
+           char /* khval_t */, 0 /* kh_is_set */,
+           kh_slash24_hash_func /*__hash_func */,
+           kh_slash24_hash_equal /* __hash_equal */);
+
+/* We define our own set data structure because we need a different hash
+ * function for dealing with our /24s.
+ */
+typedef struct slash24_id_set {
+  khash_t(slash24_id_set) * hash;
+} slash24_id_set_t;
+
 /* creates a metric:
  * [CHAIN_STATE->metric_prefix].prefix-visibility.[geopfx].[geofmt]
  */
@@ -106,6 +125,23 @@ KHASH_INIT(strstr, char *, char *, 1, kh_str_hash_func, kh_str_hash_equal)
              ipv, thresh, leaf);                                               \
     idx = timeseries_kp_add_key(STATE->kp, key_buffer);                        \
   } while (0)
+
+/* Hides the ugly reallocation code that allocates more space for our IP address
+ * runs.
+ */
+#define ADD_ADDR_RUN(runs, num_runs, size)                                     \
+  do {                                                                         \
+    if (((runs) = realloc((runs), sizeof(ip_addr_run_t *) *                    \
+                                  ((size) + 1))) == NULL) {                    \
+      return -1;                                                               \
+    }                                                                          \
+    (runs)[(size)] = NULL;                                                     \
+    if (((num_runs) = realloc((num_runs), sizeof(uint32_t) *                   \
+                                          ((size) + 1))) == NULL) {            \
+      return -1;                                                               \
+    }                                                                          \
+    (num_runs)[(size)] = 0;                                                    \
+  } while (0)                                                                  \
 
 #define STATE (BVC_GET_STATE(consumer, pergeovisibility))
 
@@ -145,6 +181,20 @@ static char *threshold_strings[] = {
   "min_100%_ff_peer_asns", // VIS_100_PERCENT
 };
 
+/* Run-length encoding for a set of subsequent IP addresses.  We use this data
+ * structure to determine the number of /24s geolocated to a continent, country,
+ * or region.
+ */
+typedef struct ip_addr_run {
+
+  /* The network address serving as the point of reference for our run. */
+  uint32_t network_addr;
+
+  /* The number of subsequent IP addresses. */
+  uint32_t num_ips;
+
+} ip_addr_run_t;
+
 typedef struct per_thresh {
 
   /* All the prefixes that belong to this threshold, i.e. they have been
@@ -155,6 +205,11 @@ typedef struct per_thresh {
 
   /* All the ASNs that announce a prefix in this geographical region */
   bgpstream_id_set_t *asns;
+
+  /* All the /24s (their network address, to be precise) that geolocate to this
+   * geographical region
+   */
+  slash24_id_set_t *slash24s;
 
   int32_t pfx_cnt_idx[BGPSTREAM_MAX_IP_VERSION_IDX];
   int32_t subnet_cnt_idx[BGPSTREAM_MAX_IP_VERSION_IDX];
@@ -183,17 +238,37 @@ typedef struct perpfx_cache {
   uint16_t *continent_idxs;
   /** Number of continents in the array */
   uint8_t continent_idxs_cnt;
+  /** IP address runs geolocated to the given continents */
+  ip_addr_run_t **continent_addr_runs;
+  /* Number of IP address runs geolocated to the given continents.  This is
+   * *not* the length of continent_addr_runs; that is determined by
+   * continent_idxs_cnt.
+   */
+  uint32_t *per_continent_addr_run_cnt;
 
   /** Countries this prefix is in. (Index into the STATE->countries array) */
   uint16_t *country_idxs;
   /** Number of countries in the array */
   uint8_t country_idxs_cnt;
+  /** IP address runs geolocated to the given countries */
+  ip_addr_run_t **country_addr_runs;
+  /* Number of IP address runs geolocated to the given countries.  This is
+   * *not* the length of country_addr_runs; that is determined by
+   * country_idxs_cnt.
+   */
+  uint32_t *per_country_addr_run_cnt;
 
   /** Polygons (in each table) that this prefix belongs to (Indexes into the
       STATE->poly_tables array) */
   uint16_t *poly_table_idxs[METRIC_NETACQ_EDGE_POLYS_TBL_CNT];
   /** Number of polygons in each array */
   uint16_t poly_table_idxs_cnt[METRIC_NETACQ_EDGE_POLYS_TBL_CNT];
+  /** IP address runs geolocated to the given polygons */
+  ip_addr_run_t **poly_addr_runs[METRIC_NETACQ_EDGE_POLYS_TBL_CNT];
+  /* Number of IP address runs geolocated to the given polygons.  This is *not*
+   * the length of poly_addr_runs; that is determined by poly_table_idxs_cnt.
+   */
+  uint32_t *per_poly_addr_run_cnt[METRIC_NETACQ_EDGE_POLYS_TBL_CNT];
 
 } __attribute__((packed)) perpfx_cache_t;
 
@@ -316,7 +391,119 @@ static void add_origin(bvc_pergeovisibility_state_t *state,
   state->origin_asns[state->valid_origins++] = origin_asn;
 }
 
+/* ==================== SET FUNCTIONS ==================== */
+
+static int slash24_id_set_insert(slash24_id_set_t *set, uint32_t id)
+{
+  int khret;
+
+  kh_put(slash24_id_set, set->hash, id, &khret);
+  return khret;
+}
+
+static slash24_id_set_t *slash24_id_set_create()
+{
+  slash24_id_set_t *set;
+
+  if ((set = (slash24_id_set_t *) malloc(sizeof(slash24_id_set_t))) == NULL) {
+    return NULL;
+  }
+
+  if ((set->hash = kh_init(slash24_id_set)) == NULL) {
+    kh_destroy(slash24_id_set, set->hash);
+    free(set);
+    return NULL;
+  }
+  /* Pre-allocate to reduce the number of expensive realloc calls. The minimum
+   * number that kh_resize accepts is 4. */
+  kh_resize(slash24_id_set, set->hash, 4);
+
+  return set;
+}
+
+static int slash24_id_set_merge(slash24_id_set_t *dst_set,
+                                slash24_id_set_t *src_set)
+{
+  khiter_t k;
+  for (k = kh_begin(src_set->hash); k != kh_end(src_set->hash); ++k) {
+    if (kh_exist(src_set->hash, k)) {
+      if (slash24_id_set_insert(dst_set, kh_key(src_set->hash, k)) < 0) {
+        return -1;
+      }
+    }
+  }
+
+  return 0;
+}
+
+static void slash24_id_set_clear(slash24_id_set_t *set)
+{
+  kh_clear(slash24_id_set, set->hash);
+}
+
+static int slash24_id_set_size(slash24_id_set_t *set)
+{
+  return kh_size(set->hash);
+}
+
+static void slash24_id_set_destroy(slash24_id_set_t *set)
+{
+  kh_destroy(slash24_id_set, set->hash);
+  free(set);
+}
+
 /* ==================== PER-GEO-INFO FUNCTIONS ==================== */
+
+static ip_addr_run_t *update_ip_addr_run(ip_addr_run_t *addr_runs,
+                                         uint32_t *num_runs,
+                                         uint32_t cur_address,
+                                         uint32_t num_ips)
+{
+  ip_addr_run_t *run = NULL;
+
+  /* If the given addr_runs has not been allocated yet, we are dealing with a
+   * new location.  In this case, we allocate storage, populate it with our
+   * genesis address, and return a pointer to the newly-allocated storage.
+   */
+  if (addr_runs == NULL) {
+    if ((addr_runs = malloc(sizeof(ip_addr_run_t))) == NULL) {
+      return NULL;
+    }
+    (*num_runs)++;
+
+    run = addr_runs;
+    run->network_addr = cur_address;
+    run->num_ips = num_ips;
+
+    return addr_runs;
+  }
+
+  run = &(addr_runs[(*num_runs) - 1]);
+  assert(run->network_addr != cur_address);
+
+  /* We are dealing with a continuation of a past run.  All we need to do is add
+   * the number of new IP addresses to the past run.
+   */
+  if (cur_address == (run->network_addr + run->num_ips)) {
+    run->num_ips += num_ips;
+
+  /* We are dealing with a new run for a country that already has runs.  We have
+   * to add a new ip_addr_run_t data structure and populate it.
+   */
+  } else {
+    if ((addr_runs = realloc(addr_runs, sizeof(ip_addr_run_t) *
+                                               ((*num_runs) + 1))) == NULL) {
+      return NULL;
+    }
+    (*num_runs)++;
+
+    run = &(addr_runs[(*num_runs) - 1]);
+    run->network_addr = cur_address;
+    run->num_ips = num_ips;
+  }
+
+  return addr_runs;
+}
 
 static int per_thresh_init(bvc_t *consumer, per_thresh_t *pt,
                            const char *metric_pfx, const char *thresh_str)
@@ -330,6 +517,11 @@ static int per_thresh_init(bvc_t *consumer, per_thresh_t *pt,
 
   /* create ASN set  */
   if ((pt->asns = bgpstream_id_set_create()) == NULL) {
+    goto err;
+  }
+
+  /* create /24 set */
+  if ((pt->slash24s = slash24_id_set_create()) == NULL) {
     goto err;
   }
 
@@ -377,8 +569,10 @@ static per_geo_t *per_geo_init(bvc_t *consumer, const char *metric_pfx)
   return pg;
 }
 
-static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx)
+static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
+                          ip_addr_run_t *runs, uint32_t num_runs)
 {
+  uint32_t num_slash24s, offset = 0;
   /* number of full feed ASNs for the current IP version*/
   int totalfullfeed =
     CHAIN_STATE
@@ -394,7 +588,7 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx)
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
    * only if the prefix belongs there */
-  int i, j;
+  int i, j, k;
   for (i = VIS_THRESHOLDS_CNT - 1; i >= 0; i--) {
     if (ratio >= threshold_vals[i]) {
       /* add prefix to the Patricia Tree */
@@ -404,6 +598,19 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx)
       /* add origin ASNs to asns set */
       for (j = 0; j < STATE->valid_origins; j++) {
         bgpstream_id_set_insert(pg->thresholds[i].asns, STATE->origin_asns[j]);
+      }
+      /* "Explode" each run into a series of /24 networks and add them to the
+       * set.
+       */
+      for (j = 0; j < num_runs; j++) {
+        /* Determine the offset to the beginning of the /24. */
+        offset = runs[j].network_addr & 0x000000ff;
+        /* Round up to the next-highest number of /24 */
+        num_slash24s = (runs[j].num_ips + offset + 255) / 256;
+        for (k = 0; k < num_slash24s; k++) {
+          slash24_id_set_insert(pg->thresholds[i].slash24s,
+                                (runs[j].network_addr & 0xffffff00) + (k << 8));
+        }
       }
       break;
     }
@@ -417,11 +624,22 @@ static void per_geo_destroy(per_geo_t *pg)
   for (i = 0; i < VIS_THRESHOLDS_CNT; i++) {
     bgpstream_patricia_tree_destroy(pg->thresholds[i].pfxs);
     bgpstream_id_set_destroy(pg->thresholds[i].asns);
+    slash24_id_set_destroy(pg->thresholds[i].slash24s);
   }
   free(pg);
 }
 
 /* ==================== UTILITY FUNCTIONS ==================== */
+
+static uint32_t prefix_to_uint32(bgpstream_pfx_t *pfx) {
+
+  /* We expect only IPv4 addresses in our prefixes. */
+  assert(pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4);
+
+  bgpstream_ipv4_addr_t *v4_addr = (bgpstream_ipv4_addr_t *) &(pfx->address);
+
+  return ntohl(v4_addr->ipv4.s_addr);
+}
 
 static int init_kp(bvc_t *consumer)
 {
@@ -556,24 +774,47 @@ static void destroy_ipmeta(bvc_t *consumer)
 static void destroy_pfx_user_ptr(void *user)
 {
   perpfx_cache_t *pfx_cache = (perpfx_cache_t *)user;
-  int i;
+  int i, j;
 
   if (pfx_cache == NULL) {
     return;
   }
 
+  for (i = 0; i < pfx_cache->continent_idxs_cnt; i++) {
+    free(pfx_cache->continent_addr_runs[i]);
+    pfx_cache->continent_addr_runs[i] = NULL;
+  }
+  free(pfx_cache->continent_addr_runs);
+  pfx_cache->continent_addr_runs = NULL;
   free(pfx_cache->continent_idxs);
   pfx_cache->continent_idxs = NULL;
   pfx_cache->continent_idxs_cnt = 0;
+  free(pfx_cache->per_continent_addr_run_cnt);
+  pfx_cache->per_continent_addr_run_cnt = NULL;
 
+  for (i = 0; i < pfx_cache->country_idxs_cnt; i++) {
+    free(pfx_cache->country_addr_runs[i]);
+    pfx_cache->country_addr_runs[i] = NULL;
+  }
+  free(pfx_cache->country_addr_runs);
+  pfx_cache->country_addr_runs = NULL;
   free(pfx_cache->country_idxs);
   pfx_cache->country_idxs = NULL;
   pfx_cache->country_idxs_cnt = 0;
+  free(pfx_cache->per_country_addr_run_cnt);
+  pfx_cache->per_country_addr_run_cnt = NULL;
 
   for (i = 0; i < METRIC_NETACQ_EDGE_POLYS_TBL_CNT; i++) {
+    for (j = 0; j < pfx_cache->poly_table_idxs_cnt[i]; j++) {
+      free(pfx_cache->poly_addr_runs[i][j]);
+      pfx_cache->poly_addr_runs[i][j] = NULL;
+    }
     free(pfx_cache->poly_table_idxs[i]);
     pfx_cache->poly_table_idxs[i] = NULL;
     pfx_cache->poly_table_idxs_cnt[i] = 0;
+    free(pfx_cache->poly_addr_runs[i]);
+    free(pfx_cache->per_poly_addr_run_cnt[i]);
+    pfx_cache->per_poly_addr_run_cnt[i] = NULL;
   }
 
   free(pfx_cache);
@@ -732,6 +973,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
   perpfx_cache_t *pfx_cache = (perpfx_cache_t *)bgpview_iter_pfx_get_user(it);
 
   uint32_t num_ips = 0;
+  uint32_t cur_address = prefix_to_uint32(pfx);
   ipmeta_record_t *rec = NULL;
 
   int i;
@@ -780,7 +1022,17 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
             NULL) {
           return -1;
         }
+        ADD_ADDR_RUN(pfx_cache->continent_addr_runs,
+                     pfx_cache->per_continent_addr_run_cnt,
+                     pfx_cache->continent_idxs_cnt);
         pfx_cache->continent_idxs[pfx_cache->continent_idxs_cnt++] = cont_idx;
+        i = pfx_cache->continent_idxs_cnt - 1;
+      }
+      if ((pfx_cache->continent_addr_runs[i] =
+            update_ip_addr_run(pfx_cache->continent_addr_runs[i],
+                               &(pfx_cache->per_continent_addr_run_cnt[i]),
+                               cur_address, num_ips)) == NULL) {
+        return -1;
       }
 
       /* maybe extract country code from the record */
@@ -803,7 +1055,17 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
                sizeof(uint16_t) * (pfx_cache->country_idxs_cnt + 1))) == NULL) {
           return -1;
         }
+        ADD_ADDR_RUN(pfx_cache->country_addr_runs,
+                     pfx_cache->per_country_addr_run_cnt,
+                     pfx_cache->country_idxs_cnt);
         pfx_cache->country_idxs[pfx_cache->country_idxs_cnt++] = country_idx;
+        i = pfx_cache->country_idxs_cnt - 1;
+      }
+      if ((pfx_cache->country_addr_runs[i] =
+            update_ip_addr_run(pfx_cache->country_addr_runs[i],
+                               &(pfx_cache->per_country_addr_run_cnt[i]),
+                               cur_address, num_ips)) == NULL) {
+        return -1;
       }
 
       /* extract all the polygon info from the record */
@@ -827,12 +1089,24 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
                    (pfx_cache->poly_table_idxs_cnt[poly_table] + 1))) == NULL) {
             return -1;
           }
+          ADD_ADDR_RUN(pfx_cache->poly_addr_runs[poly_table],
+                       pfx_cache->per_poly_addr_run_cnt[poly_table],
+                       pfx_cache->poly_table_idxs_cnt[poly_table]);
           pfx_cache
             ->poly_table_idxs[poly_table]
                              [pfx_cache->poly_table_idxs_cnt[poly_table]++] =
             rec->polygon_ids[poly_table];
+          i = pfx_cache->poly_table_idxs_cnt[poly_table] - 1;
+        }
+        if ((pfx_cache->poly_addr_runs[poly_table][i] =
+              update_ip_addr_run(
+                pfx_cache->poly_addr_runs[poly_table][i],
+                &(pfx_cache->per_poly_addr_run_cnt[poly_table][i]),
+                cur_address, num_ips)) == NULL) {
+          return -1;
         }
       }
+      cur_address += num_ips;
     }
     /* link the cache to the appropriate user ptr */
     bgpview_iter_pfx_set_user(it, pfx_cache);
@@ -845,7 +1119,9 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
   for (i = 0; i < pfx_cache->continent_idxs_cnt; i++) {
     if (per_geo_update(consumer,
                        STATE->continents[pfx_cache->continent_idxs[i]],
-                       pfx) != 0) {
+                       pfx,
+                       pfx_cache->continent_addr_runs[i],
+                       pfx_cache->per_continent_addr_run_cnt[i]) != 0) {
       return -1;
     }
   }
@@ -853,7 +1129,9 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
   /* countries */
   for (i = 0; i < pfx_cache->country_idxs_cnt; i++) {
     if (per_geo_update(consumer, STATE->countries[pfx_cache->country_idxs[i]],
-                       pfx) != 0) {
+                       pfx,
+                       pfx_cache->country_addr_runs[i],
+                       pfx_cache->per_country_addr_run_cnt[i]) != 0) {
       return -1;
     }
   }
@@ -866,7 +1144,9 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
             consumer,
             STATE
               ->polygons[poly_table][pfx_cache->poly_table_idxs[poly_table][i]],
-            pfx) != 0) {
+            pfx,
+            pfx_cache->poly_addr_runs[poly_table][i],
+            pfx_cache->per_poly_addr_run_cnt[poly_table][i]) != 0) {
         return -1;
       }
     }
@@ -946,6 +1226,8 @@ static int update_per_geo_metrics(bvc_t *consumer, per_geo_t *pg)
                                     pg->thresholds[i + 1].pfxs);
       bgpstream_id_set_merge(pg->thresholds[i].asns,
                              pg->thresholds[i + 1].asns);
+      slash24_id_set_merge(pg->thresholds[i].slash24s,
+                           pg->thresholds[i + 1].slash24s);
     }
 
     /* now that the tree represents all the prefixes that match the threshold,
@@ -961,7 +1243,7 @@ static int update_per_geo_metrics(bvc_t *consumer, per_geo_t *pg)
       STATE->kp,
       pg->thresholds[i]
         .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)],
-      bgpstream_patricia_tree_count_24subnets(pg->thresholds[i].pfxs));
+      slash24_id_set_size(pg->thresholds[i].slash24s));
 
     timeseries_kp_set(
       STATE->kp,
@@ -970,10 +1252,11 @@ static int update_per_geo_metrics(bvc_t *consumer, per_geo_t *pg)
       bgpstream_id_set_size(pg->thresholds[i].asns));
   }
 
-  /* metrics are set, now we have to clean the patricia trees */
+  /* metrics are set, now we have to clean the patricia trees and sets */
   for (i = VIS_THRESHOLDS_CNT - 1; i >= 0; i--) {
     bgpstream_patricia_tree_clear(pg->thresholds[i].pfxs);
     bgpstream_id_set_clear(pg->thresholds[i].asns);
+    slash24_id_set_clear(pg->thresholds[i].slash24s);
   }
 
   return 0;
@@ -1166,7 +1449,7 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* compute the pfx visibility stats for each geo aggregation (continent,
-     countrry, region, county) */
+     country, region, county) */
   if (compute_geo_pfx_visibility(consumer, it) != 0) {
     return -1;
   }
