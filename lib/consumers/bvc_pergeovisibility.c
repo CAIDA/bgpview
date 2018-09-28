@@ -789,7 +789,8 @@ static void destroy_pfx_user_ptr(void *user)
   free(pfx_cache->continent_idxs);
   pfx_cache->continent_idxs = NULL;
   pfx_cache->continent_idxs_cnt = 0;
-  pfx_cache->per_continent_addr_run_cnt = 0;
+  free(pfx_cache->per_continent_addr_run_cnt);
+  pfx_cache->per_continent_addr_run_cnt = NULL;
 
   for (i = 0; i < pfx_cache->country_idxs_cnt; i++) {
     free(pfx_cache->country_addr_runs[i]);
@@ -800,7 +801,8 @@ static void destroy_pfx_user_ptr(void *user)
   free(pfx_cache->country_idxs);
   pfx_cache->country_idxs = NULL;
   pfx_cache->country_idxs_cnt = 0;
-  pfx_cache->per_country_addr_run_cnt = 0;
+  free(pfx_cache->per_country_addr_run_cnt);
+  pfx_cache->per_country_addr_run_cnt = NULL;
 
   for (i = 0; i < METRIC_NETACQ_EDGE_POLYS_TBL_CNT; i++) {
     for (j = 0; j < pfx_cache->poly_table_idxs_cnt[i]; j++) {
@@ -811,7 +813,8 @@ static void destroy_pfx_user_ptr(void *user)
     pfx_cache->poly_table_idxs[i] = NULL;
     pfx_cache->poly_table_idxs_cnt[i] = 0;
     free(pfx_cache->poly_addr_runs[i]);
-    pfx_cache->per_poly_addr_run_cnt[i] = 0;
+    free(pfx_cache->per_poly_addr_run_cnt[i]);
+    pfx_cache->per_poly_addr_run_cnt[i] = NULL;
   }
 
   free(pfx_cache);
