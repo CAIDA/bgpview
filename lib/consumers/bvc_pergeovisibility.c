@@ -631,7 +631,7 @@ static void per_geo_destroy(per_geo_t *pg)
 
 /* ==================== UTILITY FUNCTIONS ==================== */
 
-static uint32_t prefix_to_uint32(bgpstream_pfx_t *pfx) {
+static uint32_t first_pfx_addr(bgpstream_pfx_t *pfx) {
 
   /* We expect only IPv4 addresses in our prefixes. */
   assert(pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4);
@@ -639,6 +639,14 @@ static uint32_t prefix_to_uint32(bgpstream_pfx_t *pfx) {
   bgpstream_ipv4_addr_t *v4_addr = (bgpstream_ipv4_addr_t *) &(pfx->address);
 
   return ntohl(v4_addr->ipv4.s_addr);
+}
+
+static uint32_t last_pfx_addr(bgpstream_pfx_t *pfx) {
+
+  uint32_t first_addr = first_pfx_addr(pfx);
+
+  /* Return the last IPv4 address of the prefix. */
+  return first_addr + (1 << (32 - pfx->mask_len)) - 1;
 }
 
 static int init_kp(bvc_t *consumer)
@@ -973,7 +981,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
   perpfx_cache_t *pfx_cache = (perpfx_cache_t *)bgpview_iter_pfx_get_user(it);
 
   uint32_t num_ips = 0;
-  uint32_t cur_address = prefix_to_uint32(pfx);
+  uint32_t cur_address = first_pfx_addr(pfx);
   ipmeta_record_t *rec = NULL;
 
   int i;
@@ -1110,6 +1118,19 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
     }
     /* link the cache to the appropriate user ptr */
     bgpview_iter_pfx_set_user(it, pfx_cache);
+  }
+
+  /* Ensure that the sum of NetAcuity block lengths is identical to the number
+   * of addresses in the given prefix.  This is a crucial assumption for our
+   * algorithm.
+   */
+  if (cur_address != (last_pfx_addr(pfx) + 1)) {
+    fprintf(stderr, "ERROR: Sum of NetAcuity blocks (%u) and number of "
+                    "addresses in prefix (%u) are not identical.  Does "
+                    "NetAcuity have gaps?\n",
+                    cur_address - first_pfx_addr(pfx),
+                    last_pfx_addr(pfx) - first_pfx_addr(pfx) + 1);
+    return -1;
   }
 
   /* now the prefix cache holds geo info we can update the counters for each
