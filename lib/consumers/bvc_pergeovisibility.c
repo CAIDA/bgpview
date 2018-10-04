@@ -1124,7 +1124,8 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
    * of addresses in the given prefix.  This is a crucial assumption for our
    * algorithm.
    */
-  if (cur_address != (last_pfx_addr(pfx) + 1)) {
+  if (cur_address != (last_pfx_addr(pfx) + 1) && \
+      cur_address != first_pfx_addr(pfx)) {
     fprintf(stderr, "ERROR: Sum of NetAcuity blocks (%u) and number of "
                     "addresses in prefix (%u) are not identical.  Does "
                     "NetAcuity have gaps?\n",
