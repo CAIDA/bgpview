@@ -71,7 +71,7 @@ static int add_peerid_mapping(bgpview_io_kafka_peeridmap_t *idmap,
   }
 #endif
   if ((local_id = bgpview_iter_add_peer(
-         it, sig->collector_str, (bgpstream_ip_addr_t *)&sig->peer_ip_addr,
+         it, sig->collector_str, &sig->peer_ip_addr,
          sig->peer_asnumber)) == 0) {
 #ifdef WITH_THREADS
     if (mutex != NULL) {

@@ -50,7 +50,7 @@ static bgpview_consumer_manager_t *manager = NULL;
 static timeseries_t *timeseries = NULL;
 
 static bgpstream_patricia_tree_t *pfx_tree = NULL;
-static bgpstream_pfx_storage_set_t *pfx_set = NULL;
+static bgpstream_pfx_set_t *pfx_set = NULL;
 static bgpstream_id_set_t *asn_set = NULL;
 
 typedef int(filter_parser_func)(char *value);
@@ -95,7 +95,7 @@ bgpview_io_zmq_client_t *zmq_client = NULL;
 
 static int parse_pfx(char *value)
 {
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if (value == NULL) {
     fprintf(stderr, "ERROR: Missing value for prefix filter\n");
@@ -107,7 +107,7 @@ static int parse_pfx(char *value)
     return -1;
   }
 
-  if (bgpstream_patricia_tree_insert(pfx_tree, (bgpstream_pfx_t *)&pfx) ==
+  if (bgpstream_patricia_tree_insert(pfx_tree, &pfx) ==
       NULL) {
     fprintf(stderr, "ERROR: Failed to insert pfx filter into tree\n");
   }
@@ -118,7 +118,7 @@ static int parse_pfx(char *value)
 
 static int parse_pfx_exact(char *value)
 {
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if (value == NULL) {
     fprintf(stderr, "ERROR: Missing value for prefix filter\n");
@@ -130,7 +130,7 @@ static int parse_pfx_exact(char *value)
     return -1;
   }
 
-  if (bgpstream_pfx_storage_set_insert(pfx_set, &pfx) < 0) {
+  if (bgpstream_pfx_set_insert(pfx_set, &pfx) < 0) {
     fprintf(stderr, "ERROR: Failed to insert pfx filter into set\n");
   }
 
@@ -167,8 +167,7 @@ static int match_pfx(bgpstream_pfx_t *pfx)
 
 static int match_pfx_exact(bgpstream_pfx_t *pfx)
 {
-  return bgpstream_pfx_storage_set_exists(pfx_set,
-                                          (bgpstream_pfx_storage_t *)pfx);
+  return bgpstream_pfx_set_exists(pfx_set, pfx);
 }
 
 static bgpview_io_filter_pfx_cb_t *filter_pfx_matchers[] = {
@@ -194,7 +193,7 @@ static int filters_init()
     return -1;
   }
 
-  if ((pfx_set = bgpstream_pfx_storage_set_create()) == NULL) {
+  if ((pfx_set = bgpstream_pfx_set_create()) == NULL) {
     return -1;
   }
 
@@ -209,7 +208,7 @@ static void filters_destroy()
 {
   bgpstream_patricia_tree_destroy(pfx_tree);
   pfx_tree = NULL;
-  bgpstream_pfx_storage_set_destroy(pfx_set);
+  bgpstream_pfx_set_destroy(pfx_set);
   pfx_set = NULL;
   bgpstream_id_set_destroy(asn_set);
   asn_set = NULL;

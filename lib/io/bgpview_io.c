@@ -46,7 +46,7 @@ int bgpview_io_serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip)
     written++;
 
     assert((len - written) >= sizeof(uint32_t));
-    memcpy(buf, &((bgpstream_ipv4_addr_t *)ip)->ipv4.s_addr, sizeof(uint32_t));
+    memcpy(buf, &ip->bs_ipv4.addr.s_addr, sizeof(uint32_t));
     return written + sizeof(uint32_t);
     break;
 
@@ -58,8 +58,7 @@ int bgpview_io_serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip)
     written++;
 
     assert((len - written) >= (sizeof(uint8_t) * 16));
-    memcpy(buf, &((bgpstream_ipv6_addr_t *)ip)->ipv6.s6_addr,
-           sizeof(uint8_t) * 16);
+    memcpy(buf, &ip->bs_ipv6.addr.s6_addr, sizeof(uint8_t) * 16);
     return written + sizeof(uint8_t) * 16;
     break;
 
@@ -71,7 +70,7 @@ int bgpview_io_serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip)
 }
 
 int bgpview_io_deserialize_ip(uint8_t *buf, size_t len,
-                              bgpstream_addr_storage_t *ip)
+                              bgpstream_ip_addr_t *ip)
 {
   size_t read = 0;
 
@@ -85,7 +84,7 @@ int bgpview_io_deserialize_ip(uint8_t *buf, size_t len,
     read++;
 
     assert((len - read) >= sizeof(uint32_t));
-    memcpy(&ip->ipv4.s_addr, buf, sizeof(uint32_t));
+    memcpy(&ip->bs_ipv4.addr.s_addr, buf, sizeof(uint32_t));
     return read + sizeof(uint32_t);
     break;
 
@@ -95,7 +94,7 @@ int bgpview_io_deserialize_ip(uint8_t *buf, size_t len,
     read++;
 
     assert((len - read) >= (sizeof(uint8_t) * 16));
-    memcpy(&ip->ipv6.s6_addr, buf, sizeof(uint8_t) * 16);
+    memcpy(&ip->bs_ipv6.addr.s6_addr, buf, sizeof(uint8_t) * 16);
     return read + (sizeof(uint8_t) * 16);
     break;
 
@@ -113,7 +112,7 @@ int bgpview_io_serialize_pfx(uint8_t *buf, size_t len, bgpstream_pfx_t *pfx)
 
   /* pfx address */
   if ((s = bgpview_io_serialize_ip(
-         buf, (len - written), (bgpstream_ip_addr_t *)(&pfx->address))) == -1) {
+         buf, (len - written), &pfx->address)) == -1) {
     goto err;
   }
   written += s;
@@ -129,7 +128,7 @@ err:
 }
 
 int bgpview_io_deserialize_pfx(uint8_t *buf, size_t len,
-                               bgpstream_pfx_storage_t *pfx)
+                               bgpstream_pfx_t *pfx)
 {
   size_t read = 0;
   ssize_t s;
@@ -169,8 +168,7 @@ int bgpview_io_serialize_peer(uint8_t *buf, size_t len, bgpstream_peer_id_t id,
   buf += nlen;
 
   /* Peer IP */
-  if ((s = bgpview_io_serialize_ip(
-         buf, len, (bgpstream_ip_addr_t *)(&sig->peer_ip_addr))) < 0) {
+  if ((s = bgpview_io_serialize_ip(buf, len, &sig->peer_ip_addr)) < 0) {
     goto err;
   }
   written += s;
@@ -429,7 +427,7 @@ int bgpview_io_deserialize_pfx_row(
   size_t s = 0;
   int skip_pfx = 0;
 
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   int filter = 0;
 
@@ -461,7 +459,7 @@ int bgpview_io_deserialize_pfx_row(
 
   if (pfx_cb != NULL && state == BGPVIEW_FIELD_ACTIVE) {
     /* ask the caller if they want this pfx */
-    if ((filter = pfx_cb((bgpstream_pfx_t *)&pfx)) < 0) {
+    if ((filter = pfx_cb(&pfx)) < 0) {
       goto err;
     }
     if (filter == 0) {
@@ -523,7 +521,7 @@ int bgpview_io_deserialize_pfx_row(
     if (state == BGPVIEW_FIELD_ACTIVE) {
       if (pfx_peers_added == 0) {
         /* we have to use add_pfx_peer */
-        if (bgpview_iter_add_pfx_peer_by_id(it, (bgpstream_pfx_t *)&pfx,
+        if (bgpview_iter_add_pfx_peer_by_id(it, &pfx,
                                             peerid_map[peerid], pathid) != 0) {
           fprintf(stderr, "Could not add prefix\n");
           goto err;
@@ -544,7 +542,7 @@ int bgpview_io_deserialize_pfx_row(
       if (pfx_peers_added == 0) {
         /* seek to pfx-peer */
         if (bgpview_iter_seek_pfx_peer(
-              it, (bgpstream_pfx_t *)&pfx, peerid_map[peerid],
+              it, &pfx, peerid_map[peerid],
               BGPVIEW_FIELD_ALL_VALID, BGPVIEW_FIELD_ALL_VALID) == 1) {
           bgpview_iter_pfx_deactivate_peer(it);
         }

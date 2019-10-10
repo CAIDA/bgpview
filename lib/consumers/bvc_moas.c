@@ -152,8 +152,8 @@ typedef khash_t(moasinfo_map) moasinfo_map_t;
 
 /** Map <pfx,moas_info>: store information for each
  *  MOAS prefix in the current window */
-KHASH_INIT(pfx_moasinfo_map, bgpstream_pfx_storage_t, moasinfo_map_t *, 1,
-           bgpstream_pfx_storage_hash_val, bgpstream_pfx_storage_equal_val);
+KHASH_INIT(pfx_moasinfo_map, bgpstream_pfx_t, moasinfo_map_t *, 1,
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
 typedef khash_t(pfx_moasinfo_map) pfx_moasinfo_map_t;
 
 /* our 'instance' */
@@ -169,7 +169,7 @@ typedef struct bvc_moas_state {
   uint32_t current_window_size;
 
   /** blacklist prefixes */
-  bgpstream_pfx_storage_set_t *blacklist_pfxs;
+  bgpstream_pfx_set_t *blacklist_pfxs;
 
   /** wandio file handler */
   iow_t *wandio_fh;
@@ -462,7 +462,7 @@ static int clean_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
 
   bvc_moas_state_t *state = STATE;
   khiter_t p, m;
-  bgpstream_pfx_storage_t *pfx;
+  bgpstream_pfx_t *pfx;
   moasinfo_map_t *per_pfx_moases;
   moas_signature_t *ms;
   moas_properties_t *mpro;
@@ -487,7 +487,7 @@ static int clean_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
             if (mpro->end < ts) {
               // report finished moases
               if (mpro->start > 0) {
-                if (log_moas(consumer, NULL, NULL, (bgpstream_pfx_t *)pfx, ms,
+                if (log_moas(consumer, NULL, NULL, pfx, ms,
                              mpro, FINISHED, ts) != 0) {
                   return -1;
                 }
@@ -508,8 +508,7 @@ static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
                     moas_signature_t *ms, uint32_t ts, uint32_t last_valid_ts)
 {
   bvc_moas_state_t *state = STATE;
-  bgpstream_pfx_t *pfx_ptr;
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t *pfx;
 
   moasinfo_map_t *per_pfx_moases;
   moas_properties_t *moas_properties = NULL;
@@ -519,16 +518,13 @@ static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   int khret;
 
   /* convert pfx_ptr in storage */
-  pfx_ptr = bgpview_iter_pfx_get_pfx(it);
-  pfx.mask_len = pfx_ptr->mask_len;
-  bgpstream_addr_copy((bgpstream_ip_addr_t *)&pfx.address,
-                      (bgpstream_ip_addr_t *)&pfx_ptr->address);
+  pfx = bgpview_iter_pfx_get_pfx(it);
 
   /* check if prefix is in MOAS already, otherwise create it */
-  if ((k = kh_get(pfx_moasinfo_map, state->current_moases, pfx)) ==
+  if ((k = kh_get(pfx_moasinfo_map, state->current_moases, *pfx)) ==
       kh_end(state->current_moases)) {
     /* if not insert the prefix */
-    k = kh_put(pfx_moasinfo_map, state->current_moases, pfx, &khret);
+    k = kh_put(pfx_moasinfo_map, state->current_moases, *pfx, &khret);
     /* moasinfo_map is an empty map */
     if ((kh_value(state->current_moases, k) = kh_init(moasinfo_map)) == NULL) {
       fprintf(stderr, "Error: could not create moas_info map\n");
@@ -570,7 +566,7 @@ static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 
   moas_properties = &kh_value(per_pfx_moases, k);
 
-  return log_moas(consumer, view, it, pfx_ptr, ms, moas_properties, mc, ts);
+  return log_moas(consumer, view, it, pfx, ms, moas_properties, mc, ts);
 }
 
 /** Create timeseries metrics */
@@ -713,7 +709,7 @@ bvc_t *bvc_moas_alloc()
 int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_moas_state_t *state = NULL;
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if ((state = malloc_zero(sizeof(bvc_moas_state_t))) == NULL) {
     return -1;
@@ -726,7 +722,7 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
   state->output_folder[MAX_BUFFER_LEN - 1] = '\0';
   state->current_moases = NULL;
 
-  if ((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL) {
+  if ((state->blacklist_pfxs = bgpstream_pfx_set_create()) == NULL) {
     fprintf(stderr, "Error: Could not create blacklist pfx set\n");
     goto err;
   }
@@ -749,12 +745,12 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
 
   /* add default routes to blacklist */
   if (!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
   if (!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
@@ -794,7 +790,7 @@ void bvc_moas_destroy(bvc_t *consumer)
     }
 
     if (state->blacklist_pfxs != NULL) {
-      bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
+      bgpstream_pfx_set_destroy(state->blacklist_pfxs);
     }
 
     if (state->kp != NULL) {
@@ -811,7 +807,6 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
   bvc_moas_state_t *state = STATE;
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
-  bgpstream_pfx_storage_t pfx_storage;
 
   int ipv_idx; // ip version index
   bgpstream_peer_id_t peerid;
@@ -859,12 +854,8 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
 
     pfx = bgpview_iter_pfx_get_pfx(it);
 
-    pfx_storage.mask_len = pfx->mask_len;
-    bgpstream_addr_copy((bgpstream_ip_addr_t *)&pfx_storage.address,
-                        (bgpstream_ip_addr_t *)&pfx->address);
-
     /* ignore prefixes in blacklist */
-    if (bgpstream_pfx_storage_set_exists(state->blacklist_pfxs, &pfx_storage)) {
+    if (bgpstream_pfx_set_exists(state->blacklist_pfxs, pfx)) {
       continue;
     }
 

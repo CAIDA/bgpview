@@ -139,7 +139,7 @@ int bgpview_io_serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip);
  * occurred.
  */
 int bgpview_io_deserialize_ip(uint8_t *buf, size_t len,
-                              bgpstream_addr_storage_t *ip);
+                              bgpstream_ip_addr_t *ip);
 
 /** Serialize the given prefix address into the given buffer
  *
@@ -160,7 +160,7 @@ int bgpview_io_serialize_pfx(uint8_t *buf, size_t len, bgpstream_pfx_t *pfx);
  * that an error occurred.
  */
 int bgpview_io_deserialize_pfx(uint8_t *buf, size_t len,
-                               bgpstream_pfx_storage_t *pfx);
+                               bgpstream_pfx_t *pfx);
 
 /** Serialize peer ID and signature into the given buffer
  *

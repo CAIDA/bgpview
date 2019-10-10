@@ -49,12 +49,12 @@ struct bgpview_io_test {
   char *test_collector_name;
   uint32_t test_time;
   uint32_t test_peer_first_ip;
-  bgpstream_addr_storage_t test_peer_ip;
+  bgpstream_ip_addr_t test_peer_ip;
   uint32_t test_peer_asns[MAX_PEER_CNT];
   uint8_t test_peer_status;
 
   /* pfx row */
-  bgpstream_pfx_storage_t test_prefix;
+  bgpstream_pfx_t test_prefix;
   uint32_t test_prefix_first_addr;
   bgpstream_as_path_t *test_as_path;
   bgpstream_as_path_seg_asn_t test_as_path_segs[100];
@@ -83,7 +83,7 @@ static void create_test_data(bgpview_io_test_t *generator)
   generator->test_collector_name = "TEST-COLLECTOR";
 
   /* FIRST PEER IP */
-  generator->test_peer_ip.ipv4.s_addr = generator->test_peer_first_ip =
+  generator->test_peer_ip.bs_ipv4.addr.s_addr = generator->test_peer_first_ip =
     0x00FAD982; /* add one each time */
   generator->test_peer_ip.version = BGPSTREAM_ADDR_VERSION_IPV4;
 
@@ -97,7 +97,7 @@ static void create_test_data(bgpview_io_test_t *generator)
 
   /* FIRST PREFIX */
   generator->test_prefix_first_addr =
-    generator->test_prefix.address.ipv4.s_addr = 0x00000000;
+    generator->test_prefix.address.bs_ipv4.addr.s_addr = 0x00000000;
   generator->test_prefix.address.version = BGPSTREAM_ADDR_VERSION_IPV4;
   generator->test_prefix.mask_len = 24;
 
@@ -287,19 +287,19 @@ int bgpview_io_test_generate_view(bgpview_io_test_t *generator, bgpview_t *view)
                            (generator->current_tbl * VIEW_INTERVAL));
 
   /* reset peer ip */
-  generator->test_peer_ip.ipv4.s_addr = generator->test_peer_first_ip;
+  generator->test_peer_ip.bs_ipv4.addr.s_addr = generator->test_peer_first_ip;
 
   fprintf(stderr, "TEST: Simulating %d peer(s)\n", generator->test_peer_num);
   for (peer = 0; peer < generator->test_peer_num; peer++) {
-    generator->test_peer_ip.ipv4.s_addr =
-      htonl(ntohl(generator->test_peer_ip.ipv4.s_addr) + 1);
+    generator->test_peer_ip.bs_ipv4.addr.s_addr =
+      htonl(ntohl(generator->test_peer_ip.bs_ipv4.addr.s_addr) + 1);
 
     // returns number from 0 to 2
     generator->test_peer_status =
       (generator->use_random_peers) ? rand() % 3 : 2;
     if ((peer_id = bgpview_iter_add_peer(
            iter, generator->test_collector_name,
-           (bgpstream_ip_addr_t *)&generator->test_peer_ip,
+           &generator->test_peer_ip,
            generator->test_peer_asns[peer])) == 0) {
       fprintf(stderr, "Could not add peer to table\n");
       goto err;
@@ -318,12 +318,12 @@ int bgpview_io_test_generate_view(bgpview_io_test_t *generator, bgpview_t *view)
       fprintf(stderr, "(up)\n");
     }
 
-    generator->test_prefix.address.ipv4.s_addr =
+    generator->test_prefix.address.bs_ipv4.addr.s_addr =
       generator->test_prefix_first_addr;
     pfx_cnt = 0;
     for (i = 0; i < generator->test_table_size; i++) {
-      generator->test_prefix.address.ipv4.s_addr =
-        htonl(ntohl(generator->test_prefix.address.ipv4.s_addr) + 256);
+      generator->test_prefix.address.bs_ipv4.addr.s_addr =
+        htonl(ntohl(generator->test_prefix.address.bs_ipv4.addr.s_addr) + 256);
 
       build_as_path(generator, generator->test_peer_asns[peer]);
 
@@ -333,7 +333,7 @@ int bgpview_io_test_generate_view(bgpview_io_test_t *generator, bgpview_t *view)
         continue;
       }
       if (bgpview_iter_add_pfx_peer(iter,
-                                    (bgpstream_pfx_t *)&generator->test_prefix,
+                                    &generator->test_prefix,
                                     peer_id, generator->test_as_path) != 0) {
         fprintf(stderr, "Could not add pfx info to table\n");
         goto err;

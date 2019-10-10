@@ -43,7 +43,7 @@ static int send_ip(void *dest, bgpstream_ip_addr_t *ip, int flags)
   switch(ip->version)
     {
     case BGPSTREAM_ADDR_VERSION_IPV4:
-      if(zmq_send(dest, &((bgpstream_ipv4_addr_t *)ip)->ipv4.s_addr,
+      if(zmq_send(dest, &ip->bs_ipv4.ipv4.s_addr,
                   sizeof(uint32_t), flags) == sizeof(uint32_t))
         {
           return 0;
@@ -51,7 +51,7 @@ static int send_ip(void *dest, bgpstream_ip_addr_t *ip, int flags)
       break;
 
     case BGPSTREAM_ADDR_VERSION_IPV6:
-      if(zmq_send(dest, &((bgpstream_ipv6_addr_t *)ip)->ipv6.s6_addr,
+      if(zmq_send(dest, &ip->bs_ipv6.ipv6.s6_addr,
                   (sizeof(uint8_t)*16), flags) == sizeof(uint8_t)*16)
         {
           return 0;
@@ -65,7 +65,7 @@ static int send_ip(void *dest, bgpstream_ip_addr_t *ip, int flags)
   return -1;
 }
 
-static int recv_ip(void *src, bgpstream_addr_storage_t *ip)
+static int recv_ip(void *src, bgpstream_addr_t *ip)
 {
   zmq_msg_t llm;
   assert(ip != NULL);
@@ -380,7 +380,7 @@ static int recv_peers(void *src, bgpview_iter_t *iter,
 
     /* now ask the view to add this peer */
     peerid_new = bgpview_iter_add_peer(iter, ps.collector_str,
-                                       (bgpstream_ip_addr_t *)&ps.peer_ip_addr,
+                                       &ps.peer_ip_addr,
                                        ps.peer_asnumber);
     assert(peerid_new != 0);
     idmap[peerid_orig] = peerid_new;

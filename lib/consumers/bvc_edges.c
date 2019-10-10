@@ -134,7 +134,7 @@ typedef struct bvc_edges_state {
   iow_t *file_newedges;
 
   /** blacklist prefixes */
-  bgpstream_pfx_storage_set_t *blacklist_pfxs;
+  bgpstream_pfx_set_t *blacklist_pfxs;
 
   /** diff ts when the view arrived */
   uint32_t arrival_delay;
@@ -313,7 +313,7 @@ bvc_t *bvc_edges_alloc()
 int bvc_edges_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_edges_state_t *state = NULL;
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if ((state = malloc_zero(sizeof(bvc_edges_state_t))) == NULL) {
     return -1;
@@ -340,18 +340,18 @@ int bvc_edges_init(bvc_t *consumer, int argc, char **argv)
   fprintf(stderr, "INFO: window size: %" PRIu32 "\n", state->window_size);
   fprintf(stderr, "INFO: output folder: %s\n", state->output_folder);
 
-  if ((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL) {
+  if ((state->blacklist_pfxs = bgpstream_pfx_set_create()) == NULL) {
     fprintf(stderr, "Error: Could not create blacklist pfx set\n");
     goto err;
   }
   /* add default routes to blacklist */
   if (!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
   if (!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
@@ -387,7 +387,7 @@ void bvc_edges_destroy(bvc_t *consumer)
     kh_destroy(edges_map, state->edges_map);
 
     if (state->blacklist_pfxs != NULL) {
-      bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
+      bgpstream_pfx_set_destroy(state->blacklist_pfxs);
     }
 
     if (state->kp != NULL) {
@@ -831,7 +831,6 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   bvc_edges_state_t *state = STATE;
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
-  bgpstream_pfx_storage_t pfx_storage;
 
   bgpstream_peer_id_t peerid;
   uint32_t time_now = bgpview_get_time(view);
@@ -899,12 +898,8 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
     count++;
     pfx = bgpview_iter_pfx_get_pfx(it);
 
-    pfx_storage.mask_len = pfx->mask_len;
-    bgpstream_addr_copy((bgpstream_ip_addr_t *)&pfx_storage.address,
-                        (bgpstream_ip_addr_t *)&pfx->address);
-
     /* ignore prefixes in blacklist */
-    if (bgpstream_pfx_storage_set_exists(state->blacklist_pfxs, &pfx_storage)) {
+    if (bgpstream_pfx_set_exists(state->blacklist_pfxs, pfx)) {
       continue;
     }
 

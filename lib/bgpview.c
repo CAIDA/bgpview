@@ -148,13 +148,13 @@ typedef struct bwv_peerid_pfxinfo {
 /************ map from prefix -> peers [-> prefix info] ************/
 
 KHASH_INIT(bwv_v4pfx_peerid_pfxinfo, bgpstream_ipv4_pfx_t,
-           bwv_peerid_pfxinfo_t *, 1, bgpstream_ipv4_pfx_storage_hash_val,
-           bgpstream_ipv4_pfx_storage_equal_val)
+           bwv_peerid_pfxinfo_t *, 1, bgpstream_ipv4_pfx_hash_val,
+           bgpstream_ipv4_pfx_equal_val)
 typedef khash_t(bwv_v4pfx_peerid_pfxinfo) bwv_v4pfx_peerid_pfxinfo_t;
 
 KHASH_INIT(bwv_v6pfx_peerid_pfxinfo, bgpstream_ipv6_pfx_t,
-           bwv_peerid_pfxinfo_t *, 1, bgpstream_ipv6_pfx_storage_hash_val,
-           bgpstream_ipv6_pfx_storage_equal_val)
+           bwv_peerid_pfxinfo_t *, 1, bgpstream_ipv6_pfx_hash_val,
+           bgpstream_ipv6_pfx_equal_val)
 typedef khash_t(bwv_v6pfx_peerid_pfxinfo) bwv_v6pfx_peerid_pfxinfo_t;
 
 /***** map from peerid to peerinfo *****/
@@ -1020,7 +1020,7 @@ int bgpview_iter_seek_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
   switch (pfx->address.version) {
   case BGPSTREAM_ADDR_VERSION_IPV4:
     iter->pfx_it = kh_get(bwv_v4pfx_peerid_pfxinfo, iter->view->v4pfxs,
-                          *((bgpstream_ipv4_pfx_t *)pfx));
+                          pfx->bs_ipv4);
     if (iter->pfx_it == kh_end(iter->view->v4pfxs)) {
       return 0;
     }
@@ -1034,7 +1034,7 @@ int bgpview_iter_seek_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
 
   case BGPSTREAM_ADDR_VERSION_IPV6:
     iter->pfx_it = kh_get(bwv_v6pfx_peerid_pfxinfo, iter->view->v6pfxs,
-                          *((bgpstream_ipv6_pfx_t *)pfx));
+                          pfx->bs_ipv6);
     if (iter->pfx_it == kh_end(iter->view->v6pfxs)) {
       return 0;
     }
@@ -1950,7 +1950,7 @@ int bgpview_copy(bgpview_t *dst, bgpview_t *src)
     src_id = bgpview_iter_peer_get_peer_id(src_iter);
     if ((dst_id = bgpview_iter_add_peer(
            dst_iter, ps->collector_str,
-           (bgpstream_ip_addr_t *)&ps->peer_ip_addr, ps->peer_asnumber)) == 0) {
+           &ps->peer_ip_addr, ps->peer_asnumber)) == 0) {
       goto err;
     }
     dstids[src_id] = dst_id;
@@ -2153,6 +2153,6 @@ bgpstream_peer_id_t bgpview_get_peer_id(bgpview_t *view,
                                         bgpstream_peer_sig_t *ps)
 {
   return bgpstream_peer_sig_map_get_id(view->peersigns, ps->collector_str,
-                                       (bgpstream_ip_addr_t *)&ps->peer_ip_addr,
+                                       &ps->peer_ip_addr,
                                        ps->peer_asnumber);
 }

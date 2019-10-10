@@ -101,8 +101,7 @@ static int write_ip(iow_t *outfile, bgpstream_ip_addr_t *ip)
   case BGPSTREAM_ADDR_VERSION_IPV4:
     len = sizeof(uint32_t);
     WRITE_VAL(len);
-    if (wandio_wwrite(outfile, &((bgpstream_ipv4_addr_t *)ip)->ipv4.s_addr,
-                      len) == len) {
+    if (wandio_wwrite(outfile, &ip->bs_ipv4.addr.s_addr, len) == len) {
       return 0;
     }
     break;
@@ -110,8 +109,7 @@ static int write_ip(iow_t *outfile, bgpstream_ip_addr_t *ip)
   case BGPSTREAM_ADDR_VERSION_IPV6:
     len = sizeof(uint8_t) * 16;
     WRITE_VAL(len);
-    if (wandio_wwrite(outfile, &((bgpstream_ipv6_addr_t *)ip)->ipv6.s6_addr,
-                      len) == len) {
+    if (wandio_wwrite(outfile, &ip->bs_ipv6.addr.s6_addr, len) == len) {
       return 0;
     }
     break;
@@ -123,7 +121,7 @@ static int write_ip(iow_t *outfile, bgpstream_ip_addr_t *ip)
   return -1;
 }
 
-static int read_ip(io_t *infile, bgpstream_addr_storage_t *ip)
+static int read_ip(io_t *infile, bgpstream_ip_addr_t *ip)
 {
   assert(ip != NULL);
 
@@ -134,13 +132,13 @@ static int read_ip(io_t *infile, bgpstream_addr_storage_t *ip)
   if (len == sizeof(uint32_t)) {
     /* v4 */
     ip->version = BGPSTREAM_ADDR_VERSION_IPV4;
-    if (wandio_read(infile, &ip->ipv4.s_addr, len) != len) {
+    if (wandio_read(infile, &ip->bs_ipv4.addr.s_addr, len) != len) {
       goto err;
     }
   } else if (len == sizeof(uint8_t) * 16) {
     /* v6 */
     ip->version = BGPSTREAM_ADDR_VERSION_IPV6;
-    if (wandio_read(infile, &ip->ipv6.s6_addr, len) != len) {
+    if (wandio_read(infile, &ip->bs_ipv6.addr.s6_addr, len) != len) {
       goto err;
     }
   } else {
@@ -205,7 +203,7 @@ static int write_peers(iow_t *outfile, bgpview_iter_t *it,
     }
 
     /* peer IP address */
-    if (write_ip(outfile, (bgpstream_ip_addr_t *)(&ps->peer_ip_addr)) != 0) {
+    if (write_ip(outfile, &ps->peer_ip_addr) != 0) {
       goto err;
     }
 
@@ -365,7 +363,7 @@ static int write_pfxs(iow_t *outfile, bgpview_iter_t *it,
     assert(pfx != NULL);
 
     /* pfx address */
-    if (write_ip(outfile, (bgpstream_ip_addr_t *)(&pfx->address)) != 0) {
+    if (write_ip(outfile, &pfx->address) != 0) {
       goto err;
     }
 
@@ -491,7 +489,7 @@ static int read_peers(io_t *infile, bgpview_iter_t *iter,
 
     /* now ask the view to add this peer */
     peerid_new = bgpview_iter_add_peer(iter, ps.collector_str,
-                                       (bgpstream_ip_addr_t *)&ps.peer_ip_addr,
+                                       &ps.peer_ip_addr,
                                        ps.peer_asnumber);
     assert(peerid_new != 0);
     idmap[peerid_orig] = peerid_new;
@@ -612,7 +610,7 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
   uint16_t peer_cnt;
   int i, j;
 
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
   bgpstream_peer_id_t peerid;
 
   uint32_t pathidx;
@@ -653,7 +651,7 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 
     if (pfx_cb != NULL) {
       /* ask the caller if they want this pfx */
-      if ((filter = pfx_cb((bgpstream_pfx_t *)&pfx)) < 0) {
+      if ((filter = pfx_cb(&pfx)) < 0) {
         goto err;
       }
       if (filter == 0) {
@@ -701,7 +699,7 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 
       if (pfx_peers_added == 0) {
         /* we have to use add_pfx_peer */
-        if (bgpview_iter_add_pfx_peer_by_id(iter, (bgpstream_pfx_t *)&pfx,
+        if (bgpview_iter_add_pfx_peer_by_id(iter, &pfx,
                                             peerid_map[peerid],
                                             pathid_map[pathidx]) != 0) {
           fprintf(stderr, "Could not add prefix\n");

@@ -100,7 +100,7 @@ typedef struct bvc_routedspace_state {
   bgpstream_patricia_tree_result_set_t *results;
 
   /** To be filtered-out space PrefixSet structure */
-  bgpstream_pfx_storage_set_t *filter;
+  bgpstream_pfx_set_t *filter;
 
   /* Currently routed prefixes */
   uint32_t routed_v4pfx_count;
@@ -376,20 +376,20 @@ int bvc_routedspace_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
-  if ((state->filter = bgpstream_pfx_storage_set_create()) == NULL) {
+  if ((state->filter = bgpstream_pfx_set_create()) == NULL) {
     fprintf(stderr, "ERROR: routedspace could not create to-be-filtered-out "
                     "space Prefix Set\n");
     goto err;
   }
 
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
   if (!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->filter, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->filter, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in filter\n");
     goto err;
   }
   if (!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->filter, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->filter, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in filter\n");
     goto err;
   }
@@ -443,7 +443,7 @@ void bvc_routedspace_destroy(bvc_t *consumer)
   }
 
   if (state->filter != NULL) {
-    bgpstream_pfx_storage_set_destroy(state->filter);
+    bgpstream_pfx_set_destroy(state->filter);
   }
 
   free(state);
@@ -518,7 +518,6 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
 
   /* working variables */
   bgpstream_pfx_t *pfx;
-  bgpstream_pfx_storage_t pfx_storage;
 
   bgpstream_patricia_node_t *patricia_node;
   perpfx_info_t *ppi;
@@ -543,12 +542,9 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
 
     /* get prefix from view */
     pfx = bgpview_iter_pfx_get_pfx(it);
-    pfx_storage.mask_len = pfx->mask_len;
-    bgpstream_addr_copy((bgpstream_ip_addr_t *)&pfx_storage.address,
-                        (bgpstream_ip_addr_t *)&pfx->address);
 
     /* check if the new prefix is in the set of prefixes to filter out */
-    if ((bgpstream_pfx_storage_set_exists(state->filter, &pfx_storage))) {
+    if ((bgpstream_pfx_set_exists(state->filter, pfx))) {
       continue;
     }
 

@@ -636,9 +636,7 @@ static uint32_t first_pfx_addr(bgpstream_pfx_t *pfx) {
   /* We expect only IPv4 addresses in our prefixes. */
   assert(pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4);
 
-  bgpstream_ipv4_addr_t *v4_addr = (bgpstream_ipv4_addr_t *) &(pfx->address);
-
-  return ntohl(v4_addr->ipv4.s_addr);
+  return ntohl(pfx->address.bs_ipv4.addr.s_addr);
 }
 
 static uint32_t last_pfx_addr(bgpstream_pfx_t *pfx) {
@@ -1000,7 +998,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
 
     /* Perform lookup */
     ipmeta_lookup(STATE->provider,
-                  (uint32_t)((bgpstream_ipv4_pfx_t *)pfx)->address.ipv4.s_addr,
+                  (uint32_t)pfx->address.bs_ipv4.addr.s_addr,
                   pfx->mask_len, STATE->records);
     ipmeta_record_set_rewind(STATE->records);
     while ((rec = ipmeta_record_set_next(STATE->records, &num_ips))) {

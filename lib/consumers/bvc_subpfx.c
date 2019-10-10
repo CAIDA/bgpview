@@ -74,8 +74,8 @@ typedef struct pt_user {
 } pt_user_t;
 
 /* Maps sub-prefixes to super prefixes */
-KHASH_INIT(pfx2pfx, bgpstream_pfx_storage_t, bgpstream_pfx_storage_t, 1,
-           bgpstream_pfx_storage_hash_val, bgpstream_pfx_storage_equal_val);
+KHASH_INIT(pfx2pfx, bgpstream_pfx_t, bgpstream_pfx_t, 1,
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
 
 enum {
   NEW = 0,
@@ -128,9 +128,9 @@ typedef struct bvc_subpfx_state {
   int current_subpfxs_idx;
 
   // IPv4 default route prefix
-  bgpstream_pfx_storage_t v4_default_pfx;
+  bgpstream_pfx_t v4_default_pfx;
   // IPv6 default route prefix
-  bgpstream_pfx_storage_t v6_default_pfx;
+  bgpstream_pfx_t v6_default_pfx;
 
   // current output file name
   char outfile_name[BUFFER_LEN];
@@ -334,16 +334,11 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
     return;
   }
 
-  bgpstream_pfx_storage_t tmp_pfx;
-  bgpstream_pfx_copy((bgpstream_pfx_t *)&tmp_pfx, pfx);
-  bgpstream_pfx_storage_t tmp_super_pfx;
-  bgpstream_pfx_copy((bgpstream_pfx_t *)&tmp_super_pfx, super_pfx);
-
   // this is a sub-prefix, add it to our table
   int ret;
-  int k = kh_put(pfx2pfx, CUR_SUBPFXS, tmp_pfx, &ret);
+  int k = kh_put(pfx2pfx, CUR_SUBPFXS, *pfx, &ret);
   assert(ret > 0); // this prefix must not already be present in the map
-  kh_val(CUR_SUBPFXS, k) = tmp_super_pfx;
+  kh_val(CUR_SUBPFXS, k) = *super_pfx;
 }
 
 static int dump_origins(bvc_t *consumer, bgpview_iter_t *it,
@@ -406,8 +401,8 @@ static int dump_as_paths(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 }
 
 static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
-                       bgpstream_pfx_storage_t *pfx,
-                       bgpstream_pfx_storage_t *super_pfx, int diff_type)
+                       bgpstream_pfx_t *pfx,
+                       bgpstream_pfx_t *super_pfx, int diff_type)
 {
   /* output file format: */
   /* TIME|SUPER_PFX|SUB_PFX|NEW/FINISHED|SUPER_PFX_ORIGINS|SUB_PFX_ORIGINS|SUPER_PFX_PATHS|SUB_PFX_PATHS */
@@ -418,10 +413,9 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   */
 
   char pfx_str[INET6_ADDRSTRLEN + 3];
-  bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, (bgpstream_pfx_t *)pfx);
+  bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
   char super_pfx_str[INET6_ADDRSTRLEN + 3];
-  bgpstream_pfx_snprintf(super_pfx_str, INET6_ADDRSTRLEN + 3,
-                         (bgpstream_pfx_t *)super_pfx);
+  bgpstream_pfx_snprintf(super_pfx_str, INET6_ADDRSTRLEN + 3, super_pfx);
 
   wandio_printf(STATE->outfile, "%" PRIu32 "|%s|%s|%s|",
                 bgpview_get_time(view),   // col 1
@@ -432,15 +426,15 @@ static int dump_subpfx(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 
   if (diff_type == NEW) {
     // dump the origins
-    dump_origins(consumer, it, (bgpstream_pfx_t *)super_pfx); // col 5
+    dump_origins(consumer, it, super_pfx); // col 5
     wandio_printf(STATE->outfile, "|");
-    dump_origins(consumer, it, (bgpstream_pfx_t *)pfx); // col 6
+    dump_origins(consumer, it, pfx); // col 6
     wandio_printf(STATE->outfile, "|");
 
     // dump the AS paths
-    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)super_pfx); // col 7
+    dump_as_paths(consumer, view, it, super_pfx); // col 7
     wandio_printf(STATE->outfile, "|");
-    dump_as_paths(consumer, view, it, (bgpstream_pfx_t *)pfx); // col 8
+    dump_as_paths(consumer, view, it, pfx); // col 8
     wandio_printf(STATE->outfile, "\n");
   } else {
     // just finish the record with nulls // col-5|col-6|col-7|col-8
@@ -460,12 +454,12 @@ static uint64_t subpfxs_diff(bvc_t *consumer, bgpview_t *view,
     if (kh_exist(a, k) == 0) {
       continue;
     }
-    bgpstream_pfx_storage_t *pfx = &kh_key(a, k);
-    bgpstream_pfx_storage_t *super_pfx = &kh_val(a, k);
+    bgpstream_pfx_t *pfx = &kh_key(a, k);
+    bgpstream_pfx_t *super_pfx = &kh_val(a, k);
     // this prefix must have been a sub-prefix in the previous view,
     // and it must have had the same super prefix
     if ((j = kh_get(pfx2pfx, b, *pfx)) != kh_end(b) &&
-        bgpstream_pfx_storage_equal(super_pfx, &kh_val(b, j)) != 0) {
+        bgpstream_pfx_equal(super_pfx, &kh_val(b, j)) != 0) {
       continue;
     }
 
@@ -655,10 +649,8 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
     pfx = bgpview_iter_pfx_get_pfx(it);
 
     // ignore default prefixes
-    if (bgpstream_pfx_equal((bgpstream_pfx_t *)&STATE->v4_default_pfx,
-                            (bgpstream_pfx_t *)pfx) != 0 ||
-        bgpstream_pfx_equal((bgpstream_pfx_t *)&STATE->v6_default_pfx,
-                            (bgpstream_pfx_t *)pfx) != 0) {
+    if (bgpstream_pfx_equal(&STATE->v4_default_pfx, pfx) != 0 ||
+        bgpstream_pfx_equal(&STATE->v6_default_pfx, pfx) != 0) {
       continue;
     }
 
