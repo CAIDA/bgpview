@@ -262,13 +262,19 @@ static int pt_user_add_asn(pt_user_t *ptu, uint32_t asn)
   return 0;
 }
 
-static void find_subpfxs(bgpstream_patricia_tree_t *pt,
-                         bgpstream_patricia_node_t *node, void *data)
+static bgpstream_patricia_walk_cb_result_t
+find_subpfxs(const bgpstream_patricia_tree_t *const_pt,
+             const bgpstream_patricia_node_t *const_node,
+             void *data)
 {
   int i;
   bvc_t *consumer = (bvc_t *)data;
-  bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(node);
+  bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(const_node);
 
+  // hack around the fact that bgpstream_patricia_tree_get_mincovering_prefix()
+  // takes non-const parameters
+  bgpstream_patricia_tree_t *pt = const_pt;
+  bgpstream_patricia_node_t *node = const_node;
   // does this prefix have a super-prefix?
   if (bgpstream_patricia_tree_get_mincovering_prefix(pt, node, STATE->pt_res) !=
       0) {
@@ -280,7 +286,7 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
 
   if (super_node == NULL) {
     // there is no way this can be a sub-prefix
-    return;
+    return BGPSTREAM_PATRICIA_WALK_CONTINUE;
   }
   bgpstream_pfx_t *super_pfx = bgpstream_patricia_tree_get_pfx(super_node);
 
@@ -331,7 +337,7 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
   if (is_wanted == 0) {
     // its a sub-prefix, but not one that matches our mode, so give up and move
     // on
-    return;
+    return BGPSTREAM_PATRICIA_WALK_CONTINUE;
   }
 
   // this is a sub-prefix, add it to our table
@@ -339,6 +345,7 @@ static void find_subpfxs(bgpstream_patricia_tree_t *pt,
   int k = kh_put(pfx2pfx, CUR_SUBPFXS, *pfx, &ret);
   assert(ret > 0); // this prefix must not already be present in the map
   kh_val(CUR_SUBPFXS, k) = *super_pfx;
+  return BGPSTREAM_PATRICIA_WALK_CONTINUE;
 }
 
 static int dump_origins(bvc_t *consumer, bgpview_iter_t *it,

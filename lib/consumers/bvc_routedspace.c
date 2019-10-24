@@ -451,8 +451,8 @@ void bvc_routedspace_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-void remove_old_prefixes(bgpstream_patricia_tree_t *pt,
-                         bgpstream_patricia_node_t *node, void *data)
+bgpstream_patricia_walk_cb_result_t remove_old_prefixes(
+    bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node, void *data)
 {
   bvc_t *consumer = (bvc_t *)data;
   bvc_routedspace_state_t *state = STATE;
@@ -465,6 +465,7 @@ void remove_old_prefixes(bgpstream_patricia_tree_t *pt,
       bgpstream_patricia_tree_remove_node(pt, node);
     }
   }
+  return BGPSTREAM_PATRICIA_WALK_CONTINUE;
 }
 
 int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)

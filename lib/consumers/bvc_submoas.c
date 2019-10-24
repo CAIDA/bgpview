@@ -572,8 +572,8 @@ static void add_superprefix(bvc_t *consumer,
 
 // Returns char string having origin asns  */
 static char *print_submoas_info(int caller, bvc_t *consumer,
-                                bgpstream_pfx_t *parent_pfx,
-                                bgpstream_pfx_t *pfx, char *buffer,
+                                const bgpstream_pfx_t *parent_pfx,
+                                const bgpstream_pfx_t *pfx, char *buffer,
                                 const int buffer_len)
 {
 
@@ -587,7 +587,7 @@ static char *print_submoas_info(int caller, bvc_t *consumer,
   written = 0;
   bgpstream_patricia_node_t *pfx_node =
     bgpstream_patricia_tree_search_exact(state->pt, parent_pfx);
-  pref_info_t *this_prefix_info = bgpstream_patricia_tree_get_user(pfx_node);
+  const pref_info_t *this_prefix_info = bgpstream_patricia_tree_get_user(pfx_node);
   khint_t k;
   k = kh_get(subprefix_map, state->subprefix_map, *pfx);
   submoas_prefix_t submoas_struct = kh_value(state->subprefix_map, k);
@@ -688,7 +688,7 @@ static void update_patricia(bvc_t *consumer,
   char pfx_str[INET6_ADDRSTRLEN + 3];
   char pfx2_str[INET6_ADDRSTRLEN + 3];
   bvc_submoas_state_t *state = STATE;
-  bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(pfx_node);
+  const bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(pfx_node);
   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
   bgpstream_patricia_tree_result_set_t *res_set =
     bgpstream_patricia_tree_result_set_create();
@@ -707,7 +707,7 @@ static void update_patricia(bvc_t *consumer,
 
   uint32_t differ_asn[MAX_UNIQUE_ORIGINS];
   int differ_ind = 0;
-  bgpstream_pfx_t *parent_pfx = bgpstream_patricia_tree_get_pfx(parent_node);
+  const bgpstream_pfx_t *parent_pfx = bgpstream_patricia_tree_get_pfx(parent_node);
 
   bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN + 3, parent_pfx);
   // pref_info_t *parent_pref=malloc(sizeof *parent_pref);
@@ -1407,8 +1407,9 @@ static void check_remove_superprefix(bvc_t *consumer, bgpstream_pfx_t *pfx)
 
 /* This function is called for each node in patricia.
    Removed stale prefixes and origin asns */
-static void rem_patricia(bgpstream_patricia_tree_t *pt,
-                         bgpstream_patricia_node_t *node, void *data)
+static bgpstream_patricia_walk_cb_result_t
+rem_patricia(bgpstream_patricia_tree_t *pt,
+             bgpstream_patricia_node_t *node, void *data)
 {
   bvc_t *consumer = data;
   bvc_submoas_state_t *state = STATE;
@@ -1450,6 +1451,8 @@ static void rem_patricia(bgpstream_patricia_tree_t *pt,
     this_prefix_info->number_of_asns = num_orig_asns;
     bgpstream_patricia_tree_set_user(pt, node, this_prefix_info);
   }
+
+  return BGPSTREAM_PATRICIA_WALK_CONTINUE;
 }
 
 /* Main driver function
@@ -1671,8 +1674,7 @@ int bvc_submoas_process_view(bvc_t *consumer, bgpview_t *view)
   } // prefix if
 
   /* Check for each node in patricia and remove stale asns, prefixes */
-  bgpstream_patricia_tree_process_node_t *fun = &rem_patricia;
-  bgpstream_patricia_tree_walk(state->pt, fun, consumer);
+  bgpstream_patricia_tree_walk(state->pt, rem_patricia, consumer);
 
   print_ongoing(consumer);
 
