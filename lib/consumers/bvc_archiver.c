@@ -21,7 +21,6 @@
 #include "bgpview_consumer_interface.h"
 #include "config.h"
 #include "utils.h"
-#include "wandio_utils.h"
 #include "file/bgpview_io_file.h"
 #include <assert.h>
 #include <fcntl.h>

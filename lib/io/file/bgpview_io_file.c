@@ -19,7 +19,6 @@
 #include "bgpview_io.h"
 #include "config.h"
 #include "utils.h"
-#include "wandio_utils.h"
 #include <arpa/inet.h>
 #include <assert.h>
 #include <stdlib.h>

@@ -26,8 +26,7 @@
 #include "bgpstream_utils_patricia.h"
 #include "khash.h"
 #include "utils.h"
-#include "wandio_utils.h"
-#include "wandio.h"
+#include <wandio.h>
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>

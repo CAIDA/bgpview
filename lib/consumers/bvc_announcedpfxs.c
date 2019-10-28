@@ -26,7 +26,7 @@
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
-#include "wandio_utils.h"
+#include <wandio.h>
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>

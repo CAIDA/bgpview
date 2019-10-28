@@ -24,7 +24,7 @@
 #include "bvc_routedspace.h"
 #include "bgpview_consumer_interface.h"
 #include "utils.h"
-#include "wandio_utils.h"
+#include <wandio.h>
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
