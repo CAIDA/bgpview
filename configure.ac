@@ -167,21 +167,21 @@ BS_WITH_IO_MOD([kafka],[KAFKA],[yes])
 # BGPView IO dependencies
 AC_MSG_NOTICE([checking BGPView IO module dependencies])
 
-if test "x$with_io_file" == xyes; then
+if test "x$with_io_file" = xyes; then
    AC_SEARCH_LIBS([wandio_create], [wandio], [with_wandio=yes],
                [AC_MSG_ERROR(
      [libwandio required (http://research.wand.net.nz/software/libwandio.php)
      for the file IO module]
    )])
 fi
-AM_CONDITIONAL([WITH_WANDIO], [test "x$with_wandio" == xyes])
+AM_CONDITIONAL([WITH_WANDIO], [test "x$with_wandio" = xyes])
 
-if test "x$with_io_zmq" == xyes; then
+if test "x$with_io_zmq" = xyes; then
    AC_CHECK_LIB([czmq], [zctx_new], ,[AC_MSG_ERROR(
 		      [CZMQ is required for the ZMQ IO module])])
 fi
 
-if test "x$with_io_kafka" == xyes; then
+if test "x$with_io_kafka" = xyes; then
    # check for kafka
    AC_CHECK_LIB([rdkafka], [rd_kafka_query_watermark_offsets], ,
                [AC_MSG_ERROR( [librdkafka required for the Kafka IO module])])
