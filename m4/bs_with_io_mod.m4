@@ -29,19 +29,18 @@ AC_DEFUN([BS_WITH_IO_MOD],
 [
 	AC_MSG_CHECKING([whether to build with BGPView IO module: $1])
 
-if test "x$3" == xyes; then
-        AC_ARG_WITH([$1-io],
-	  [AS_HELP_STRING([--without-$1-io],
-            [build without the $1 IO module])],
-            [with_io_$1=$with_$1_io],
-            [with_io_$1=yes])
-else
-        AC_ARG_WITH([$1-io],
-	  [AS_HELP_STRING([--with-$1-io],
-            [build with the $1 IO module])],
-            [with_io_$1=$with_$1_io],
-            [with_io_$1=no])
-fi
+        ifelse([$3], [yes],
+            [AC_ARG_WITH([$1-io],
+              [AS_HELP_STRING([--without-$1-io],
+                [build without the $1 IO module])],
+              [with_io_$1=$with_$1_io],
+              [with_io_$1=yes])],
+            [AC_ARG_WITH([$1-io],
+              [AS_HELP_STRING([--with-$1-io],
+                [build with the $1 IO module])],
+              [with_io_$1=$with_$1_io],
+              [with_io_$1=no])]
+            )
 
         WITH_BGPVIEW_IO_$2=
         AS_IF([test "x$with_io_$1" != xno],
