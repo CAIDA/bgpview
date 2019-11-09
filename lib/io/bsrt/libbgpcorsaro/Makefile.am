@@ -21,50 +21,29 @@
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-SUBDIRS =
+SUBDIRS = plugins
+AM_CPPFLAGS = -I$(top_srcdir) \
+	      -I$(top_srcdir)/lib \
+	      -Iplugins \
+	      -I$(top_srcdir)/common
 
-AM_CPPFLAGS = 	-I$(top_srcdir) \
-	 	-I$(top_srcdir)/common \
-                -I$(top_srcdir)/lib
+lib_LTLIBRARIES = libbgpcorsarocaida.la
 
-noinst_LTLIBRARIES = libbgpview_io.la
+include_HEADERS = bgpcorsaro.h
 
-include_HEADERS = bgpview_io.h
+libbgpcorsarocaida_la_SOURCES = 	\
+	bgpcorsaro.c 		\
+	bgpcorsaro.h 		\
+	bgpcorsaro_int.h 	\
+	bgpcorsaro_io.c 	\
+	bgpcorsaro_io.h 	\
+	bgpcorsaro_log.c	\
+	bgpcorsaro_log.h	\
+	bgpcorsaro_plugin.c 	\
+	bgpcorsaro_plugin.h
 
-libbgpview_io_la_SOURCES = 		\
-	bgpview_io.c			\
-	bgpview_io.h
-
-MOD_LIBS=
-
-if WITH_BGPVIEW_IO_FILE
-SUBDIRS+=file
-MOD_LIBS+=$(top_builddir)/lib/io/file/libbgpview_io_file.la
-endif
-
-if WITH_BGPVIEW_IO_ZMQ
-SUBDIRS+=zmq
-MOD_LIBS+=$(top_builddir)/lib/io/zmq/libbgpview_io_zmq.la
-endif
-
-if WITH_BGPVIEW_IO_KAFKA
-SUBDIRS+=kafka
-MOD_LIBS+=$(top_builddir)/lib/io/kafka/libbgpview_io_kafka.la
-endif
-
-if WITH_BGPVIEW_IO_BSRT
-SUBDIRS+=bsrt
-MOD_LIBS+=$(top_builddir)/lib/io/bsrt/libbgpview_io_bsrt.la
-endif
-
-if WITH_BGPVIEW_IO_TEST
-SUBDIRS+=test
-MOD_LIBS+=$(top_builddir)/lib/io/test/libbgpview_io_test.la
-endif
-
-libbgpview_io_la_LIBADD = \
-	$(MOD_LIBS)
-
+libbgpcorsarocaida_la_LIBADD = $(top_builddir)/common/libcccommon.la \
+		          plugins/libbgpcorsaroplugins.la
 
 ACLOCAL_AMFLAGS = -I m4
 

@@ -158,6 +158,9 @@ BS_WITH_IO_MOD([test],[TEST],[yes])
 # File module
 BS_WITH_IO_MOD([file],[FILE],[yes])
 
+# BGPStream RoutingTable module
+BS_WITH_IO_MOD([bsrt],[BSRT],[yes])
+
 # ZMQ module
 BS_WITH_IO_MOD([zmq],[ZMQ],[no])
 
@@ -195,6 +198,10 @@ AC_CONFIG_FILES([Makefile
                 lib/io/Makefile
                 lib/io/file/Makefile
                 lib/io/kafka/Makefile
+                lib/io/bsrt/Makefile
+                lib/io/bsrt/libroutingtables/Makefile
+                lib/io/bsrt/libbgpcorsaro/Makefile
+                lib/io/bsrt/libbgpcorsaro/plugins/Makefile
                 lib/io/test/Makefile
                 lib/io/zmq/Makefile
                 tools/Makefile

@@ -28,6 +28,9 @@
 #ifdef WITH_BGPVIEW_IO_KAFKA
 #include "kafka/bgpview_io_kafka.h"
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+#include "bsrt/bgpview_io_bsrt.h"
+#endif
 #ifdef WITH_BGPVIEW_IO_TEST
 #include "test/bgpview_io_test.h"
 #endif
@@ -85,6 +88,9 @@ io_t *file_handle = NULL;
 #endif
 #ifdef WITH_BGPVIEW_IO_KAFKA
 bgpview_io_kafka_t *kafka_client = NULL;
+#endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+bgpview_io_bsrt_t *bsrt_handle = NULL;
 #endif
 #ifdef WITH_BGPVIEW_IO_TEST
 bgpview_io_test_t *test_generator = NULL;
@@ -353,6 +359,9 @@ static void usage(const char *name)
 #ifdef WITH_BGPVIEW_IO_KAFKA
   fprintf(stderr, "                                - kafka\n");
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  fprintf(stderr, "                                - bsrt\n");
+#endif
 #ifdef WITH_BGPVIEW_IO_ZMQ
   fprintf(stderr, "                                - zmq\n");
 #endif
@@ -423,6 +432,18 @@ static int configure_io(char *io_module)
     }
   }
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  else if (strcmp(io_module, "bsrt") == 0) {
+    fprintf(stderr, "INFO: Starting BSRT IO consumer module...\n");
+    if ((bsrt_handle = bgpview_io_bsrt_init(io_options, timeseries)) == NULL) {
+      fprintf(stderr, "ERROR: could not initialize BSRT module\n");
+      goto err;
+    }
+    if (bgpview_io_bsrt_start(bsrt_handle) != 0) {
+      goto err;
+    }
+  }
+#endif
 #ifdef WITH_BGPVIEW_IO_TEST
   else if (strcmp(io_module, "test") == 0) {
     fprintf(stderr, "INFO: Starting Test View Generator IO module...\n");
@@ -472,6 +493,12 @@ static void shutdown_io()
     kafka_client = NULL;
   }
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  if (bsrt_handle != NULL) {
+    bgpview_io_bsrt_destroy(bsrt_handle);
+    bsrt_handle = NULL;
+  }
+#endif
 #ifdef WITH_BGPVIEW_IO_TEST
   if (test_generator != NULL) {
     bgpview_io_test_destroy(test_generator);
@@ -504,6 +531,15 @@ static int recv_view(char *io_module)
   else if (strcmp(io_module, "kafka") == 0) {
     return bgpview_io_kafka_recv_view(
       kafka_client, view, (peer_filters_cnt != 0) ? filter_peer : NULL,
+      (pfx_filters_cnt != 0) ? filter_pfx : NULL,
+      (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
+  }
+#endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  else if (strcmp(io_module, "bsrt") == 0) {
+    return bgpview_io_bsrt_recv_view(
+      bsrt_handle, view,
+      (peer_filters_cnt != 0) ? filter_peer : NULL,
       (pfx_filters_cnt != 0) ? filter_pfx : NULL,
       (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
   }
