@@ -147,7 +147,7 @@ static void usage(bgpview_io_bsrt_t *bsrt)
     );
   data_if_usage(bsrt);
   fprintf(stderr,
-    "   -o <option-name,option-value>*\n"
+    "   -o <option-name=option-value>*\n"
     "                  set an option for the current data interface.\n"
     "                  use '-o ?' to get a list of available options for the "
     "current\n"
@@ -437,10 +437,10 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
     } else {
       /* actually set this option */
       bgpstream_data_interface_option_t *option;
-      if ((endp = strchr(interface_options[i], ',')) == NULL) {
+      if ((endp = strchr(interface_options[i], '=')) == NULL) {
         fprintf(stderr, "ERROR: Malformed data interface option (%s)\n",
                 interface_options[i]);
-        fprintf(stderr, "ERROR: Expecting <option-name>,<option-value>\n");
+        fprintf(stderr, "ERROR: Expecting <option-name>=<option-value>\n");
         usage(bsrt);
         exit(-1);
       }
