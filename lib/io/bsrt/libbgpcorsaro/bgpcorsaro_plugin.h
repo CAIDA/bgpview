@@ -329,6 +329,17 @@ bgpcorsaro_plugin_get_name_by_id(bgpcorsaro_plugin_manager_t *manager, int id);
 int bgpcorsaro_plugin_is_enabled(bgpcorsaro_plugin_manager_t *manager,
                                  bgpcorsaro_plugin_t *plugin);
 
+/** Attempt to enable a plugin
+ *
+ * @param plugin       The plugin to enable
+ * @param plugin_args  The arguments to pass to the plugin (for config)
+ * @return 0 if the plugin was successfully enabled, -1 otherwise
+ *
+ * See bgpcorsaro_enable_plugin for more details.
+ */
+int bgpcorsaro_plugin_enable_plugin(bgpcorsaro_plugin_t *plugin,
+                                    const char *plugin_args);
+
 /** Attempt to enable a plugin by its name
  *
  * @param manager      The plugin manager associated with the state
@@ -338,7 +349,7 @@ int bgpcorsaro_plugin_is_enabled(bgpcorsaro_plugin_manager_t *manager,
  *
  * See bgpcorsaro_enable_plugin for more details.
  */
-int bgpcorsaro_plugin_enable_plugin(bgpcorsaro_plugin_manager_t *manager,
+int bgpcorsaro_plugin_enable_plugin_by_name(bgpcorsaro_plugin_manager_t *manager,
                                     const char *plugin_name,
                                     const char *plugin_args);
 

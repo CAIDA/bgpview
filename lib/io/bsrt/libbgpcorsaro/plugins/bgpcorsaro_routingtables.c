@@ -59,7 +59,7 @@
 #define PLUGIN_VERSION "0.1"
 
 /** Common plugin information across all instances */
-static bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin = {
+bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin = {
   PLUGIN_NAME,                                               /* name */
   PLUGIN_VERSION,                                            /* version */
   BGPCORSARO_PLUGIN_ID_ROUTINGTABLES,                        /* id */
@@ -92,15 +92,16 @@ struct bgpcorsaro_routingtables_state_t {
   char *metric_prefix;
 };
 
+static struct bgpcorsaro_routingtables_state_t *bgpcorsaro_routingtables_state = NULL;
+
 /** Extends the generic plugin state convenience macro in bgpcorsaro_plugin.h */
 #define STATE(bgpcorsaro)                                                      \
-  (BGPCORSARO_PLUGIN_STATE(bgpcorsaro, routingtables,                          \
-                           BGPCORSARO_PLUGIN_ID_ROUTINGTABLES))
+  (bgpcorsaro_routingtables_state)
 
 /** Extends the generic plugin plugin convenience macro in bgpcorsaro_plugin.h
  */
 #define PLUGIN(bgpcorsaro)                                                     \
-  (BGPCORSARO_PLUGIN_PLUGIN(bgpcorsaro, BGPCORSARO_PLUGIN_ID_ROUTINGTABLES))
+  (&bgpcorsaro_routingtables_plugin)
 
 /** Print usage information to stderr */
 static void usage(bgpcorsaro_t *bgpcorsaro)
@@ -173,6 +174,7 @@ int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)
                    "could not malloc bgpcorsaro_routingtables_state_t");
     goto err;
   }
+  bgpcorsaro_routingtables_state = state;
 
   /** initialize plugin custom variables */
   if ((state->routing_tables = routingtables_create(
@@ -184,7 +186,7 @@ int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)
   state->metric_prefix = NULL;
   state->metrics_output_on = 1; // default: on
 
-  bgpcorsaro_plugin_register_state(bgpcorsaro->plugin_manager, plugin, state);
+  // bgpcorsaro_plugin_register_state(bgpcorsaro->plugin_manager, plugin, state);
 
   /* parse the arguments */
   if (parse_args(bgpcorsaro) != 0) {
@@ -236,8 +238,7 @@ int bgpcorsaro_routingtables_close_output(bgpcorsaro_t *bgpcorsaro)
     }
     state->metric_prefix = NULL;
 
-    bgpcorsaro_plugin_free_state(bgpcorsaro->plugin_manager,
-                                 PLUGIN(bgpcorsaro));
+    // bgpcorsaro_plugin_free_state(bgpcorsaro->plugin_manager, PLUGIN(bgpcorsaro));
   }
   return 0;
 }

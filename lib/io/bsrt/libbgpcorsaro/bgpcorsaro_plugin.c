@@ -428,15 +428,46 @@ int bgpcorsaro_plugin_is_enabled(bgpcorsaro_plugin_manager_t *manager,
   return 0;
 }
 
-int bgpcorsaro_plugin_enable_plugin(bgpcorsaro_plugin_manager_t *manager,
+int bgpcorsaro_plugin_enable_plugin(bgpcorsaro_plugin_t *plugin,
+                                    const char *plugin_args)
+{
+  char *local_args = NULL;
+  char *process_argv[MAXOPTS];
+  int process_argc = 0;
+
+  bgpcorsaro_log(__func__, NULL, "enabling %s", plugin->name);
+
+  /* now lets set the arguments for the plugin */
+  /* we do this here, before we check if it is enabled to allow the args
+     to be re-set, so long as it is before the plugin is started */
+  if (plugin_args == NULL)
+    plugin_args = "";
+  /* parse the args into argc and argv */
+  local_args = strdup(plugin_args);
+  parse_cmd(local_args, &process_argc, process_argv, MAXOPTS, plugin->name);
+
+  plugin->argc = 0;
+
+  if (copy_argv(plugin, process_argc, process_argv) != 0) {
+    if (local_args != NULL) {
+      bgpcorsaro_log(__func__, NULL, "freeing local args");
+      free(local_args);
+    }
+    return -1;
+  }
+
+  if (local_args != NULL) {
+    /* this is the storage for the strings until copy_argv is complete */
+    free(local_args);
+  }
+}
+
+int bgpcorsaro_plugin_enable_plugin_by_name(bgpcorsaro_plugin_manager_t *manager,
                                     const char *plugin_name,
                                     const char *plugin_args)
 {
   bgpcorsaro_plugin_t *plugin = NULL;
   int i;
-  char *local_args = NULL;
-  char *process_argv[MAXOPTS];
-  int process_argc = 0;
 
   assert(manager != NULL);
 
@@ -449,38 +480,8 @@ int bgpcorsaro_plugin_enable_plugin(bgpcorsaro_plugin_manager_t *manager,
     return -1;
   }
 
-  bgpcorsaro_log(__func__, NULL, "enabling %s", plugin_name);
-
-  /* now lets set the arguments for the plugin */
-  /* we do this here, before we check if it is enabled to allow the args
-     to be re-set, so long as it is before the plugin is started */
-  if (plugin_args != NULL && strlen(plugin_args) > 0) {
-    /* parse the args into argc and argv */
-    local_args = strdup(plugin_args);
-    parse_cmd(local_args, &process_argc, process_argv, MAXOPTS, plugin_name);
-  }
-
-  /* remove the default arguments from the plugin (but only if new ones have
-     been given to us */
-  assert(plugin->argv != NULL && plugin->argc == 1);
-  if (process_argc > 0) {
-    free(plugin->argv[0]);
-    free(plugin->argv);
-    plugin->argc = 0;
-
-    if (copy_argv(plugin, process_argc, process_argv) != 0) {
-      if (local_args != NULL) {
-        bgpcorsaro_log(__func__, NULL, "freeing local args");
-        free(local_args);
-      }
-      return -1;
-    }
-
-    if (local_args != NULL) {
-      /* this is the storage for the strings until copy_argv is complete */
-      free(local_args);
-    }
-  }
+  if (bgpcorsaro_plugin_enable_plugin(plugin, plugin_args) < 0)
+    return -1;
 
   /* now we need to ensure it isn't already enabled */
   for (i = 0; i < manager->plugins_enabled_cnt; i++) {
