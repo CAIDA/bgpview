@@ -575,7 +575,6 @@ const char *bgpcorsaro_get_monitorname(bgpcorsaro_t *bgpcorsaro)
 static int bgpcorsaro_start_record(bgpcorsaro_t *bgpcorsaro,
                                    bgpstream_record_t *bsrecord)
 {
-  bgpcorsaro_log(__func__, bgpcorsaro, "enter");
   long ts;
 
   /* poke this bsrecord into our bgpcorsaro record */
@@ -612,7 +611,6 @@ static int bgpcorsaro_start_record(bgpcorsaro_t *bgpcorsaro,
 
     bgpcorsaro->next_report = start + bgpcorsaro->interval;
   }
-  bgpcorsaro_log(__func__, bgpcorsaro, "return");
   return 0;
 }
 

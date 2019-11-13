@@ -174,7 +174,6 @@ int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)
                    "could not malloc bgpcorsaro_routingtables_state_t");
     goto err;
   }
-  bgpcorsaro_routingtables_state = state;
 
   /** initialize plugin custom variables */
   if ((state->routing_tables = routingtables_create(
@@ -186,7 +185,7 @@ int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)
   state->metric_prefix = NULL;
   state->metrics_output_on = 1; // default: on
 
-  // bgpcorsaro_plugin_register_state(bgpcorsaro->plugin_manager, plugin, state);
+  bgpcorsaro_routingtables_state = state;
 
   /* parse the arguments */
   if (parse_args(bgpcorsaro) != 0) {
@@ -238,7 +237,8 @@ int bgpcorsaro_routingtables_close_output(bgpcorsaro_t *bgpcorsaro)
     }
     state->metric_prefix = NULL;
 
-    // bgpcorsaro_plugin_free_state(bgpcorsaro->plugin_manager, PLUGIN(bgpcorsaro));
+    free(state);
+    bgpcorsaro_routingtables_state = NULL;
   }
   return 0;
 }

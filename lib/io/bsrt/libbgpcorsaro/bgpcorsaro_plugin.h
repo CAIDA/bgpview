@@ -66,24 +66,8 @@
  *  correctly 'zero' these fields.
  */
 #define BGPCORSARO_PLUGIN_GENERATE_TAIL                                        \
-  NULL,  /* next */                                                            \
     0,   /* argc */                                                            \
     NULL /* argv */
-
-/** Convenience macro to cast the state pointer in the plugin
- *
- * Plugins should use extend this macro to provide access to their state
- */
-#define BGPCORSARO_PLUGIN_STATE(bgpcorsaro, type, id)                          \
-  ((struct bgpcorsaro_##type##_state_t                                         \
-      *)((bgpcorsaro)->plugin_manager->plugins_state[(id)-1]))
-
-/** Convenience macro to get this plugin from bgpcorsaro
- *
- * Plugins should use extend this macro to provide access to themself
- */
-#define BGPCORSARO_PLUGIN_PLUGIN(bgpcorsaro, id)                               \
-  ((bgpcorsaro)->plugin_manager->plugins[(id)-1])
 
 /** A unique identifier for a plugin, used when writing binary data
  *
@@ -173,16 +157,10 @@ typedef struct bgpcorsaro_plugin {
   int (*process_record)(struct bgpcorsaro *bgpcorsaro,
                         struct bgpcorsaro_record *record);
 
-  /** Next pointer. Used by the plugin manager. */
-  struct bgpcorsaro_plugin *next;
-
   /** Count of arguments in argv */
   int argc;
 
-  /** Array of plugin arguments.
-   * This is populated by the plugin manager in bgpcorsaro_plugin_enable_plugin.
-   * It is the responsibility of the plugin to do something sensible with it
-   */
+  /** Array of plugin arguments. */
   char **argv;
 
 #ifdef WITH_PLUGIN_TIMING
@@ -204,131 +182,6 @@ typedef struct bgpcorsaro_plugin {
 
 } bgpcorsaro_plugin_t;
 
-/** Holds the metadata for the plugin manager
- *
- * This allows both bgpcorsaro_t and bgpcorsaro_in_t objects to use the plugin
- * infrastructure without needing to pass references to themselves
- */
-typedef struct bgpcorsaro_plugin_manager {
-  /** An array of plugin ids that have been enabled by the user
-   *
-   * If this array is NULL, then assume all have been enabled.
-   */
-  uint16_t *plugins_enabled;
-
-  /** The number of plugin ids in the plugins_enabled array */
-  uint16_t plugins_enabled_cnt;
-
-  /** A pointer to the array of plugins in use */
-  bgpcorsaro_plugin_t **plugins;
-
-  /** A pointer to the first plugin in the list */
-  bgpcorsaro_plugin_t *first_plugin;
-
-  /** A pointer to the array of plugin states */
-  void **plugins_state;
-
-  /** The number of active plugins */
-  uint16_t plugins_cnt;
-
-  /** A pointer to the logfile to use */
-  iow_t *logfile;
-
-} bgpcorsaro_plugin_manager_t;
-
-/** Initialize the plugin manager and all in-use plugins
- *
- * @return A pointer to the plugin manager state or NULL if an error occurs
- */
-bgpcorsaro_plugin_manager_t *bgpcorsaro_plugin_manager_init();
-
-/** Start the plugin manager
- *
- * @param manager  The manager to start
- */
-int bgpcorsaro_plugin_manager_start(bgpcorsaro_plugin_manager_t *manager);
-
-/** Free the plugin manager and all in-use plugins
- *
- * @param manager  The plugin manager to free
- *
- * @note the plugins registered with the manager MUST have already
- * been closed (either plugin->close_output or plugin->close_input).
- * Also, the logfile is NOT closed, as it is assumed to be shared with
- * another object (bgpcorsaro_t or bgpcorsaro_in_t).
- */
-void bgpcorsaro_plugin_manager_free(bgpcorsaro_plugin_manager_t *manager);
-
-/** Attempt to retrieve a plugin by id
- *
- * @param manager   The plugin manager to search with
- * @param id        The id of the plugin to get
- * @return the plugin corresponding to the id if found, NULL otherwise
- */
-bgpcorsaro_plugin_t *
-bgpcorsaro_plugin_get_by_id(bgpcorsaro_plugin_manager_t *manager, int id);
-
-/** Attempt to retrieve a plugin by name
- *
- * @param manager   The plugin manager to search with
- * @param name      The name of the plugin to get
- * @return the plugin corresponding to the name if found, NULL otherwise
- */
-bgpcorsaro_plugin_t *
-bgpcorsaro_plugin_get_by_name(bgpcorsaro_plugin_manager_t *manager,
-                              const char *name);
-
-/** Retrieve the next plugin in the list
- *
- * @param manager   The plugin manager to get the next plugin for
- * @param plugin    The current plugin
- * @return the plugin which follows the current plugin, NULL if the end of the
- * plugin list has been reached. If plugin is NULL, the first plugin will be
- * returned.
- */
-bgpcorsaro_plugin_t *
-bgpcorsaro_plugin_next(bgpcorsaro_plugin_manager_t *manager,
-                       bgpcorsaro_plugin_t *plugin);
-
-/** Register the state for a plugin
- *
- * @param manager   The plugin manager to register state with
- * @param plugin    The plugin to register state for
- * @param state     A pointer to the state object to register
- */
-void bgpcorsaro_plugin_register_state(bgpcorsaro_plugin_manager_t *manager,
-                                      bgpcorsaro_plugin_t *plugin, void *state);
-
-/** Free the state for a plugin
- *
- * @param manager   The plugin manager associated with the state
- * @param plugin    The plugin to free state for
- */
-void bgpcorsaro_plugin_free_state(bgpcorsaro_plugin_manager_t *manager,
-                                  bgpcorsaro_plugin_t *plugin);
-
-/** Get the name of a plugin given it's ID number
- *
- * @param manager    The plugin manager associated with the state
- * @param id         The plugin id to retrieve the name for
- * @return the name of the plugin as a string, NULL if no plugin matches
- * the given id
- */
-const char *
-bgpcorsaro_plugin_get_name_by_id(bgpcorsaro_plugin_manager_t *manager, int id);
-
-/** Determine whether this plugin is enabled for use
- *
- * @param manager    The plugin manager associated with the state
- * @param plugin     The plugin to check the status of
- * @return 1 if the plugin is enabled, 0 if it is disabled
- *
- *  A plugin is enabled either explicitly by the bgpcorsaro_enable_plugin()
- *  function, or implicitly because all plugins are enabled.
- */
-int bgpcorsaro_plugin_is_enabled(bgpcorsaro_plugin_manager_t *manager,
-                                 bgpcorsaro_plugin_t *plugin);
-
 /** Attempt to enable a plugin
  *
  * @param plugin       The plugin to enable
@@ -338,19 +191,6 @@ int bgpcorsaro_plugin_is_enabled(bgpcorsaro_plugin_manager_t *manager,
  * See bgpcorsaro_enable_plugin for more details.
  */
 int bgpcorsaro_plugin_enable_plugin(bgpcorsaro_plugin_t *plugin,
-                                    const char *plugin_args);
-
-/** Attempt to enable a plugin by its name
- *
- * @param manager      The plugin manager associated with the state
- * @param plugin_name  The name of the plugin to enable
- * @param plugin_args  The arguments to pass to the plugin (for config)
- * @return 0 if the plugin was successfully enabled, -1 otherwise
- *
- * See bgpcorsaro_enable_plugin for more details.
- */
-int bgpcorsaro_plugin_enable_plugin_by_name(bgpcorsaro_plugin_manager_t *manager,
-                                    const char *plugin_name,
                                     const char *plugin_args);
 
 #endif /* __BGPCORSARO_PLUGIN_H */

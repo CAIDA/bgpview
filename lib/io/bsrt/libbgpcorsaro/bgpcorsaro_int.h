@@ -38,7 +38,6 @@
 
 // XXX
 #define WITH_PLUGIN_ROUTINGTABLES 1
-#define ED_PLUGIN_INIT_ALL_ENABLED PLUGIN_INIT_ADD(bgpcorsaro_routingtables);
 
 
 /* GCC optimizations */
@@ -180,12 +179,6 @@ struct bgpcorsaro {
 
   /** A pointer to the wrapper record passed to the plugins */
   bgpcorsaro_record_t *record;
-
-#if 0
-  /** A pointer to the bgpcorsaro plugin manager state */
-  /* this is what gets passed to any function relating to plugin management */
-  struct bgpcorsaro_plugin_manager *plugin_manager;
-#endif
 
   /** The first interval end will be rounded down to the nearest integer
       multiple of the interval length if enabled */
