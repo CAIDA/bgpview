@@ -734,16 +734,10 @@ int bgpview_io_bsrt_recv_view(bgpview_io_bsrt_t *bsrt, bgpview_t *view,
   if (rc == 0) // EOF
     return -1;
 
-  if (bsrt->bgpcorsaro->last_view == NULL) {
-    bgpcorsaro_log(__func__, bsrt->bgpcorsaro, "last_view is NULL"); // XXX
-    return 0;
-  }
+  return 0;
+}
 
-  bgpview_clear(view); // XXX is this needed?
-
-  // TODO: avoid this copy by sharing a single view?
-  bgpcorsaro_log(__func__, bsrt->bgpcorsaro, "bgpview_copy(view, bsrt->bgpcorsaro->last_view)"); // XXX
-  rc = bgpview_copy(view, bsrt->bgpcorsaro->last_view);
-  bsrt->bgpcorsaro->last_view = NULL;
-  return rc;
+bgpview_t *bgpview_io_bsrt_get_view_ptr(bgpview_io_bsrt_t *bsrt)
+{
+  return bsrt->bgpcorsaro->shared_view;
 }

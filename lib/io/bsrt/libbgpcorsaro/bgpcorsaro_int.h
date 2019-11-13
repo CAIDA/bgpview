@@ -231,8 +231,8 @@ struct bgpcorsaro {
   /** Maximum allowed packet inter-arrival time */
   int gap_limit;
 
-  /** Most recent bgpview */
-  bgpview_t *last_view;
+  /** Shared bgpview */
+  bgpview_t *shared_view;
 };
 
 #ifdef WITH_PLUGIN_TIMING

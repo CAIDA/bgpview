@@ -103,14 +103,15 @@ int bgpview_io_bsrt_start(bgpview_io_bsrt_t *client);
  *                      (may be NULL)
  * @return 0 or -1 if an error occurred.
  *
- * The view provided to this function must have been created using
- * bgpview_create, and if diffs are not in use, it *must* have been cleared
- * using bgpview_clear. If diffs are in use, it *must* not have been cleared,
- * and instead *must* contain information about the previously received view.
+ * The view provided to this function must have been returned by
+ * bgpview_io_bsrt_get_view_ptr().
  */
 int bgpview_io_bsrt_recv_view(bgpview_io_bsrt_t *client, bgpview_t *view,
                               bgpview_io_filter_peer_cb_t *peer_cb,
                               bgpview_io_filter_pfx_cb_t *pfx_cb,
                               bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+
+/** Return a pointer to the view */
+bgpview_t *bgpview_io_bsrt_get_view_ptr(bgpview_io_bsrt_t *client);
 
 #endif /* __BGPVIEW_IO_BSRT_H */

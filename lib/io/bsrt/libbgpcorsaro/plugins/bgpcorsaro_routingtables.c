@@ -201,6 +201,8 @@ int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)
     routingtables_turn_metric_output_off(state->routing_tables);
   }
 
+  bgpcorsaro->shared_view = routingtables_get_view_ptr(state->routing_tables);
+
   /* defer opening the output file until we start the first interval */
 
   return 0;

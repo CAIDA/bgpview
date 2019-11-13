@@ -737,12 +737,21 @@ int main(int argc, char **argv)
     goto err;
   }
 
-  if ((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL) {
-    fprintf(stderr, "ERROR: Could not create view\n");
-    goto err;
+  if (0) { /* just to simplify the if/else with macros */
   }
-  /* disable per-pfx-per-peer user pointer */
-  bgpview_disable_user_data(view);
+#ifdef WITH_BGPVIEW_IO_BSRT
+  else if (strcmp(io_module, "bsrt") == 0) {
+    view = bgpview_io_bsrt_get_view_ptr(bsrt_handle);
+  }
+#endif
+  else {
+    if ((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL) {
+      fprintf(stderr, "ERROR: Could not create view\n");
+      goto err;
+    }
+    /* disable per-pfx-per-peer user pointer */
+    bgpview_disable_user_data(view);
+  }
 
   while (recv_view(io_module) == 0) {
     if (bgpview_consumer_manager_process_view(manager, view) != 0) {

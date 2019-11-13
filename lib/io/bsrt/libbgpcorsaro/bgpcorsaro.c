@@ -344,8 +344,7 @@ static inline int process_record(bgpcorsaro_t *bgpcorsaro,
   }
 
   // replacement for old viewconsumer
-  bgpcorsaro_log(__func__, bgpcorsaro, "bgpcorsaro->last_view = record->state.shared_view_ptr"); // XXX
-  bgpcorsaro->last_view = record->state.shared_view_ptr;
+  bgpcorsaro->shared_view = record->state.shared_view_ptr;
 
   return 0;
 }
@@ -751,7 +750,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
     if (bgpcorsaro->interval >= 0 && bgpcorsaro->last_ts >= bgpcorsaro->next_report) {
       if (bgpcorsaro_end_interval_for_record(bgpcorsaro) < 0)
         return -1;
-      return 1; // successful interval end.  caller can use last_view.
+      return 1; // successful interval end.  caller can use shared_view.
     }
 
     if (bgpcorsaro->record->bsrecord) {
@@ -784,7 +783,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
           rc = end_interval(bgpcorsaro, bgpcorsaro->last_ts);
           if (rc < 0)
             return rc;
-          return 1; // successful interval end.  caller can use last_view.
+          return 1; // successful interval end.  caller can use shared_view.
         }
       } while (bsrecord->time_sec < bgpcorsaro->minimum_time);
 
