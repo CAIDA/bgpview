@@ -207,22 +207,6 @@ void bgpcorsaro_disable_logfile(bgpcorsaro_t *bgpcorsaro);
 int bgpcorsaro_enable_plugin(bgpcorsaro_t *bgpcorsaro, const char *plugin_name,
                              const char *plugin_args);
 
-/** Return an array of the names of plugins which are compiled into bgpcorsaro
- *
- * @param[out] plugin_names   A pointer to an array of plugin names
- * @return the number of strings in the array, -1 if an error occurs
- *
- * @note bgpcorsaro_free_plugin_names must be called to free the returned array
- */
-int bgpcorsaro_get_plugin_names(char ***plugin_names);
-
-/** Free the array of plugin names returned by bgpcorsaro_get_plugin_names
- *
- * @param plugin_names  The array of plugin names
- * @param plugin_cnt    The number of names in the array
- */
-void bgpcorsaro_free_plugin_names(char **plugin_names, int plugin_cnt);
-
 /** Accessor function to set the monitor name
  *
  * @param bgpcorsaro    The bgpcorsaro object to set the monitor name for

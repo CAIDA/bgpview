@@ -77,23 +77,8 @@
  *       that have been explicitly enabled using \ref bgpcorsaro_enable_plugin
  */
 typedef enum bgpcorsaro_plugin_id {
-  /** Prefix Monitor plugin */
-  BGPCORSARO_PLUGIN_ID_PFXMONITOR = 1,
-
-  /** AS Monitor plugin */
-  BGPCORSARO_PLUGIN_ID_ASMONITOR = 2,
-
   /** RoutingTables plugin */
   BGPCORSARO_PLUGIN_ID_ROUTINGTABLES = 3,
-
-  /** Pacifier plugin */
-  BGPCORSARO_PLUGIN_ID_PACIFIER = 4,
-
-  /** ViewConsumer plugin */
-  BGPCORSARO_PLUGIN_ID_VIEWCONSUMER = 5,
-
-  /** Maximum plugin ID assigned */
-  BGPCORSARO_PLUGIN_ID_MAX = BGPCORSARO_PLUGIN_ID_VIEWCONSUMER
 } bgpcorsaro_plugin_id_t;
 
 /** An bgpcorsaro packet processing plugin */

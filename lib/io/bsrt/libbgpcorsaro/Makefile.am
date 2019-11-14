@@ -39,7 +39,6 @@ libbgpcorsarocaida_la_SOURCES = 	\
 	bgpcorsaro_io.h 	\
 	bgpcorsaro_log.c	\
 	bgpcorsaro_log.h	\
-	bgpcorsaro_plugin.c 	\
 	bgpcorsaro_plugin.h
 
 libbgpcorsarocaida_la_LIBADD = $(top_builddir)/common/libcccommon.la \
