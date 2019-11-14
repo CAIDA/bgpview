@@ -94,22 +94,12 @@ int bgpview_io_bsrt_start(bgpview_io_bsrt_t *client);
 /** Attempt to receive a BGP View from BSRT
  *
  * @param client        pointer to the client instance to receive from
- * @param view          pointer to the view to fill
- * @param peer_cb       callback function to use to filter peer entries
- *                      (may be NULL)
- * @param pfx_cb        callback function to use to filter prefix entries
- *                      (may be NULL)
- * @param pfx_peer_cb   callback function to use to filter prefix-peer entries
- *                      (may be NULL)
  * @return 0 or -1 if an error occurred.
  *
  * The view provided to this function must have been returned by
  * bgpview_io_bsrt_get_view_ptr().
  */
-int bgpview_io_bsrt_recv_view(bgpview_io_bsrt_t *client, bgpview_t *view,
-                              bgpview_io_filter_peer_cb_t *peer_cb,
-                              bgpview_io_filter_pfx_cb_t *pfx_cb,
-                              bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb);
+int bgpview_io_bsrt_recv_view(bgpview_io_bsrt_t *client);
 
 /** Return a pointer to the view */
 bgpview_t *bgpview_io_bsrt_get_view_ptr(bgpview_io_bsrt_t *client);

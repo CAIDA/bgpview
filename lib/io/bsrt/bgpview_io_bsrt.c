@@ -634,11 +634,7 @@ int bgpview_io_bsrt_start(bgpview_io_bsrt_t *bsrt)
   return 0;
 }
 
-int bgpview_io_bsrt_recv_view(bgpview_io_bsrt_t *bsrt, bgpview_t *view,
-                              bgpview_io_filter_peer_cb_t *peer_cb,
-                              bgpview_io_filter_pfx_cb_t *pfx_cb,
-                              bgpview_io_filter_pfx_peer_cb_t *pfx_peer_cb)
-
+int bgpview_io_bsrt_recv_view(bgpview_io_bsrt_t *bsrt)
 {
   int rc;
   rc = bgpcorsaro_process_interval(bsrt->bgpcorsaro);
