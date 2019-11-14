@@ -344,11 +344,11 @@ static void consumer_usage()
 static void usage(const char *name)
 {
   /* top-level */
-  fprintf(stderr, "usage: %s [<options>] -[ftkz]\n", name);
+  fprintf(stderr, "usage: %s [<options>]\n", name);
 
   /* IO module config */
   fprintf(stderr,
-          "       -i <module opts>      IO module to use for obtaining views.\n"
+          "       -i\"<module> <opts>\"     IO module to use for obtaining views.\n"
           "                               Available modules:\n");
 #ifdef WITH_BGPVIEW_IO_FILE
   fprintf(stderr, "                                - file\n");
@@ -378,7 +378,7 @@ static void usage(const char *name)
           BGPVIEW_METRIC_PREFIX_DEFAULT);
 
   /* Consumers config */
-  fprintf(stderr, "       -c <consumer>         Consumer to activate (can be "
+  fprintf(stderr, "       -c\"<consumer> <opts>\" Consumer to activate (can be "
                   "used multiple times)\n");
   consumer_usage();
 
@@ -604,17 +604,14 @@ int main(int argc, char **argv)
   }
 
   while (prevoptind = optind,
-         (opt = getopt(argc, argv, ":f:i:m:N:b:c:I:v?")) >= 0) {
-    if (optind == prevoptind + 2 && (optarg == NULL || *optarg == '-')) {
-      opt = ':';
-      --optind;
+         (opt = getopt(argc, argv, "f:i:m:N:b:c:v?")) >= 0) {
+    if (optind == prevoptind + 2 && (optarg && *optarg == '-')) {
+      fprintf(stderr, "ERROR: argument for %s looks like an option "
+          "(remove the space after %s to force the argument)\n",
+          argv[optind-2], argv[optind-2]);
+      return -1;
     }
     switch (opt) {
-    case ':':
-      fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
-      usage(argv[0]);
-      return -1;
-      break;
 
     case 'f':
       if (parse_filter(optarg) != 0) {
@@ -652,11 +649,9 @@ int main(int argc, char **argv)
       consumer_cmds[consumer_cmds_cnt++] = optarg;
       break;
 
-    case '?':
     case 'v':
       fprintf(stderr, "bgpview version %d.%d.%d\n", BGPVIEW_MAJOR_VERSION,
               BGPVIEW_MID_VERSION, BGPVIEW_MINOR_VERSION);
-      usage(argv[0]);
       return 0;
       break;
 
