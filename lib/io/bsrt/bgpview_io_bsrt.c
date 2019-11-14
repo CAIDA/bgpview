@@ -114,29 +114,6 @@ static void dump_if_options(bgpview_io_bsrt_t *bsrt)
   fprintf(stderr, "\n");
 }
 
-#if 0
-static void timeseries_usage(timeseries_t *timeseries)
-{
-  assert(timeseries != NULL);
-  timeseries_backend_t **backends = NULL;
-  int i;
-
-  backends = timeseries_get_all_backends(timeseries);
-
-  fprintf(stderr, "                   available backends:\n");
-  for (i = 0; i < TIMESERIES_BACKEND_ID_LAST; i++) {
-    /* skip unavailable backends */
-    if (backends[i] == NULL) {
-      continue;
-    }
-
-    assert(timeseries_backend_get_name(backends[i]));
-    fprintf(stderr, "                       - %s\n",
-            timeseries_backend_get_name(backends[i]));
-  }
-}
-#endif
-
 static void usage(bgpview_io_bsrt_t *bsrt)
 {
   fprintf(stderr,
@@ -184,13 +161,6 @@ static void usage(bgpview_io_bsrt_t *bsrt)
     "   -g <gap-limit> maximum allowed gap between packets (0 is no limit) "
     "(default: %d)\n",
     BGPVIEW_IO_BSRT_INTERVAL_DEFAULT, BGPVIEW_IO_BSRT_GAPLIMIT_DEFAULT);
-#if 0
-  fprintf(stderr,
-    "   -B <backend>   enable the given timeseries backend,\n"
-    "                  -B can be used multiple times\n"
-    "\n");
-  timeseries_usage(bsrt->timeseries);
-#endif
   fprintf(
     stderr,
     "   -n <name>      monitor name (default: " STR(
@@ -467,49 +437,6 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
     return -1;
   }
 
-#if 0
-  if (backends_cnt == 0) {
-    fprintf(
-      stderr,
-      "ERROR: At least one timeseries backend must be specified using -B\n");
-    usage(bsrt);
-    goto err;
-  }
-
-  /* enable the backends that were requested */
-  for (i = 0; i < backends_cnt; i++) {
-    /* the string at backends[i] will contain the name of the plugin,
-       optionally followed by a space and then the arguments to pass
-       to the plugin */
-    if ((backend_arg_ptr = strchr(backends[i], ' ')) != NULL) {
-      /* set the space to a nul, which allows backends[i] to be used
-         for the backend name, and then increment plugin_arg_ptr to
-         point to the next character, which will be the start of the
-         arg string (or at worst case, the terminating \0 */
-      *backend_arg_ptr = '\0';
-      backend_arg_ptr++;
-    }
-
-    /* lookup the backend using the name given */
-    if ((backend = timeseries_get_backend_by_name(bsrt->timeseries, backends[i])) ==
-        NULL) {
-      fprintf(stderr, "ERROR: Invalid backend name (%s)\n", backends[i]);
-      usage(bsrt);
-      goto err;
-    }
-
-    if (timeseries_enable_backend(backend, backend_arg_ptr) != 0) {
-      fprintf(stderr, "ERROR: Failed to initialized backend (%s)", backends[i]);
-      usage(bsrt);
-      goto err;
-    }
-
-    /* free the string we dup'd */
-    free(backends[i]);
-    backends[i] = NULL;
-  }
-#endif
-
   /* pass along the user's filter requests to bgpstream */
 
   /* types */
@@ -608,14 +535,6 @@ bgpview_io_bsrt_t *bgpview_io_bsrt_init(const char *opts, timeseries_t *timeseri
   bsrt->di_info = bgpstream_get_data_interface_info(bsrt->stream, bsrt->di_id);
   assert(bsrt->di_id != 0);
 
-#if 0
-  /* initialize a timeseries object */
-  if ((bsrt->timeseries = timeseries_init()) == NULL) {
-    fprintf(stderr, "ERROR: Could not initialize libtimeseries\n");
-    goto err;
-  }
-#endif
-
   if (opts != NULL && (len = strlen(opts)) > 0) {
     // parse the option string ready for getopt
     local_args = strdup(opts);
@@ -698,12 +617,6 @@ void bgpview_io_bsrt_destroy(bgpview_io_bsrt_t *bsrt)
     bgpstream_destroy(bsrt->stream);
     bsrt->stream = NULL;
   }
-
-#if 0
-  if (bsrt->timeseries) {
-    timeseries_free(&bsrt->timeseries);
-  }
-#endif
 
   free(bsrt);
   return;
