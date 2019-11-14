@@ -36,9 +36,6 @@
  *
  */
 
-// XXX
-#define WITH_PLUGIN_ROUTINGTABLES 1
-
 
 /* GCC optimizations */
 /** @todo either make use of those that libtrace defines, or copy the way that

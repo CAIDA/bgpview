@@ -325,8 +325,6 @@ int bgpcorsaro_routingtables_process_record(bgpcorsaro_t *bgpcorsaro,
   if ((record->state.flags & BGPCORSARO_RECORD_STATE_FLAG_IGNORE) != 0) {
     return 0;
   }
-  bgpcorsaro_log(__func__, bgpcorsaro,
-    "record->state.shared_view_ptr = routingtables_get_view_ptr(state->routing_tables)"); // XXX
   record->state.shared_view_ptr =
     routingtables_get_view_ptr(state->routing_tables);
 

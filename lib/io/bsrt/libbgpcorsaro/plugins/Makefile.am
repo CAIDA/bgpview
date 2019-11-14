@@ -33,24 +33,10 @@ include_HEADERS =
 PLUGIN_SRC=
 PLUGIN_LIBS=
 
-# if WITH_PLUGIN_ROUTINGTABLES
-# SUBDIRS += libroutingtables
 PLUGIN_LIBS += $(top_builddir)/lib/io/bsrt/libroutingtables/libroutingtables.la
 AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libbgpcorsaro
 AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libroutingtables
 PLUGIN_SRC+=bgpcorsaro_routingtables.c bgpcorsaro_routingtables.h
-# endif
-
-
-################################################################################
-# Add new plugins below here using:
-# (ordering is not important)
-#
-# if WITH_PLUGIN_<macro_name>
-# PLUGIN_SRC += <full_name>.c <full_name>.h
-# endif
-#
-################################################################################
 
 libbgpcorsaroplugins_la_SOURCES = \
 	$(PLUGIN_SRC)

@@ -33,13 +33,20 @@
 #include "utils.h"
 #include "parse_cmd.h"
 
-extern bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin; // XXX
+extern bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin;
 
 /** @file
  *
- * @brief Code which implements the public functions of libbgpcorsaro
+ * @brief Code which implements the public functions of libbgpcorsaro-ish
  *
- * @author Alistair King
+ * This code was taken from bgpcorsaro and modified:
+ * - turned "inside out" to expose bgpcorsaro_process_interval() instead of
+ *   bgpcorsaro_per_record()
+ * - store a shareable bgpview on the bgpcorsaro object
+ * - remove plugin manager
+ * - hardcode a single plugin: routingtables
+ *
+ * @author Alistair King, Ken Keys
  *
  */
 
@@ -218,12 +225,8 @@ static int start_interval(bgpcorsaro_t *bgpcorsaro, long int_start)
   bgpcorsaro_plugin_t *tmp = NULL;
 
   /* record this so we know when the interval started */
-  /* the interval number is already incremented by end_interval */
+  /* the interval number is already incremented by start_interval_for_record */
   bgpcorsaro->interval_start.time = int_start;
-
-  bgpcorsaro_log(__func__, bgpcorsaro, "start interval %d %d",
-      bgpcorsaro->interval_start.number,
-      bgpcorsaro->interval_start.time); // XXX
 
   /* the following is to support file rotation */
   /* initialize the log file */
@@ -594,7 +597,6 @@ static int bgpcorsaro_start_record(bgpcorsaro_t *bgpcorsaro,
   bgpcorsaro->record->bsrecord = bsrecord;
 
   /* ensure that the state is clear */
-  bgpcorsaro_log(__func__, bgpcorsaro, "state_reset"); // XXX
   bgpcorsaro_record_state_reset(bgpcorsaro->record);
 
   /* this is now the latest record we have seen */
@@ -703,7 +705,6 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
       }
     }
 
-
     // adapted from bgpcorsaro-caida:tools/bgpcorsaro.c:main()
     {
       static double last_time = 0;
@@ -717,7 +718,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
         } else if (rc == 0) { // EOF
           bgpcorsaro_log(__func__, bgpcorsaro,
                          "EOF from bgpstream (last_time=%f, bc->last_ts=%" PRId32,
-                         last_time, bgpcorsaro->last_ts); // XXX
+                         last_time, bgpcorsaro->last_ts);
           bgpcorsaro->eof = 1;
           // end the final interval
           rc = end_interval(bgpcorsaro, bgpcorsaro->last_ts);
