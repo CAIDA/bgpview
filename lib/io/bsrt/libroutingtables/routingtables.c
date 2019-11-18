@@ -320,8 +320,7 @@ static void stop_uc_process(routingtables_t *rt, collector_t *c)
        * information on its rib related status */
       pp = bgpview_iter_pfx_peer_get_user(rt->iter);
       pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status =
-        pp->pfx_status & ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
+      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
     }
   }
 
@@ -355,7 +354,7 @@ static void reset_peerpfxdata_version(routingtables_t *rt,
       continue;
     }
     pp = bgpview_iter_pfx_peer_get_user(rt->iter);
-    pp->pfx_status = pp->pfx_status & ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
     pp->bgp_time_last_ts = 0;
     if (reset_uc) {
       pp->bgp_time_uc_delta_ts = 0;
@@ -498,13 +497,11 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
             kh_end(rt->eorib_peers) &&
           p->bgp_time_uc_rib_start != 0) {
         /* if the RIB timestamp is greater than the last updated time in the
-         * current
-         * state, AND  the update did not happen within
-         * ROUTINGTABLES_RIB_BACKLOG_TIME seconds before
-         * the beginning of the RIB (if that is so, the update message may be
-         * still buffered
-         * in the quagga process), then the RIB has more updated data than our
-         * state */
+         * current state, AND  the update did not happen within
+         * ROUTINGTABLES_RIB_BACKLOG_TIME seconds before the beginning of the
+         * RIB (if that is so, the update message may be still buffered in the
+         * quagga process), then the RIB has more updated data than our state
+         * */
         if (pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start >
               pp->bgp_time_last_ts &&
             !(pp->bgp_time_last_ts >
@@ -772,10 +769,10 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
   /* set the pfx status and as path  */
   if (elem->type == BGPSTREAM_ELEM_TYPE_ANNOUNCEMENT) {
     /* set announced status */
-    pp->pfx_status = pp->pfx_status | ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+    pp->pfx_status |= ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
     bgpview_iter_pfx_peer_set_as_path(rt->iter, elem->as_path);
   } else { /* reset announced status */
-    pp->pfx_status = pp->pfx_status & ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
     bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL);
   }
 
@@ -961,7 +958,7 @@ static int apply_rib_message(routingtables_t *rt, collector_t *c,
   /* we update only the uc part of the pfx-peer, i.e.:
    * the timestamp, the uc_as_path_id, and the pfx status */
   pp->bgp_time_uc_delta_ts = ts - p->bgp_time_uc_rib_start;
-  pp->pfx_status = pp->pfx_status | ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
+  pp->pfx_status |= ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
   if (bgpstream_as_path_store_get_path_id(rt->pathstore, elem->as_path,
                                           elem->peer_asn,
                                           &pp->uc_as_path_id) == -1) {
@@ -1186,8 +1183,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
             pp->bgp_time_last_ts <= record->time_sec) {
           /* reset the active information if the active state is affected */
           pp->bgp_time_last_ts = 0;
-          pp->pfx_status =
-            pp->pfx_status & ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+          pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
           /* bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL); */
           bgpview_iter_pfx_deactivate_peer(rt->iter);
         }
@@ -1201,8 +1197,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
       /* reset the uc information if the under construction process is affected
        */
       pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status =
-        pp->pfx_status & ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
+      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
     }
   }
 
