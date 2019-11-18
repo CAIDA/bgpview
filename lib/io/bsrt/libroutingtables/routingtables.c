@@ -51,19 +51,6 @@
  *  in the RIB, then it is considered UNKNOWN */
 #define ROUTINGTABLES_MAX_INACTIVE_TIME 3600
 
-/** ROUTINGTABLES_LOCAL_*_ASN is a set of constants
- *  that is used to give special meaning to the origin
- *  AS field, all the values above ROUTINGTABLES_RESERVED_ASN_START
- *  are part of IANA reserved space for AS numbers, therefore
- *  no valid origin should be confused with these constants
- *  (unless an attacker actually uses them to forge the path).
- *  Ref: http://www.iana.org/assignments/as-numbers/as-numbers.xhtml
- */
-#define ROUTINGTABLES_RESERVED_ASN_START BGPVIEW_ASN_NOEXPORT_START
-#define ROUTINGTABLES_LOCAL_ORIGIN_ASN ROUTINGTABLES_RESERVED_ASN_START + 0
-#define ROUTINGTABLES_CONFSET_ORIGIN_ASN ROUTINGTABLES_RESERVED_ASN_START + 1
-#define ROUTINGTABLES_DOWN_ORIGIN_ASN ROUTINGTABLES_RESERVED_ASN_START + 2
-
 /** string buffer to contain debugging infos */
 #define BUFFER_LEN 1024
 static char buffer[BUFFER_LEN];
