@@ -49,22 +49,22 @@
 
 /* the prefix is not announced in the state nor in the
  * under construction state */
-#define ROUTINGTABLES_INITIAL_PFXSTATUS_MASK 0b00000000
-#define ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK 0b00000001
-#define ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK 0b00010000
+#define ROUTINGTABLES_INITIAL_PFXSTATUS_MASK      0x00
+#define ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK    0x01
+#define ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK 0x10
 
 typedef enum {
 
   /** It is not possible to infer the state of
    *  the collector (e.g. initialization time,
    *  or corrupted data) */
-  ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN = 0b000,
+  ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN = 0,
 
   /** The collector is active */
-  ROUTINGTABLES_COLLECTOR_STATE_UP = 0b001,
+  ROUTINGTABLES_COLLECTOR_STATE_UP = 1,
 
   /** The collector is inactive */
-  ROUTINGTABLES_COLLECTOR_STATE_DOWN = 0b010,
+  ROUTINGTABLES_COLLECTOR_STATE_DOWN = 2,
 
 } collector_state_t;
 
