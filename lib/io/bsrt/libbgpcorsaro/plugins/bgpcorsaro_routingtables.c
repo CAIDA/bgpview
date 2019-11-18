@@ -43,7 +43,7 @@
  *
  * @brief Bgpcorsaro RoutingTables plugin implementation
  *
- * @author Chiara Orsini
+ * @author Chiara Orsini, Ken Keys
  *
  */
 
@@ -154,12 +154,6 @@ static int parse_args(bgpcorsaro_t *bgpcorsaro)
 }
 
 /* == PUBLIC PLUGIN FUNCS BELOW HERE == */
-
-/** Implements the alloc function of the plugin API */
-bgpcorsaro_plugin_t *bgpcorsaro_routingtables_alloc(bgpcorsaro_t *bgpcorsaro)
-{
-  return &bgpcorsaro_routingtables_plugin;
-}
 
 /** Implements the init_output function of the plugin API */
 int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)

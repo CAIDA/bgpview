@@ -40,7 +40,6 @@
  * @todo split this into bgpcorsaro-out and bgpcorsaro-in macros
  */
 #define BGPCORSARO_PLUGIN_GENERATE_PROTOS(plugin)                              \
-  bgpcorsaro_plugin_t *plugin##_alloc();                                       \
   int plugin##_init_output(struct bgpcorsaro *bgpcorsaro);                     \
   int plugin##_close_output(struct bgpcorsaro *bgpcorsaro);                    \
   int plugin##_start_interval(struct bgpcorsaro *bgpcorsaro,                   \
