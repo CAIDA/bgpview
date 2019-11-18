@@ -66,13 +66,13 @@ typedef enum {
    *  that no mask will ever iterate/seek
    *  over this field (it is exactly equivalent
    *  to a non existent field). */
-  BGPVIEW_FIELD_INVALID = 0b000,
+  BGPVIEW_FIELD_INVALID = 0x0,
 
   /** The current field is active */
-  BGPVIEW_FIELD_ACTIVE = 0b001,
+  BGPVIEW_FIELD_ACTIVE = 0x1,
 
   /** The current field is inactive */
-  BGPVIEW_FIELD_INACTIVE = 0b010,
+  BGPVIEW_FIELD_INACTIVE = 0x2,
 
 } bgpview_field_state_t;
 

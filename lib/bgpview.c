@@ -132,15 +132,15 @@ typedef struct bwv_peerid_pfxinfo {
 #define BWV_PFX_GET_PEER_STATE(pfxinfo, peerid)                                \
   ((_BWV_PFX_PEER_STATE_BYTE(pfxinfo, peerid) >>                               \
     _BWV_PFX_PEER_STATE_SHIFT(peerid)) &                                       \
-   0b11)
+   0x3)
 
 /** Set the given state for the given peerid in the given pfxinfo */
 #define BWV_PFX_SET_PEER_STATE(pfxinfo, peerid, state)                         \
   do {                                                                         \
     _BWV_PFX_PEER_STATE_BYTE(pfxinfo, peerid) =                                \
       (_BWV_PFX_PEER_STATE_BYTE(pfxinfo, peerid) &                             \
-       ~(0b11 << _BWV_PFX_PEER_STATE_SHIFT(peerid))) |                         \
-      ((state & 0b11) << _BWV_PFX_PEER_STATE_SHIFT(peerid));                   \
+       ~(0x3 << _BWV_PFX_PEER_STATE_SHIFT(peerid))) |                          \
+      ((state & 0x3) << _BWV_PFX_PEER_STATE_SHIFT(peerid));                    \
   } while (0)
 
 /** @todo: add documentation ? */
