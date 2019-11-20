@@ -28,6 +28,9 @@
 #ifdef WITH_BGPVIEW_IO_KAFKA
 #include "kafka/bgpview_io_kafka.h"
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+#include "bsrt/bgpview_io_bsrt.h"
+#endif
 #ifdef WITH_BGPVIEW_IO_TEST
 #include "test/bgpview_io_test.h"
 #endif
@@ -50,7 +53,7 @@ static bgpview_consumer_manager_t *manager = NULL;
 static timeseries_t *timeseries = NULL;
 
 static bgpstream_patricia_tree_t *pfx_tree = NULL;
-static bgpstream_pfx_storage_set_t *pfx_set = NULL;
+static bgpstream_pfx_set_t *pfx_set = NULL;
 static bgpstream_id_set_t *asn_set = NULL;
 
 typedef int(filter_parser_func)(char *value);
@@ -70,6 +73,7 @@ static char *filter_desc[] = {
   "match on prefix and sub-prefixes", "match on prefix", "match on origin ASN",
 };
 
+int filter_cnt = 0;
 static int filter_cnts[] = {
   0, 0, 0,
 };
@@ -86,6 +90,9 @@ io_t *file_handle = NULL;
 #ifdef WITH_BGPVIEW_IO_KAFKA
 bgpview_io_kafka_t *kafka_client = NULL;
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+bgpview_io_bsrt_t *bsrt_handle = NULL;
+#endif
 #ifdef WITH_BGPVIEW_IO_TEST
 bgpview_io_test_t *test_generator = NULL;
 #endif
@@ -95,7 +102,7 @@ bgpview_io_zmq_client_t *zmq_client = NULL;
 
 static int parse_pfx(char *value)
 {
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if (value == NULL) {
     fprintf(stderr, "ERROR: Missing value for prefix filter\n");
@@ -107,7 +114,7 @@ static int parse_pfx(char *value)
     return -1;
   }
 
-  if (bgpstream_patricia_tree_insert(pfx_tree, (bgpstream_pfx_t *)&pfx) ==
+  if (bgpstream_patricia_tree_insert(pfx_tree, &pfx) ==
       NULL) {
     fprintf(stderr, "ERROR: Failed to insert pfx filter into tree\n");
   }
@@ -118,7 +125,7 @@ static int parse_pfx(char *value)
 
 static int parse_pfx_exact(char *value)
 {
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if (value == NULL) {
     fprintf(stderr, "ERROR: Missing value for prefix filter\n");
@@ -130,7 +137,7 @@ static int parse_pfx_exact(char *value)
     return -1;
   }
 
-  if (bgpstream_pfx_storage_set_insert(pfx_set, &pfx) < 0) {
+  if (bgpstream_pfx_set_insert(pfx_set, &pfx) < 0) {
     fprintf(stderr, "ERROR: Failed to insert pfx filter into set\n");
   }
 
@@ -167,8 +174,7 @@ static int match_pfx(bgpstream_pfx_t *pfx)
 
 static int match_pfx_exact(bgpstream_pfx_t *pfx)
 {
-  return bgpstream_pfx_storage_set_exists(pfx_set,
-                                          (bgpstream_pfx_storage_t *)pfx);
+  return bgpstream_pfx_set_exists(pfx_set, pfx);
 }
 
 static bgpview_io_filter_pfx_cb_t *filter_pfx_matchers[] = {
@@ -194,7 +200,7 @@ static int filters_init()
     return -1;
   }
 
-  if ((pfx_set = bgpstream_pfx_storage_set_create()) == NULL) {
+  if ((pfx_set = bgpstream_pfx_set_create()) == NULL) {
     return -1;
   }
 
@@ -209,7 +215,7 @@ static void filters_destroy()
 {
   bgpstream_patricia_tree_destroy(pfx_tree);
   pfx_tree = NULL;
-  bgpstream_pfx_storage_set_destroy(pfx_set);
+  bgpstream_pfx_set_destroy(pfx_set);
   pfx_set = NULL;
   bgpstream_id_set_destroy(asn_set);
   asn_set = NULL;
@@ -236,6 +242,7 @@ static int parse_filter(char *filter_str)
         return -1;
       }
       filter_cnts[i]++;
+      filter_cnt++;
       found = 1;
       break;
     }
@@ -339,11 +346,11 @@ static void consumer_usage()
 static void usage(const char *name)
 {
   /* top-level */
-  fprintf(stderr, "usage: %s [<options>] -[ftkz]\n", name);
+  fprintf(stderr, "usage: %s [<options>]\n", name);
 
   /* IO module config */
   fprintf(stderr,
-          "       -i <module opts>      IO module to use for obtaining views.\n"
+          "       -i\"<module> <opts>\"     IO module to use for obtaining views.\n"
           "                               Available modules:\n");
 #ifdef WITH_BGPVIEW_IO_FILE
   fprintf(stderr, "                                - file\n");
@@ -353,6 +360,9 @@ static void usage(const char *name)
 #endif
 #ifdef WITH_BGPVIEW_IO_KAFKA
   fprintf(stderr, "                                - kafka\n");
+#endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  fprintf(stderr, "                                - bsrt\n");
 #endif
 #ifdef WITH_BGPVIEW_IO_ZMQ
   fprintf(stderr, "                                - zmq\n");
@@ -370,7 +380,7 @@ static void usage(const char *name)
           BGPVIEW_METRIC_PREFIX_DEFAULT);
 
   /* Consumers config */
-  fprintf(stderr, "       -c <consumer>         Consumer to activate (can be "
+  fprintf(stderr, "       -c\"<consumer> <opts>\" Consumer to activate (can be "
                   "used multiple times)\n");
   consumer_usage();
 
@@ -424,6 +434,18 @@ static int configure_io(char *io_module)
     }
   }
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  else if (strcmp(io_module, "bsrt") == 0) {
+    fprintf(stderr, "INFO: Starting BSRT IO consumer module...\n");
+    if ((bsrt_handle = bgpview_io_bsrt_init(io_options, timeseries)) == NULL) {
+      fprintf(stderr, "ERROR: could not initialize BSRT module\n");
+      goto err;
+    }
+    if (bgpview_io_bsrt_start(bsrt_handle) != 0) {
+      goto err;
+    }
+  }
+#endif
 #ifdef WITH_BGPVIEW_IO_TEST
   else if (strcmp(io_module, "test") == 0) {
     fprintf(stderr, "INFO: Starting Test View Generator IO module...\n");
@@ -473,6 +495,12 @@ static void shutdown_io()
     kafka_client = NULL;
   }
 #endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  if (bsrt_handle != NULL) {
+    bgpview_io_bsrt_destroy(bsrt_handle);
+    bsrt_handle = NULL;
+  }
+#endif
 #ifdef WITH_BGPVIEW_IO_TEST
   if (test_generator != NULL) {
     bgpview_io_test_destroy(test_generator);
@@ -507,6 +535,11 @@ static int recv_view(char *io_module)
       kafka_client, view, (peer_filters_cnt != 0) ? filter_peer : NULL,
       (pfx_filters_cnt != 0) ? filter_pfx : NULL,
       (pfx_peer_filters_cnt != 0) ? filter_pfx_peer : NULL);
+  }
+#endif
+#ifdef WITH_BGPVIEW_IO_BSRT
+  else if (strcmp(io_module, "bsrt") == 0) {
+    return bgpview_io_bsrt_recv_view(bsrt_handle);
   }
 #endif
 #ifdef WITH_BGPVIEW_IO_TEST
@@ -569,17 +602,14 @@ int main(int argc, char **argv)
   }
 
   while (prevoptind = optind,
-         (opt = getopt(argc, argv, ":f:i:m:N:b:c:I:v?")) >= 0) {
-    if (optind == prevoptind + 2 && (optarg == NULL || *optarg == '-')) {
-      opt = ':';
-      --optind;
+         (opt = getopt(argc, argv, "f:i:m:N:b:c:v?")) >= 0) {
+    if (optind == prevoptind + 2 && (optarg && *optarg == '-')) {
+      fprintf(stderr, "ERROR: argument for %s looks like an option "
+          "(remove the space after %s to force the argument)\n",
+          argv[optind-2], argv[optind-2]);
+      return -1;
     }
     switch (opt) {
-    case ':':
-      fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
-      usage(argv[0]);
-      return -1;
-      break;
 
     case 'f':
       if (parse_filter(optarg) != 0) {
@@ -617,11 +647,9 @@ int main(int argc, char **argv)
       consumer_cmds[consumer_cmds_cnt++] = optarg;
       break;
 
-    case '?':
     case 'v':
       fprintf(stderr, "bgpview version %d.%d.%d\n", BGPVIEW_MAJOR_VERSION,
               BGPVIEW_MID_VERSION, BGPVIEW_MINOR_VERSION);
-      usage(argv[0]);
       return 0;
       break;
 
@@ -702,12 +730,29 @@ int main(int argc, char **argv)
     goto err;
   }
 
-  if ((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL) {
-    fprintf(stderr, "ERROR: Could not create view\n");
-    goto err;
+  if (0) { /* just to simplify the if/else with macros */
   }
-  /* disable per-pfx-per-peer user pointer */
-  bgpview_disable_user_data(view);
+#ifdef WITH_BGPVIEW_IO_BSRT
+  else if (strcmp(io_module, "bsrt") == 0) {
+    // Borrow the view generated by bsrt
+    view = bgpview_io_bsrt_get_view_ptr(bsrt_handle);
+    if (filter_cnt > 0) {
+      fprintf(stderr, "ERROR: -f filter option is not compatible with bsrt "
+          "io module.  Use bsrt options instead.\n");
+      // TODO: convert -f options to bgpstream_add_filter(bsrt->stream, ...)
+      goto err;
+    }
+  }
+#endif
+  else {
+    // Create our own view
+    if ((view = bgpview_create(NULL, NULL, NULL, NULL)) == NULL) {
+      fprintf(stderr, "ERROR: Could not create view\n");
+      goto err;
+    }
+    /* disable per-pfx-per-peer user pointer */
+    bgpview_disable_user_data(view);
+  }
 
   while (recv_view(io_module) == 0) {
     if (bgpview_consumer_manager_process_view(manager, view) != 0) {

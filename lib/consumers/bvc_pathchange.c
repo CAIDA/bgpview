@@ -24,7 +24,6 @@
 #include "bvc_pathchange.h"
 #include "bgpview_consumer_interface.h"
 #include "utils.h"
-#include "wandio_utils.h"
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>

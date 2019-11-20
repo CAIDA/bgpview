@@ -23,48 +23,26 @@
 
 SUBDIRS =
 
-AM_CPPFLAGS = 	-I$(top_srcdir) \
-	 	-I$(top_srcdir)/common \
-                -I$(top_srcdir)/lib
+AM_CPPFLAGS = -I$(top_srcdir) \
+	      -I$(top_srcdir)/lib \
+	      -I$(top_srcdir)/common
 
-noinst_LTLIBRARIES = libbgpview_io.la
+noinst_LTLIBRARIES = libbgpcorsaroplugins.la
 
-include_HEADERS = bgpview_io.h
+include_HEADERS =
+PLUGIN_SRC=
+PLUGIN_LIBS=
 
-libbgpview_io_la_SOURCES = 		\
-	bgpview_io.c			\
-	bgpview_io.h
+PLUGIN_LIBS += $(top_builddir)/lib/io/bsrt/libroutingtables/libroutingtables.la
+AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libbgpcorsaro
+AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libroutingtables
+PLUGIN_SRC+=bgpcorsaro_routingtables.c bgpcorsaro_routingtables.h
 
-MOD_LIBS=
+libbgpcorsaroplugins_la_SOURCES = \
+	$(PLUGIN_SRC)
 
-if WITH_BGPVIEW_IO_FILE
-SUBDIRS+=file
-MOD_LIBS+=$(top_builddir)/lib/io/file/libbgpview_io_file.la
-endif
-
-if WITH_BGPVIEW_IO_ZMQ
-SUBDIRS+=zmq
-MOD_LIBS+=$(top_builddir)/lib/io/zmq/libbgpview_io_zmq.la
-endif
-
-if WITH_BGPVIEW_IO_KAFKA
-SUBDIRS+=kafka
-MOD_LIBS+=$(top_builddir)/lib/io/kafka/libbgpview_io_kafka.la
-endif
-
-if WITH_BGPVIEW_IO_BSRT
-SUBDIRS+=bsrt
-MOD_LIBS+=$(top_builddir)/lib/io/bsrt/libbgpview_io_bsrt.la
-endif
-
-if WITH_BGPVIEW_IO_TEST
-SUBDIRS+=test
-MOD_LIBS+=$(top_builddir)/lib/io/test/libbgpview_io_test.la
-endif
-
-libbgpview_io_la_LIBADD = \
-	$(MOD_LIBS)
-
+libbgpcorsaroplugins_la_LIBADD = \
+	$(PLUGIN_LIBS)
 
 ACLOCAL_AMFLAGS = -I m4
 

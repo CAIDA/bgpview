@@ -26,7 +26,7 @@
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
-#include "wandio_utils.h"
+#include <wandio.h>
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -71,8 +71,7 @@ static bvc_t bvc_announcedpfxs = {BVC_ID_ANNOUNCEDPFXS, NAME,
 /** Map <ipv4-prefix,last_ts>
  */
 KHASH_INIT(bwv_v4pfx_timestamp, bgpstream_ipv4_pfx_t, uint32_t, 1,
-           bgpstream_ipv4_pfx_storage_hash_val,
-           bgpstream_ipv4_pfx_storage_equal_val);
+           bgpstream_ipv4_pfx_hash_val, bgpstream_ipv4_pfx_equal_val);
 typedef khash_t(bwv_v4pfx_timestamp) bwv_v4pfx_timestamp_t;
 
 /* our 'instance' */
@@ -90,7 +89,7 @@ typedef struct bvc_announcedpfxs_state {
   uint32_t window_size;
 
   /** blacklist prefixes */
-  bgpstream_pfx_storage_set_t *blacklist_pfxs;
+  bgpstream_pfx_set_t *blacklist_pfxs;
 
   /** first timestamp processed by view consumer */
   uint32_t first_ts;
@@ -224,7 +223,7 @@ bvc_t *bvc_announcedpfxs_alloc()
 int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_announcedpfxs_state_t *state = NULL;
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if ((state = malloc_zero(sizeof(bvc_announcedpfxs_state_t))) == NULL) {
     return -1;
@@ -254,19 +253,19 @@ int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
-  if ((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL) {
+  if ((state->blacklist_pfxs = bgpstream_pfx_set_create()) == NULL) {
     fprintf(stderr, "Error: Could not create blacklist pfx set\n");
     goto err;
   }
 
   /* add default routes to blacklist */
   if (!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
   if (!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
@@ -297,7 +296,7 @@ void bvc_announcedpfxs_destroy(bvc_t *consumer)
       kh_destroy(bwv_v4pfx_timestamp, state->v4pfx_ts);
     }
     if (state->blacklist_pfxs != NULL) {
-      bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
+      bgpstream_pfx_set_destroy(state->blacklist_pfxs);
     }
 
     timeseries_kp_free(&state->kp);
@@ -318,7 +317,6 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   uint32_t current_window_size = 0;
   bgpview_iter_t *it;
   bgpstream_pfx_t *pfx;
-  bgpstream_pfx_storage_t pfx_storage;
 
   bgpstream_peer_id_t peerid;
   int ipv4_idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
@@ -341,12 +339,9 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
                               BGPVIEW_FIELD_ACTIVE);
        bgpview_iter_has_more_pfx(it); bgpview_iter_next_pfx(it)) {
     pfx = bgpview_iter_pfx_get_pfx(it);
-    pfx_storage.mask_len = pfx->mask_len;
-    bgpstream_addr_copy((bgpstream_ip_addr_t *)&pfx_storage.address,
-                        (bgpstream_ip_addr_t *)&pfx->address);
 
     /* ignore prefixes in blacklist */
-    if (bgpstream_pfx_storage_set_exists(state->blacklist_pfxs, &pfx_storage)) {
+    if (bgpstream_pfx_set_exists(state->blacklist_pfxs, pfx)) {
       continue;
     }
 
@@ -355,12 +350,10 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
       continue;
     }
 
-    if ((k = kh_get(bwv_v4pfx_timestamp, state->v4pfx_ts,
-                    *((bgpstream_ipv4_pfx_t *)pfx))) ==
+    if ((k = kh_get(bwv_v4pfx_timestamp, state->v4pfx_ts, pfx->bs_ipv4)) ==
         kh_end(state->v4pfx_ts)) {
       /* new prefix */
-      k = kh_put(bwv_v4pfx_timestamp, state->v4pfx_ts,
-                 *((bgpstream_ipv4_pfx_t *)pfx), &khret);
+      k = kh_put(bwv_v4pfx_timestamp, state->v4pfx_ts, pfx->bs_ipv4, &khret);
       kh_value(state->v4pfx_ts, k) = 0;
     }
 

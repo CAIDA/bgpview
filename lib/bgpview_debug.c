@@ -45,8 +45,7 @@ static void peers_dump(bgpview_t *view, bgpview_iter_t *it)
                                               BGPVIEW_FIELD_ACTIVE);
     assert(v6pfx_cnt >= 0);
 
-    inet_ntop(ps->peer_ip_addr.version, &(ps->peer_ip_addr.ipv4), peer_str,
-              INET6_ADDRSTRLEN);
+    bgpstream_addr_ntop(peer_str, INET6_ADDRSTRLEN, &ps->peer_ip_addr);
 
     fprintf(stdout,
             "  %" PRIu16 ":\t%s, %s %" PRIu32 " (%d v4 pfxs, %d v6 pfxs)\n",

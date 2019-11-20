@@ -26,7 +26,7 @@
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
-#include "wandio_utils.h"
+#include <wandio.h>
 #include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -90,8 +90,8 @@ typedef struct struct_origin_status_t {
 
 /** Map <prefix,origin_status>
  */
-KHASH_INIT(bwv_pfx_origin, bgpstream_pfx_storage_t, origin_status_t, 1,
-           bgpstream_pfx_storage_hash_val, bgpstream_pfx_storage_equal_val);
+KHASH_INIT(bwv_pfx_origin, bgpstream_pfx_t, origin_status_t, 1,
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
 typedef khash_t(bwv_pfx_origin) bwv_pfx_origin_t;
 
 /* our 'instance' */
@@ -105,7 +105,7 @@ typedef struct bvc_pfxorigins_state {
   uint32_t processing_time;
 
   /** blacklist prefixes */
-  bgpstream_pfx_storage_set_t *blacklist_pfxs;
+  bgpstream_pfx_set_t *blacklist_pfxs;
 
   /** output folder */
   char output_folder[PATH_MAX];
@@ -155,7 +155,7 @@ int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
   khiter_t k;
   int i, j;
   origin_status_t *os;
-  bgpstream_pfx_storage_t *pfx;
+  bgpstream_pfx_t *pfx;
   uint8_t differ;
   uint8_t found;
 
@@ -168,8 +168,7 @@ int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
   for (k = kh_begin(state->pfx_origins); k != kh_end(state->pfx_origins); k++) {
     if (kh_exist(state->pfx_origins, k)) {
       pfx = &kh_key(state->pfx_origins, k);
-      bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3,
-                             (bgpstream_pfx_t *)pfx);
+      bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
 
       os = &kh_val(state->pfx_origins, k);
       differ = 0;
@@ -413,7 +412,7 @@ bvc_t *bvc_pfxorigins_alloc()
 int bvc_pfxorigins_init(bvc_t *consumer, int argc, char **argv)
 {
   bvc_pfxorigins_state_t *state = NULL;
-  bgpstream_pfx_storage_t pfx;
+  bgpstream_pfx_t pfx;
 
   if ((state = malloc_zero(sizeof(bvc_pfxorigins_state_t))) == NULL) {
     return -1;
@@ -438,19 +437,19 @@ int bvc_pfxorigins_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
-  if ((state->blacklist_pfxs = bgpstream_pfx_storage_set_create()) == NULL) {
+  if ((state->blacklist_pfxs = bgpstream_pfx_set_create()) == NULL) {
     fprintf(stderr, "Error: Could not create blacklist pfx set\n");
     goto err;
   }
 
   /* add default routes to blacklist */
   if (!(bgpstream_str2pfx(IPV4_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
   if (!(bgpstream_str2pfx(IPV6_DEFAULT_ROUTE, &pfx) != NULL &&
-        bgpstream_pfx_storage_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
+        bgpstream_pfx_set_insert(state->blacklist_pfxs, &pfx) >= 0)) {
     fprintf(stderr, "Could not insert prefix in blacklist\n");
     goto err;
   }
@@ -498,7 +497,7 @@ void bvc_pfxorigins_destroy(bvc_t *consumer)
     }
 
     if (state->blacklist_pfxs != NULL) {
-      bgpstream_pfx_storage_set_destroy(state->blacklist_pfxs);
+      bgpstream_pfx_set_destroy(state->blacklist_pfxs);
     }
 
     timeseries_kp_free(&state->kp);
@@ -512,7 +511,6 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
   bvc_pfxorigins_state_t *state = STATE;
 
   bgpstream_pfx_t *pfx;
-  bgpstream_pfx_storage_t pfx_storage;
 
   bgpstream_peer_id_t peerid;
   int ipv_idx;
@@ -547,12 +545,8 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
        bgpview_iter_has_more_pfx(it); bgpview_iter_next_pfx(it)) {
     pfx = bgpview_iter_pfx_get_pfx(it);
 
-    pfx_storage.mask_len = pfx->mask_len;
-    bgpstream_addr_copy((bgpstream_ip_addr_t *)&pfx_storage.address,
-                        (bgpstream_ip_addr_t *)&pfx->address);
-
     /* ignore prefixes in blacklist */
-    if (bgpstream_pfx_storage_set_exists(state->blacklist_pfxs, &pfx_storage)) {
+    if (bgpstream_pfx_set_exists(state->blacklist_pfxs, pfx)) {
       continue;
     }
 
@@ -578,10 +572,10 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
         if (os == NULL) {
 
           /* check if prefix is already in the map */
-          if ((k = kh_get(bwv_pfx_origin, state->pfx_origins, pfx_storage)) ==
+          if ((k = kh_get(bwv_pfx_origin, state->pfx_origins, *pfx)) ==
               kh_end(state->pfx_origins)) {
             /* if not insert the prefix and init the origin arrays */
-            k = kh_put(bwv_pfx_origin, state->pfx_origins, pfx_storage, &khret);
+            k = kh_put(bwv_pfx_origin, state->pfx_origins, *pfx, &khret);
             os = &kh_value(state->pfx_origins, k);
             os->previous.num_asns = 0;
             os->current.num_asns = 0;
