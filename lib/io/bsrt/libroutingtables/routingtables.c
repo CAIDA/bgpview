@@ -101,38 +101,39 @@ static perpfx_perpeer_info_t *perpfx_perpeer_info_create()
 
 static void perpeer_info_destroy(void *p)
 {
-  if (p != NULL) {
+  if (p == NULL)
+    return;
 
-    if (((perpeer_info_t *)p)->announcing_ases != NULL) {
-      khiter_t k;
-      for (k = kh_begin(((perpeer_info_t *)p)->announcing_ases);
-           k != kh_end(((perpeer_info_t *)p)->announcing_ases); ++k) {
-        if (kh_exist(((perpeer_info_t *)p)->announcing_ases, k)) {
-          bgpstream_as_path_seg_destroy(
-            kh_key(((perpeer_info_t *)p)->announcing_ases, k));
-        }
+  perpeer_info_t *pi = (perpeer_info_t *)p;
+
+  if (pi->announcing_ases != NULL) {
+    khiter_t k;
+    for (k = kh_begin(pi->announcing_ases);
+         k != kh_end(pi->announcing_ases); ++k) {
+      if (kh_exist(pi->announcing_ases, k)) {
+        bgpstream_as_path_seg_destroy(kh_key(pi->announcing_ases, k));
       }
-      kh_destroy(origin_segments, ((perpeer_info_t *)p)->announcing_ases);
-      ((perpeer_info_t *)p)->announcing_ases = NULL;
     }
-    if (((perpeer_info_t *)p)->announced_v4_pfxs != NULL) {
-      bgpstream_ipv4_pfx_set_destroy(((perpeer_info_t *)p)->announced_v4_pfxs);
-      ((perpeer_info_t *)p)->announced_v4_pfxs = NULL;
-    }
-    if (((perpeer_info_t *)p)->withdrawn_v4_pfxs != NULL) {
-      bgpstream_ipv4_pfx_set_destroy(((perpeer_info_t *)p)->withdrawn_v4_pfxs);
-      ((perpeer_info_t *)p)->withdrawn_v4_pfxs = NULL;
-    }
-    if (((perpeer_info_t *)p)->announced_v6_pfxs != NULL) {
-      bgpstream_ipv6_pfx_set_destroy(((perpeer_info_t *)p)->announced_v6_pfxs);
-      ((perpeer_info_t *)p)->announced_v6_pfxs = NULL;
-    }
-    if (((perpeer_info_t *)p)->withdrawn_v6_pfxs != NULL) {
-      bgpstream_ipv6_pfx_set_destroy(((perpeer_info_t *)p)->withdrawn_v6_pfxs);
-      ((perpeer_info_t *)p)->withdrawn_v6_pfxs = NULL;
-    }
-    free(p);
+    kh_destroy(origin_segments, pi->announcing_ases);
+    pi->announcing_ases = NULL;
   }
+  if (pi->announced_v4_pfxs != NULL) {
+    bgpstream_ipv4_pfx_set_destroy(pi->announced_v4_pfxs);
+    pi->announced_v4_pfxs = NULL;
+  }
+  if (pi->withdrawn_v4_pfxs != NULL) {
+    bgpstream_ipv4_pfx_set_destroy(pi->withdrawn_v4_pfxs);
+    pi->withdrawn_v4_pfxs = NULL;
+  }
+  if (pi->announced_v6_pfxs != NULL) {
+    bgpstream_ipv6_pfx_set_destroy(pi->announced_v6_pfxs);
+    pi->announced_v6_pfxs = NULL;
+  }
+  if (pi->withdrawn_v6_pfxs != NULL) {
+    bgpstream_ipv6_pfx_set_destroy(pi->withdrawn_v6_pfxs);
+    pi->withdrawn_v6_pfxs = NULL;
+  }
+  free(p);
 }
 
 /* default: all ts are 0, while the peer state is
@@ -141,7 +142,7 @@ static perpeer_info_t *perpeer_info_create(routingtables_t *rt, collector_t *c,
                                            uint32_t peer_id)
 {
   char ip_str[INET6_ADDRSTRLEN];
-  uint8_t v = 0;
+  unsigned v = 0;
   perpeer_info_t *p;
   if ((p = (perpeer_info_t *)malloc_zero(sizeof(perpeer_info_t))) == NULL) {
     fprintf(stderr, "Error: can't create per-peer info\n");
@@ -153,21 +154,15 @@ static perpeer_info_t *perpeer_info_create(routingtables_t *rt, collector_t *c,
   bgpstream_peer_sig_t *sg =
     bgpstream_peer_sig_map_get_sig(rt->peersigns, peer_id);
 
-  if (sg->peer_ip_addr.version == BGPSTREAM_ADDR_VERSION_IPV4) {
-    v = 4;
-  } else {
-    if (sg->peer_ip_addr.version == BGPSTREAM_ADDR_VERSION_IPV6) {
-      v = 6;
-    }
-  }
+  v = (sg->peer_ip_addr.version == BGPSTREAM_ADDR_VERSION_IPV4) ? 4 :
+      (sg->peer_ip_addr.version == BGPSTREAM_ADDR_VERSION_IPV6) ? 6 : 0;
 
-  if (bgpstream_addr_ntop(ip_str, INET6_ADDRSTRLEN,
-                          (bgpstream_ip_addr_t *)&sg->peer_ip_addr) == NULL) {
+  if (bgpstream_addr_ntop(ip_str, sizeof(ip_str), &sg->peer_ip_addr) == NULL) {
     fprintf(stderr, "Warning: could not print peer ip address \n");
   }
   graphite_safe(ip_str);
   if (snprintf(p->peer_str, BGPSTREAM_UTILS_STR_NAME_LEN,
-               "peer_asn.%" PRIu32 ".ipv%" PRIu8 "_peer.__IP_%s",
+               "peer_asn.%" PRIu32 ".ipv%u_peer.__IP_%s",
                sg->peer_asnumber, v, ip_str) >= BGPSTREAM_UTILS_STR_NAME_LEN) {
     fprintf(stderr,
             "Warning: could not print peer signature: truncated output\n");
@@ -232,8 +227,8 @@ static void destroy_collector_data(collector_t *c)
   }
 }
 
-static collector_t *get_collector_data(routingtables_t *rt, char *project,
-                                       char *collector)
+static collector_t *get_collector_data(routingtables_t *rt, const char *project,
+                                       const char *collector)
 {
   khiter_t k;
   int khret;
