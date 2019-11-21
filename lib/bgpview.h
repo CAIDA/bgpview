@@ -119,19 +119,16 @@ typedef void(bgpview_destroy_user_t)(void *user);
  * Basically, it maps from prefix -> peers -> prefix info
  *
  * @param bwv_user_destructor           a function that destroys the user
- * structure
- *                                      in the bgpview_t structure
+ *                                      structure in the bgpview_t structure
  * @param bwv_peer_user_destructor      a function that destroys the user
- * structure
- *                                      used in each bwv_peerinfo_t structure
+ *                                      structure used in each bwv_peerinfo_t
+ *                                      structure
  * @param bwv_pfx_user_destructor       a function that destroys the user
- * structure
- *                                      used in each bwv_peerid_pfxinfo_t
- * structure
+ *                                      structure used in each
+ *                                      bwv_peerid_pfxinfo_t structure
  * @param bwv_pfx_peer_user_destructor  a function that destroys the user
- * structure
- *                                      used in each bgpview_pfx_peer_info_t
- * structure
+ *                                      structure used in each
+ *                                      bgpview_pfx_peer_info_t structure
  *
  * @return a pointer to the view if successful, NULL otherwise
  *
@@ -158,19 +155,16 @@ bgpview_t *bgpview_create(bgpview_destroy_user_t *bwv_user_destructor,
  * @param peersigns     pointer to a peersigns table that the view should use
  * @param pathstore     pointer to an AS path store that the view should use
  * @param bwv_user_destructor           a function that destroys the user
- * structure
- *                                      in the bgpview_t structure
+ *                                      structure in the bgpview_t structure
  * @param bwv_peer_user_destructor      a function that destroys the user
- * structure
- *                                      used in each bwv_peerinfo_t structure
+ *                                      structure used in each bwv_peerinfo_t
+ *                                      structure
  * @param bwv_pfx_user_destructor       a function that destroys the user
- * structure
- *                                      used in each bwv_peerid_pfxinfo_t
- * structure
+ *                                      structure used in each
+ *                                      bwv_peerid_pfxinfo_t structure
  * @param bwv_pfx_peer_user_destructor  a function that destroys the user
- * structure
- *                                      used in each bgpview_pfx_peer_info_t
- * structure
+ *                                      structure used in each
+ *                                      bgpview_pfx_peer_info_t structure
  *
  * @return a pointer to the view if successful, NULL otherwise
  */
