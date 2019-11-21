@@ -391,13 +391,13 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
   return 0;
 }
 
-static void pfx_peer_info_destroy(bgpview_t *view, bwv_pfx_peerinfo_t *v)
+static inline void pfx_peer_info_destroy(bgpview_t *view, bwv_pfx_peerinfo_t *v)
 {
   return;
 }
 
-static void pfx_peer_info_ext_destroy(bgpview_t *view,
-                                      bwv_pfx_peerinfo_ext_t *v)
+static inline void pfx_peer_info_ext_destroy(bgpview_t *view,
+                                             bwv_pfx_peerinfo_ext_t *v)
 {
   ASSERT_BWV_PFX_PEERINFO_EXT(view);
   if (v->user != NULL && view->pfx_peer_user_destructor != NULL) {
@@ -414,10 +414,13 @@ static void peerid_pfxinfo_destroy(bgpview_t *view, bwv_peerid_pfxinfo_t *v)
   int i = 0;
   if (v->peers != NULL) {
     /* our macros expect peerids, so we go from 1 to alloc_cnt */
-    for (i = 1; i <= v->peers_alloc_cnt; i++) {
-      if (view->disable_extended == 0) {
+    if (view->disable_extended == 0) {
+      for (i = 1; i <= v->peers_alloc_cnt; i++) {
         pfx_peer_info_ext_destroy(view, &BWV_PFX_GET_PEER_EXT(v, i));
-      } else {
+      }
+    } else {
+      // loop calling empty inline function can be optimized away
+      for (i = 1; i <= v->peers_alloc_cnt; i++) {
         pfx_peer_info_destroy(view, &BWV_PFX_GET_PEER(v, i));
       }
     }
