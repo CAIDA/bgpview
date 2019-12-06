@@ -21,6 +21,7 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "bgpcorsaro_int.h"
+#include "../bgpview_io_bsrt_int.h"
 #include "config.h"
 
 #include <assert.h>
@@ -712,7 +713,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
 
       /* remove records that preceed the beginning of the stream */
       do {
-        int rc = bgpstream_get_next_record(bgpcorsaro->stream, &bsrecord);
+        int rc = bsrt_get_next_record(bgpcorsaro->stream, &bsrecord);
         if (rc < 0) { // error
           return rc;
         } else if (rc == 0) { // EOF

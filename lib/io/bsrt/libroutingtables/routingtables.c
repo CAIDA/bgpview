@@ -29,6 +29,7 @@
 
 #include "routingtables_int.h"
 #include "routingtables.h"
+#include "../bgpview_io_bsrt_int.h"
 
 /** When the Quagga process starts dumping the
  *  RIB (at time t0), not all of the previous update
@@ -1007,7 +1008,7 @@ static int collector_process_valid_bgpinfo(routingtables_t *rt, collector_t *c,
     }
   }
 
-  while ((rc = bgpstream_record_get_next_elem(record, &elem)) > 0) {
+  while ((rc = bsrt_record_get_next_elem(record, &elem)) > 0) {
 
     /* see https://trac.caida.org/hijacks/wiki/ASpaths for more details */
 

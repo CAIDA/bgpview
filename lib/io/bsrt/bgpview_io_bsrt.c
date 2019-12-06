@@ -72,6 +72,266 @@ struct window {
 
 /* ========== PRIVATE FUNCTIONS ========== */
 
+typedef struct {
+  bgpview_t *view;
+  bgpview_iter_t *iter;
+  bgpview_iter_t *nextiter;
+  long t_base;
+  long t_usec;
+  long dump_start_usec;
+  int need_rib_start;
+  int rib_in_progress;
+  int view_size;
+} test_state_t;
+
+static test_state_t test = { NULL };
+
+#define TEST_PEER_ASN(peer)         (1000 * (peer))
+#define TEST_ORIGIN_ASN(peer, i)    (1000 * (peer) + 10 * (i))
+#define TEST_HOP_ASN(peer, i, hop)  (1000 * (peer) + 10 * (i) + hop)
+
+static int test_get_next_record(bgpstream_t *bgpstream,
+    bgpstream_record_t **bsrecord)
+{
+  int rc;
+
+  static int called = 0;
+  fprintf(stderr, "get_next_record %d\n", ++called); // XXX
+
+  if (!test.view) {
+    // initialize
+    test.t_base = 1000000000;
+    test.t_usec = 0;
+    test.dump_start_usec = 0;
+    test.need_rib_start = 1;
+    test.rib_in_progress = 0;
+    test.view_size = 0;
+
+    static char *test_collector_name = "TEST_COLLECTOR";
+    static int test_peer_cnt = 7;
+    static int test_table_size = 9;
+    if (!(test.view = bgpview_create(NULL, NULL, NULL, NULL))) {
+      fprintf(stderr, "ERROR: can't create test view\n");
+      goto err;
+    }
+    if (!(test.iter = bgpview_iter_create(test.view)) ||
+      !(test.nextiter = bgpview_iter_create(test.view)))
+    {
+      fprintf(stderr, "ERROR: can't create test view iterators\n");
+      goto err;
+    }
+
+    bgpview_set_time(test.view, test.t_base + test.t_usec / 1000000);
+
+    bgpstream_as_path_t *test_as_path;
+    test_as_path = bgpstream_as_path_create();
+
+    for (int peer = 1; peer <= test_peer_cnt; peer++) {
+      int peer_id;
+      int pfx_cnt = 0;
+      bgpstream_ip_addr_t test_peer_ip;
+      test_peer_ip.version = BGPSTREAM_ADDR_VERSION_IPV4;
+      test_peer_ip.bs_ipv4.addr.s_addr =
+        htonl((100<<24) | (peer)); // "100.0.0.peer"
+      // test_peer_status = 2;
+      uint32_t peer_asn = TEST_PEER_ASN(peer);
+      peer_id = bgpview_iter_add_peer(test.iter, test_collector_name, &test_peer_ip, peer_asn);
+      if (peer_id == 0) {
+        fprintf(stderr, "ERROR: can't add peer to test view\n");
+        goto err;
+      }
+      if (bgpview_iter_activate_peer(test.iter) != 1) {
+        fprintf(stderr, "ERROR: can't activate peer in test view\n");
+        goto err;
+      }
+
+      for (int i = 1; i <= test_table_size; i++) {
+        bgpstream_as_path_seg_asn_t segs[6];
+        bgpstream_pfx_t test_prefix;
+        test_prefix.address.version = BGPSTREAM_ADDR_VERSION_IPV4;
+        test_prefix.address.bs_ipv4.addr.s_addr =
+          htonl((10<<24) | ((peer)<<16) | ((i)<<8)); // "10.peer.i.0"
+        test_prefix.mask_len = 24;
+
+        int seg_cnt = (peer + i) % 5 + 2; // 2 - 6 segments
+
+        segs[seg_cnt-1].type = BGPSTREAM_AS_PATH_SEG_ASN;
+        segs[seg_cnt-1].asn = TEST_ORIGIN_ASN(peer, i);
+        for (int hop = 1; hop < seg_cnt-1; hop++) {
+          segs[seg_cnt-1-hop].type = BGPSTREAM_AS_PATH_SEG_ASN;
+          segs[seg_cnt-1-hop].asn = TEST_HOP_ASN(peer, i, hop);
+        }
+        segs[0].type = BGPSTREAM_AS_PATH_SEG_ASN;
+        segs[0].asn = peer_asn;
+        bgpstream_as_path_clear(test_as_path);
+        bgpstream_as_path_populate_from_data(test_as_path, (uint8_t*)segs,
+            sizeof(bgpstream_as_path_seg_asn_t) * seg_cnt);
+
+        if (bgpview_iter_add_pfx_peer(test.iter, &test_prefix, peer_id, test_as_path) != 0) {
+          fprintf(stderr, "ERROR: can't add prefix to test view\n");
+          goto err;
+        }
+        if ((peer % 3 != 0) || i != peer) {
+          if (bgpview_iter_pfx_activate_peer(test.iter) != 1) {
+            fprintf(stderr, "ERROR: can't activate pfx-peer int test view\n");
+            goto err;
+          }
+        }
+        pfx_cnt++;
+        test.view_size++;
+      }
+      fprintf(stderr, "TEST: added %d prefixes\n", pfx_cnt); // XXX
+    }
+    bgpstream_as_path_destroy(test_as_path);
+  }
+
+  static bgpstream_record_t *testrec = NULL;
+  if (!testrec) {
+    testrec = malloc_zero(sizeof(*testrec));
+  }
+  *bsrecord = NULL;
+
+  if (test.need_rib_start) {
+    test.need_rib_start = 0;
+    test.rib_in_progress = 1;
+    test.dump_start_usec = test.t_usec;
+    // generate RIB START record
+    testrec->type = BGPSTREAM_RIB;
+    testrec->dump_pos = BGPSTREAM_DUMP_START;
+    testrec->status = BGPSTREAM_RECORD_STATUS_VALID_RECORD;
+    testrec->time_sec = test.t_base + test.t_usec / 1000000;
+    testrec->dump_time_sec = test.t_base + test.dump_start_usec / 1000000;
+    test.t_usec += 1000;
+    rc = bgpview_iter_first_pfx(test.iter, 0, BGPVIEW_FIELD_ACTIVE);
+    assert(rc);
+    bgpview_iter_first_pfx(test.nextiter, 0, BGPVIEW_FIELD_ACTIVE);
+    bgpview_iter_next_pfx(test.nextiter); // stay one step ahead of iter
+    rc = bgpview_iter_pfx_first_peer(test.iter, BGPVIEW_FIELD_ACTIVE);
+    assert(rc);
+    *bsrecord = testrec;
+    return 1; // got record
+
+  } else if (test.rib_in_progress) {
+    // generate RIB MIDDLE or RIB END record
+    assert(bgpview_iter_has_more_pfx(test.iter));
+    testrec->type = BGPSTREAM_RIB;
+    testrec->status = BGPSTREAM_RECORD_STATUS_VALID_RECORD;
+    testrec->time_sec = test.t_base + test.t_usec / 1000000;
+    testrec->dump_time_sec = test.t_base + test.dump_start_usec / 1000000;
+    test.t_usec += 1000000 * 3 / test.view_size;
+    rc = bgpview_iter_next_pfx(test.iter);
+    assert(rc);
+    bgpview_iter_next_pfx(test.nextiter); // stay one step ahead of iter
+    rc = bgpview_iter_pfx_first_peer(test.iter, BGPVIEW_FIELD_ACTIVE);
+    assert(rc);
+
+    // Is there another pfx after this one?
+    if (bgpview_iter_has_more_pfx(test.nextiter)) {
+      testrec->dump_pos = BGPSTREAM_DUMP_MIDDLE;
+    } else {
+      testrec->dump_pos = BGPSTREAM_DUMP_END;
+    }
+
+    *bsrecord = testrec;
+    return 1; // got record
+
+#if 0
+  } else if XXX {
+    // generate UPDATE record
+    testrec->type = BGPSTREAM_UPDATE;
+    testrec->dump_pos = XXX;
+    testrec->status = BGPSTREAM_RECORD_STATUS_VALID_RECORD;
+    XXX
+    *bsrecord = testrec;
+#endif
+
+  } else {
+    // generate EOS
+    bgpview_iter_destroy(test.iter);
+    bgpview_iter_destroy(test.nextiter);
+    return 0; // EOS
+  }
+
+
+err:
+  return -1;
+}
+
+static int test_record_get_next_elem(bgpstream_record_t *bsrecord,
+    bgpstream_elem_t **elem)
+{
+  static bgpstream_elem_t *testel = NULL;
+  bgpstream_peer_sig_t *ps;
+  bgpstream_pfx_t *pfx;
+
+  static int called = 0;
+  fprintf(stderr, "get_next_elem %d\n", ++called); // XXX
+
+  assert(test.view);
+  *elem = NULL;
+
+  if (!testel) {
+    testel = bgpstream_elem_create();
+  }
+
+  if (test.rib_in_progress) {
+    if (!bgpview_iter_pfx_has_more_peer(test.iter)) {
+      if (!bgpview_iter_has_more_pfx(test.nextiter)) {
+        test.rib_in_progress = 0; // no more records in RIB
+      }
+      return 0; // no more elems in record
+    }
+
+    // generate RIB elem
+    testel->type = BGPSTREAM_ELEM_TYPE_RIB;
+    testel->orig_time_sec = test.t_base + test.t_usec / 1000000; // XXX ?
+    testel->orig_time_usec = test.t_usec % 1000000; // XXX ?
+
+    // peer_ip
+    ps = bgpview_iter_peer_get_sig(test.iter);
+    bgpstream_addr_copy(&testel->peer_ip, &ps->peer_ip_addr);
+
+    // peer_asn
+    testel->peer_asn = ps->peer_asnumber;
+
+    // prefix
+    pfx = bgpview_iter_pfx_get_pfx(test.iter);
+    bgpstream_pfx_copy(&testel->prefix, pfx);
+
+    // nexthop
+    bgpstream_addr_copy(&testel->nexthop, &ps->peer_ip_addr);
+
+    // as_path
+    bgpstream_as_path_t *path = bgpview_iter_pfx_peer_get_as_path(test.iter);
+    bgpstream_as_path_copy(testel->as_path, path);
+
+    // communities
+
+    // origin
+
+    // med
+
+    // local_pref
+
+    // atomic_aggregate
+
+    // aggregator
+    testel->aggregator.has_aggregator = 0;
+
+    *elem = testel;
+    bgpview_iter_pfx_next_peer(test.iter);
+    return 1;
+
+  } else {
+    assert(0 && "not yet implemented");
+    // generate an update (announcement/withdrawal);
+    // apply the update to the view;
+    // return the update elem;
+    // occasionally: test.need_rib_start = 1;
+  }
+}
+
+
 static void data_if_usage(bgpview_io_bsrt_t *bsrt)
 {
   bgpstream_data_interface_id_t *ids = NULL;
@@ -182,6 +442,13 @@ static void usage(bgpview_io_bsrt_t *bsrt)
 
 }
 
+
+int (*bsrt_get_next_record)(bgpstream_t *, bgpstream_record_t **) =
+  bgpstream_get_next_record;
+int (*bsrt_record_get_next_elem)(bgpstream_record_t *, bgpstream_elem_t **) =
+  bgpstream_record_get_next_elem;
+
+
 static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
 {
 #define PROJECT_CMD_CNT 10
@@ -230,13 +497,20 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
   while ((opt = getopt(argc, argv, "d:o:p:c:t:w:j:k:y:P:i:ag:lLB:n:O:r:R:h")) >= 0) {
     switch (opt) {
     case 'd':
-      if ((bsrt->di_id = bgpstream_get_data_interface_id_by_name(bsrt->stream, optarg)) ==
-          0) {
-        fprintf(stderr, "ERROR: Invalid data interface name '%s'\n", optarg);
-        usage(bsrt);
-        exit(-1);
+      if (strcmp(optarg, "test") == 0) {
+        bsrt->di_id = 0;
+        bsrt->di_info = NULL;
+        bsrt_get_next_record = test_get_next_record;
+        bsrt_record_get_next_elem = test_record_get_next_elem;
+      } else {
+        if ((bsrt->di_id = bgpstream_get_data_interface_id_by_name(bsrt->stream, optarg)) ==
+            0) {
+          fprintf(stderr, "ERROR: Invalid data interface name '%s'\n", optarg);
+          usage(bsrt);
+          exit(-1);
+        }
+        bsrt->di_info = bgpstream_get_data_interface_info(bsrt->stream, bsrt->di_id);
       }
-      bsrt->di_info = bgpstream_get_data_interface_info(bsrt->stream, bsrt->di_id);
       break;
 
     case 'p':
@@ -531,9 +805,10 @@ bgpview_io_bsrt_t *bgpview_io_bsrt_init(const char *opts, timeseries_t *timeseri
     fprintf(stderr, "ERROR: Could not create BGPStream instance\n");
     goto err;
   }
-  bsrt->di_id_default = bsrt->di_id = bgpstream_get_data_interface_id(bsrt->stream);
-  bsrt->di_info = bgpstream_get_data_interface_info(bsrt->stream, bsrt->di_id);
-  assert(bsrt->di_id != 0);
+  if (bsrt->di_id != 0) {
+    bsrt->di_id_default = bsrt->di_id = bgpstream_get_data_interface_id(bsrt->stream);
+    bsrt->di_info = bgpstream_get_data_interface_info(bsrt->stream, bsrt->di_id);
+  }
 
   if (opts != NULL && (len = strlen(opts)) > 0) {
     // parse the option string ready for getopt
