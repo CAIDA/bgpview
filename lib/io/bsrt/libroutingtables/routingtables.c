@@ -158,14 +158,14 @@ static perpeer_info_t *perpeer_info_create(routingtables_t *rt, collector_t *c,
       (sg->peer_ip_addr.version == BGPSTREAM_ADDR_VERSION_IPV6) ? 6 : 0;
 
   if (bgpstream_addr_ntop(ip_str, sizeof(ip_str), &sg->peer_ip_addr) == NULL) {
-    fprintf(stderr, "Warning: could not print peer ip address \n");
+    fprintf(stderr, "Warning: can't print peer ip address \n");
   }
   graphite_safe(ip_str);
   if (snprintf(p->peer_str, BGPSTREAM_UTILS_STR_NAME_LEN,
                "peer_asn.%" PRIu32 ".ipv%u_peer.__IP_%s",
                sg->peer_asnumber, v, ip_str) >= BGPSTREAM_UTILS_STR_NAME_LEN) {
     fprintf(stderr,
-            "Warning: could not print peer signature: truncated output\n");
+            "Warning: can't print peer signature: truncated output\n");
   }
   p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_UNKNOWN;
   p->bgp_time_ref_rib_start = 0;
@@ -178,31 +178,27 @@ static perpeer_info_t *perpeer_info_create(routingtables_t *rt, collector_t *c,
   p->metrics_generated = 0;
 
   if ((p->announcing_ases = kh_init(origin_segments)) == NULL) {
-    fprintf(stderr, "Error: Could not create announcing ASes (for peer)\n");
+    fprintf(stderr, "Error: can't create announcing ASes (for peer)\n");
     goto err;
   }
 
   if ((p->announced_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL) {
-    fprintf(stderr,
-            "Error: Could not create announced ipv4 prefix (for peer)\n");
+    fprintf(stderr, "Error: can't create announced ipv4 prefix (for peer)\n");
     goto err;
   }
 
   if ((p->withdrawn_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL) {
-    fprintf(stderr,
-            "Error: Could not create withdrawn ipv4 prefix (for peer)\n");
+    fprintf(stderr, "Error: can't create withdrawn ipv4 prefix (for peer)\n");
     goto err;
   }
 
   if ((p->announced_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL) {
-    fprintf(stderr,
-            "Error: Could not create announced ipv6 prefix (for peer)\n");
+    fprintf(stderr, "Error: can't create announced ipv6 prefix (for peer)\n");
     goto err;
   }
 
   if ((p->withdrawn_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL) {
-    fprintf(stderr,
-            "Error: Could not create withdrawn ipv6 prefix (for peer)\n");
+    fprintf(stderr, "Error: can't create withdrawn ipv6 prefix (for peer)\n");
     goto err;
   }
 
@@ -253,8 +249,7 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
     if (snprintf(c_data.collector_str, BGPSTREAM_UTILS_STR_NAME_LEN, "%s.%s",
                  project_name,
                  collector_name) >= BGPSTREAM_UTILS_STR_NAME_LEN) {
-      fprintf(
-        stderr,
+      fprintf(stderr,
         "Warning: could not print collector signature: truncated output\n");
     }
 
@@ -535,11 +530,9 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
             p->bgp_time_ref_rib_end = p->bgp_time_uc_rib_end;
             bgpview_iter_pfx_activate_peer(rt->iter);
           } else {
-            /* the last modification of the current pfx is before the current uc
-             * rib
-             * but the prefix is not in the uc rib: therefore we deactivate the
-             * field
-             * (it may be already inactive) */
+            /* the last modification of the current pfx is before the current
+             * uc rib but the prefix is not in the uc rib: therefore we
+             * deactivate the field (it may be already inactive) */
             if (bgpview_iter_pfx_peer_get_state(rt->iter) ==
                 BGPVIEW_FIELD_ACTIVE) {
               p->rib_positive_mismatches_cnt++;
