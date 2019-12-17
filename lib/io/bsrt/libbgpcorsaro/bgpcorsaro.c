@@ -743,7 +743,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
       last_time = this_time;
 
       /*bgpcorsaro_log(__func__, bgpcorsaro, "got a record!");*/
-#if 1
+#if 0
       {
         char buf[2048];
         bgpstream_record_snprintf(buf, sizeof(buf), bsrecord);
