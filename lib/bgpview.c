@@ -1233,7 +1233,7 @@ int bgpview_iter_seek_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
 /* ==================== CREATION FUNCS ==================== */
 
 bgpstream_peer_id_t bgpview_iter_add_peer(bgpview_iter_t *iter,
-                                          char *collector_str,
+                                          const char *collector_str,
                                           bgpstream_ip_addr_t *peer_address,
                                           uint32_t peer_asnumber)
 {
