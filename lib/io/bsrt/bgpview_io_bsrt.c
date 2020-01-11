@@ -109,15 +109,16 @@ static char buf[65536];
 static test_instruction_t testscript[] = {
 //  time  operation                  peer  pfx
   {    0, OP_RIB,                     0,   NULL },
-  {    5, OP_PFX_ANNOUNCE,            1,   "10.1.1.0/24" },
-  {  106, OP_PFX_ANNOUNCE,            1,   "10.1.1.0/24" },
   {  199, OP_PFX_ANNOUNCE,            3,   "10.3.3.0/24" },
   {  299, OP_PFX_WITHDRAW,            4,   "10.4.4.0/24" },
   {  399, OP_PFX_ANNOUNCE | OP_LOST,  6,   "10.6.6.0/24" },
   {  499, OP_PFX_WITHDRAW | OP_LOST,  7,   "10.7.7.0/24" },
-//{  599, OP_PEER_DOWN,               5,   NULL },
-//{  699, OP_PFX_WITHDRAW,            5,   "10.5.5.0/24" },
-  { 2000, OP_RIB,                     0,   NULL },
+  {  599, OP_PEER_DOWN,               5,   NULL },
+  {  699, OP_PEER_DOWN,               2,   NULL },
+  {  799, OP_PEER_UP,                 5,   NULL },
+  // RT will deactivate a peer if it is missing from a RIB and has sent no
+  // messages for at least ROUTINGTABLES_MAX_INACTIVE_TIME (3600s).
+  { 7200, OP_RIB,                     0,   NULL },
   {   -1, OP_EOS,                     0,   NULL },
 };
 
@@ -255,7 +256,6 @@ static int test_get_next_record(bgpstream_t *bgpstream,
         test.rib_in_progress = 1;
         testrec->type = BGPSTREAM_RIB;
         testrec->dump_pos = BGPSTREAM_DUMP_START;
-        fprintf(stderr, "DUMP START\n"); // XXX
         testrec->status = BGPSTREAM_RECORD_STATUS_VALID_RECORD;
         testrec->dump_time_sec = test.t_base + instr->t_sec;
         testrec->time_sec = test.t_base + instr->t_sec;
@@ -289,7 +289,6 @@ static int test_get_next_record(bgpstream_t *bgpstream,
         } else {
           testrec->time_sec += 1;
           testrec->dump_pos = BGPSTREAM_DUMP_END;
-          fprintf(stderr, "DUMP END\n"); // XXX
         }
 
         *bsrecord = testrec;
@@ -306,7 +305,7 @@ static int test_get_next_record(bgpstream_t *bgpstream,
         bgpview_iter_pfx_deactivate_peer(test.iter);
       }
       if (instr->op & OP_LOST) {
-        // simulate a lost update record
+        // simulate a lost update record; move on to next instruction
         test.step++;
         return test_get_next_record(bgpstream, bsrecord);
       }
@@ -317,6 +316,27 @@ static int test_get_next_record(bgpstream_t *bgpstream,
       testrec->time_sec = test.t_base + instr->t_sec;
       *bsrecord = testrec;
       return 1; // got record
+
+    case OP_PEER_DOWN:
+      bgpview_iter_seek_peer(test.iter, instr->peer, BGPVIEW_FIELD_ALL_VALID);
+      bgpview_iter_deactivate_peer(test.iter); // also deactivates pfx-peers
+      // don't generate a record; go to next instruction
+      test.step++;
+      return test_get_next_record(bgpstream, bsrecord);
+
+    case OP_PEER_UP:
+      bgpview_iter_seek_peer(test.iter, instr->peer, BGPVIEW_FIELD_ALL_VALID);
+      bgpview_iter_activate_peer(test.iter); // does NOT activate pfx-peers
+      bgpview_iter_first_pfx_peer(test.iter, 0, BGPVIEW_FIELD_INACTIVE, BGPVIEW_FIELD_INACTIVE);
+      while (bgpview_iter_has_more_pfx_peer(test.iter)) {
+        if (bgpview_iter_peer_get_peer_id(test.iter) == instr->peer) {
+          bgpview_iter_pfx_activate_peer(test.iter);
+        }
+        bgpview_iter_next_pfx_peer(test.iter);
+      }
+      // don't generate a record; go to next instruction
+      test.step++;
+      return test_get_next_record(bgpstream, bsrecord);
 
     case OP_EOS:
       // end-of-stream
