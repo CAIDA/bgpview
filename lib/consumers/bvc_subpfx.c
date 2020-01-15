@@ -268,7 +268,7 @@ find_subpfxs(const bgpstream_patricia_tree_t *const_pt,
 {
   int i;
   bvc_t *consumer = (bvc_t *)data;
-  bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(const_node);
+  const bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(const_node);
 
   // hack around the fact that bgpstream_patricia_tree_get_mincovering_prefix()
   // takes non-const parameters
@@ -287,7 +287,7 @@ find_subpfxs(const bgpstream_patricia_tree_t *const_pt,
     // there is no way this can be a sub-prefix
     return BGPSTREAM_PATRICIA_WALK_CONTINUE;
   }
-  bgpstream_pfx_t *super_pfx = bgpstream_patricia_tree_get_pfx(super_node);
+  const bgpstream_pfx_t *super_pfx = bgpstream_patricia_tree_get_pfx(super_node);
 
   // so, there is an overlapping prefix, but is it of the type we're interested
   // in?

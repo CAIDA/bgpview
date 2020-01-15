@@ -976,7 +976,7 @@ static int check_submoas_over(bvc_t *consumer, submoas_prefix_t submoas_struct,
 }
 
 /* Check if origin being removed requires any change in existing submoases */
-static void check_remove_submoas_asn(bvc_t *consumer, bgpstream_pfx_t *pfx,
+static void check_remove_submoas_asn(bvc_t *consumer, const bgpstream_pfx_t *pfx,
                                      uint32_t asn)
 {
   khint_t k, p, j;
@@ -1191,7 +1191,7 @@ void diag_check(bvc_t* consumer){
 
 /* When a prefix is removed , check it it's a superprefix. if so then decide
  * whether its subprefixes are still part of submoas or not*/
-static void check_remove_superprefix(bvc_t *consumer, bgpstream_pfx_t *pfx)
+static void check_remove_superprefix(bvc_t *consumer, const bgpstream_pfx_t *pfx)
 {
   bvc_submoas_state_t *state = STATE;
   khint_t k, j, n, m;
@@ -1417,7 +1417,7 @@ rem_patricia(bgpstream_patricia_tree_t *pt,
   char pfx2_str[INET6_ADDRSTRLEN + 3];
   int j;
   pref_info_t *this_prefix_info = bgpstream_patricia_tree_get_user(node);
-  bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(node);
+  const bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(node);
   bgpstream_pfx_snprintf(pfx2_str, INET6_ADDRSTRLEN + 3, pfx);
   int num_orig_asns = this_prefix_info->number_of_asns;
   for (j = 0; j < num_orig_asns; j++) {
