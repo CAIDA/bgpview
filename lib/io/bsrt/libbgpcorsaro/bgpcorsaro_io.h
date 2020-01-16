@@ -143,6 +143,12 @@ void bgpcorsaro_io_print_interval_end(bgpcorsaro_interval_t *int_end);
 off_t bgpcorsaro_io_write_plugin_start(bgpcorsaro_t *bgpcorsaro, iow_t *file,
                                        bgpcorsaro_plugin_t *plugin);
 
+/** Write the plugin header to stdout
+ *
+ * @param plugin         The plugin object to write a start record for
+ */
+void bgpcorsaro_io_print_plugin_start(bgpcorsaro_plugin_t *plugin);
+
 /** Write the appropriate plugin trailer to the file
  *
  * @param bgpcorsaro     The bgpcorsaro object associated with the file
@@ -152,5 +158,11 @@ off_t bgpcorsaro_io_write_plugin_start(bgpcorsaro_t *bgpcorsaro, iow_t *file,
  */
 off_t bgpcorsaro_io_write_plugin_end(bgpcorsaro_t *bgpcorsaro, iow_t *file,
                                      bgpcorsaro_plugin_t *plugin);
+
+/** Write the plugin trailer to stdout
+ *
+ * @param plugin         The plugin object to write an end record for
+ */
+void bgpcorsaro_io_print_plugin_end(bgpcorsaro_plugin_t *plugin);
 
 #endif /* __BGPCORSARO_IO_H */
