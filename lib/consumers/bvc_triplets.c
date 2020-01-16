@@ -356,7 +356,7 @@ void bvc_triplets_destroy(bvc_t *consumer)
 }
 
 // Diagnostic function. Prints all triplets
-void print_triplets(bvc_t *consumer)
+static void print_triplets(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k;
@@ -373,8 +373,8 @@ void print_triplets(bvc_t *consumer)
 }
 
 // Writes in output file for triplets
-void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
-                            triplet_info_t triplet_info, bgpstream_pfx_t *pfx)
+static void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
+  triplet_info_t triplet_info, bgpstream_pfx_t *pfx)
 {
   bvc_triplets_state_t *state = STATE;
   char pfx_str[MAX_BUFFER_LEN];
@@ -418,7 +418,7 @@ void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
   }
 }
 
-void print_ongoing_triplets(bvc_t *consumer)
+static void print_ongoing_triplets(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k;
@@ -444,7 +444,7 @@ void print_ongoing_triplets(bvc_t *consumer)
 }
 
 // Scans all ongoing triples and remove stale ones
-void remove_stale_triplet(bvc_t *consumer)
+static void remove_stale_triplet(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k;
@@ -468,7 +468,8 @@ void remove_stale_triplet(bvc_t *consumer)
 }
 
 // Updates khash and stores new and newrec triplets
-void insert_update_triplet(bvc_t *consumer, char *triplet, bgpstream_pfx_t *pfx)
+static void insert_update_triplet(bvc_t *consumer, char *triplet,
+    bgpstream_pfx_t *pfx)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k, j;

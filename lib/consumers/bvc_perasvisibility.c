@@ -166,7 +166,7 @@ static void init_thresholds(bvc_perasvisibility_state_t *state)
   state->thresholds[VIS_100_PERCENT] = 1;
 }
 
-static char *threshold_string(int i)
+static const char *threshold_string(int i)
 {
   switch (i) {
   case VIS_1_FF_ASN:

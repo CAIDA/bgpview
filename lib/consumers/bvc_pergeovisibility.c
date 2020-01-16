@@ -173,7 +173,7 @@ static double threshold_vals[] = {
 
 #define VIS_THRESHOLDS_CNT ARR_CNT(threshold_vals)
 
-static char *threshold_strings[] = {
+static const char *threshold_strings[] = {
   "min_1_ff_peer_asn",     // VIS_1_FF_ASN
   "min_25%_ff_peer_asns",  // VIS_25_PERCENT
   "min_50%_ff_peer_asns",  // VIS_50_PERCENT
@@ -401,7 +401,7 @@ static int slash24_id_set_insert(slash24_id_set_t *set, uint32_t id)
   return khret;
 }
 
-static slash24_id_set_t *slash24_id_set_create()
+static slash24_id_set_t *slash24_id_set_create(void)
 {
   slash24_id_set_t *set;
 

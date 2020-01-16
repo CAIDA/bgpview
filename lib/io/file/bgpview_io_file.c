@@ -17,6 +17,7 @@
  *
  */
 #include "bgpview_io.h"
+#include "bgpview_io_file.h"
 #include "config.h"
 #include "utils.h"
 #include <arpa/inet.h>

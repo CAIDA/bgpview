@@ -310,7 +310,7 @@ static void peerinfo_destroy_user(bgpview_t *view)
   }
 }
 
-static bwv_peerid_pfxinfo_t *peerid_pfxinfo_create()
+static bwv_peerid_pfxinfo_t *peerid_pfxinfo_create(void)
 {
   bwv_peerid_pfxinfo_t *v;
 

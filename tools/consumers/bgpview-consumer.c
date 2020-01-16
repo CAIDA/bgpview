@@ -65,11 +65,11 @@ enum filter_type {
 };
 #define FILTER_CNT 3
 
-static char *filter_type_str[] = {
+static const char *filter_type_str[] = {
   "pfx", "pfx-exact", "origin",
 };
 
-static char *filter_desc[] = {
+static const char *filter_desc[] = {
   "match on prefix and sub-prefixes", "match on prefix", "match on origin ASN",
 };
 
@@ -194,7 +194,7 @@ static bgpview_io_filter_pfx_peer_cb_t *filter_pfx_peer_matchers[] = {
   NULL, NULL, match_pfx_peer_origin,
 };
 
-static int filters_init()
+static int filters_init(void)
 {
   if ((pfx_tree = bgpstream_patricia_tree_create(NULL)) == NULL) {
     return -1;
@@ -211,7 +211,7 @@ static int filters_init()
   return 0;
 }
 
-static void filters_destroy()
+static void filters_destroy(void)
 {
   bgpstream_patricia_tree_destroy(pfx_tree);
   pfx_tree = NULL;
@@ -291,7 +291,7 @@ static int filter_pfx_peer(bgpstream_as_path_store_path_t *store_path)
   return 0;
 }
 
-static void filter_usage()
+static void filter_usage(void)
 {
   int i;
   for (i = 0; i < FILTER_CNT; i++) {
@@ -300,7 +300,7 @@ static void filter_usage()
   }
 }
 
-static void timeseries_usage()
+static void timeseries_usage(void)
 {
   assert(timeseries != NULL);
   timeseries_backend_t **backends = NULL;
@@ -321,7 +321,7 @@ static void timeseries_usage()
   }
 }
 
-static void consumer_usage()
+static void consumer_usage(void)
 {
   assert(manager != NULL);
   bvc_t **avail_consumers = NULL;
@@ -481,7 +481,7 @@ err:
   return -1;
 }
 
-static void shutdown_io()
+static void shutdown_io(void)
 {
 #ifdef WITH_BGPVIEW_IO_FILE
   if (file_handle != NULL) {

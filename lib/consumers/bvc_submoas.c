@@ -277,7 +277,7 @@ static int create_ts_metrics(bvc_t *consumer)
   return 0;
 }
 
-void pref_info_destroy(void *pi)
+static void pref_info_destroy(void *pi)
 {
   if (pi != NULL) {
     free((pref_info_t *)pi);

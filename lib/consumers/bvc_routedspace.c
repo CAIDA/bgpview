@@ -451,7 +451,7 @@ void bvc_routedspace_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-bgpstream_patricia_walk_cb_result_t remove_old_prefixes(
+static bgpstream_patricia_walk_cb_result_t remove_old_prefixes(
     bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node, void *data)
 {
   bvc_t *consumer = (bvc_t *)data;

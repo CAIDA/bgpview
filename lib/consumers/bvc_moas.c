@@ -291,7 +291,7 @@ static int close_output_log(bvc_t *consumer, uint32_t ts)
   return 0;
 }
 
-static char *get_category_str(moas_category_t mc)
+static const char *get_category_str(moas_category_t mc)
 {
   switch (mc) {
   case NEW:

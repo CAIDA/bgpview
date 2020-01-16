@@ -81,7 +81,7 @@ enum {
   FINISHED = 1,
 };
 
-static char *diff_type_strs[] = {
+static const char *diff_type_strs[] = {
   "NEW",      //
   "FINISHED", //
 };
@@ -92,7 +92,7 @@ enum {
   DEFCON = 2,
 };
 
-static char *mode_strs[] = {
+static const char *mode_strs[] = {
   "invalid-mode", //
   "submoas",      //
   "defcon",       //
@@ -223,7 +223,7 @@ static void pt_user_destroy(void *user)
   free(user);
 }
 
-static pt_user_t *pt_user_create()
+static pt_user_t *pt_user_create(void)
 {
   pt_user_t *ptu;
 

@@ -17,6 +17,7 @@
  *
  */
 #include "bgpview.h"
+#include "bgpview_debug.h"
 #include "config.h"
 #include <assert.h>
 #include <inttypes.h>

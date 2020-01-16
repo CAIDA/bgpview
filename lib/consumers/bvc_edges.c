@@ -717,8 +717,8 @@ static void remove_stale_link(bvc_t *consumer)
 }
 
 // Updates khash and stores new and newrec edges
-int insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2,
-                        bgpstream_pfx_t *pfx)
+static int insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2,
+  bgpstream_pfx_t *pfx)
 {
   int ret, category;
   category = -1;

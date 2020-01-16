@@ -132,7 +132,7 @@ typedef struct bvc_pfxorigins_state {
 
 /** Update the pfx_origins map and print the status to file  */
 
-int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
+static int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
 {
   bvc_pfxorigins_state_t *state = STATE;
 
