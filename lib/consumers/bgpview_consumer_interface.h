@@ -59,7 +59,7 @@
  * consumer API
  */
 #define BVC_GENERATE_PROTOS(consname)                                          \
-  bvc_t *bvc_##consname##_alloc();                                             \
+  bvc_t *bvc_##consname##_alloc(void);                                         \
   int bvc_##consname##_init(bvc_t *ds, int argc, char **argv);                 \
   void bvc_##consname##_destroy(bvc_t *ds);                                    \
   int bvc_##consname##_process_view(bvc_t *ds, bgpview_t *view);
