@@ -77,14 +77,14 @@ static char *graphite_safe(char *p)
   return r;
 }
 
-static uint32_t get_wall_time_now()
+static uint32_t get_wall_time_now(void)
 {
   struct timeval tv;
   gettimeofday_wrap(&tv);
   return tv.tv_sec;
 }
 
-static perpfx_perpeer_info_t *perpfx_perpeer_info_create()
+static perpfx_perpeer_info_t *perpfx_perpeer_info_create(void)
 {
   perpfx_perpeer_info_t *pfxpeeri =
     (perpfx_perpeer_info_t *)malloc_zero(sizeof(perpfx_perpeer_info_t));
@@ -1289,7 +1289,8 @@ bgpview_t *routingtables_get_view_ptr(routingtables_t *rt)
   return rt->view;
 }
 
-void routingtables_set_metric_prefix(routingtables_t *rt, char *metric_prefix)
+void routingtables_set_metric_prefix(routingtables_t *rt,
+    const char *metric_prefix)
 {
   if (metric_prefix == NULL ||
       strlen(metric_prefix) - 1 > ROUTINGTABLES_METRIC_PFX_LEN) {

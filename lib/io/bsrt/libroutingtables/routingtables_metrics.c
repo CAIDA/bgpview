@@ -48,8 +48,8 @@
 static char metric_buffer[BUFFER_LEN];
 
 static uint32_t add_p_metric(timeseries_kp_t *kp, char *metric_prefix,
-                             char *plugin_name, char *c_sig, char *p_sig,
-                             char *metric_name)
+    const char *plugin_name, const char *c_sig, const char *p_sig,
+    const char *metric_name)
 {
   snprintf(metric_buffer, BUFFER_LEN, RT_PEER_METRIC_FORMAT, metric_prefix,
            plugin_name, c_sig, p_sig, metric_name);
@@ -58,9 +58,10 @@ static uint32_t add_p_metric(timeseries_kp_t *kp, char *metric_prefix,
   return ret;
 }
 
-static uint32_t add_meta_p_metric(timeseries_kp_t *kp, char *metric_prefix,
-                                  char *plugin_name, char *c_sig, char *p_sig,
-                                  char *metric_name)
+static uint32_t add_meta_p_metric(timeseries_kp_t *kp,
+    const char *metric_prefix,
+    const char *plugin_name, const char *c_sig, const char *p_sig,
+    const char *metric_name)
 {
   snprintf(metric_buffer, BUFFER_LEN, RT_PEER_META_METRIC_FORMAT, metric_prefix,
            plugin_name, c_sig, p_sig, metric_name);
@@ -125,8 +126,8 @@ void peer_generate_metrics(routingtables_t *rt, perpeer_info_t *p)
   p->metrics_generated = 1;
 }
 
-static uint32_t add_c_metric(timeseries_kp_t *kp, char *metric_prefix,
-                             char *plugin_name, char *sig, char *metric_name)
+static uint32_t add_c_metric(timeseries_kp_t *kp, const char *metric_prefix,
+    const char *plugin_name, const char *sig, const char *metric_name)
 {
   snprintf(metric_buffer, BUFFER_LEN, RT_COLLECTOR_METRIC_FORMAT, metric_prefix,
            plugin_name, sig, metric_name);
@@ -135,9 +136,9 @@ static uint32_t add_c_metric(timeseries_kp_t *kp, char *metric_prefix,
   return ret;
 }
 
-static uint32_t add_meta_c_metric(timeseries_kp_t *kp, char *metric_prefix,
-                                  char *plugin_name, char *sig,
-                                  char *metric_name)
+static uint32_t add_meta_c_metric(timeseries_kp_t *kp,
+    const char *metric_prefix, const char *plugin_name, const char *sig,
+    const char *metric_name)
 {
   snprintf(metric_buffer, BUFFER_LEN, RT_COLLECTOR_META_METRIC_FORMAT,
            metric_prefix, plugin_name, sig, metric_name);

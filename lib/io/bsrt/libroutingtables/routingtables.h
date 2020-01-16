@@ -65,7 +65,8 @@ bgpview_t *routingtables_get_view_ptr(routingtables_t *rt);
  * @param rt               pointer to a routingtables instance to update
  * @param metric_prefix    metric prefix string
  */
-void routingtables_set_metric_prefix(routingtables_t *rt, char *metric_prefix);
+void routingtables_set_metric_prefix(routingtables_t *rt,
+    const char *metric_prefix);
 
 /** Get the metric prefix to be used for when outpting the time series
  *  variables at the end of the interval
