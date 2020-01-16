@@ -69,7 +69,7 @@
  */
 #define BVC_GENERATE_PTRS(consname)                                            \
   bvc_##consname##_init, bvc_##consname##_destroy,                             \
-    bvc_##consname##_process_view, 0, NULL
+    bvc_##consname##_process_view, 0, NULL, NULL, NULL
 
 /** Structure which represents a metadata consumer */
 struct bvc {

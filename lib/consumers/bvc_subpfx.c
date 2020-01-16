@@ -456,7 +456,7 @@ static uint64_t subpfxs_diff(bvc_t *consumer, bgpview_t *view,
 {
   khiter_t k, j;
   uint64_t cnt = 0;
-  for (k = kh_begin(a); k < kh_end(a); k++) {
+  for (k = kh_begin(a); k != kh_end(a); k++) {
     if (kh_exist(a, k) == 0) {
       continue;
     }

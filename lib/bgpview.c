@@ -262,7 +262,7 @@ struct bgpview_iter {
    *  BGPSTREAM_ADDR_VERSION_IPV6 if only IPv6 are iterated */
   int version_filter;
 
-  /** Current pfx (the pfx it is valid if < kh_end of the appropriate version
+  /** Current pfx (the pfx it is valid if != kh_end of the appropriate version
       table */
   khiter_t pfx_it;
   /** State mask used for prefix iteration */
@@ -300,7 +300,7 @@ static void peerinfo_destroy_user(bgpview_t *view)
   if (view->peer_user_destructor == NULL) {
     return;
   }
-  for (k = kh_begin(view->peerinfo); k < kh_end(view->peerinfo); ++k) {
+  for (k = kh_begin(view->peerinfo); k != kh_end(view->peerinfo); ++k) {
     if (!kh_exist(view->peerinfo, k) ||
         (kh_value(view->peerinfo, k).user == NULL)) {
       continue;
@@ -821,7 +821,7 @@ int bgpview_iter_pfx_peer_set_user(bgpview_iter_t *iter, void *user)
 /* internal macros, optimized for performance */
 
 #define WHILE_NOT_MATCHED_PEER(iter)                                           \
-  while (iter->peer_it < kh_end(iter->view->peerinfo) &&                       \
+  while (iter->peer_it != kh_end(iter->view->peerinfo) &&                      \
          (!kh_exist(iter->view->peerinfo, iter->peer_it) ||                    \
           !(iter->peer_state_mask &                                            \
             kh_val(iter->view->peerinfo, iter->peer_it).state)))
@@ -846,7 +846,7 @@ int bgpview_iter_pfx_peer_set_user(bgpview_iter_t *iter, void *user)
   } while (0)
 
 #define __iter_has_more_peer(iter)                                             \
-  (iter->peer_it < kh_end(iter->view->peerinfo))
+  (iter->peer_it != kh_end(iter->view->peerinfo))
 
 #define __iter_seek_peer(iter, peerid, state_mask)                             \
   do {                                                                         \
@@ -892,12 +892,12 @@ int bgpview_iter_seek_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peerid,
 /* ==================== PFX ITERATORS ==================== */
 
 #define WHILE_NOT_MATCHED_PFX(iter, table)                                     \
-  while ((iter)->pfx_it < kh_end((table)) &&    /* each hash item */           \
+  while ((iter)->pfx_it != kh_end((table)) &&   /* each hash item */           \
          (!kh_exist((table), (iter)->pfx_it) || /* in hash? */                 \
           !((iter)->pfx_state_mask &            /* correct state? */           \
             kh_val((table), (iter)->pfx_it)->state)))
 
-#define __pfx_valid(iter, table) ((iter)->pfx_it < kh_end((table)))
+#define __pfx_valid(iter, table) ((iter)->pfx_it != kh_end((table)))
 
 #define RETURN_IF_PFX_VALID(iter, table)                                       \
   do {                                                                         \
@@ -991,7 +991,7 @@ int bgpview_iter_first_pfx(bgpview_iter_t *iter, int version,
     }                                                                          \
   } while (0)
 
-#define __iter_has_more_pfx_v(iter, table) ((iter)->pfx_it < kh_end((table)))
+#define __iter_has_more_pfx_v(iter, table) ((iter)->pfx_it != kh_end((table)))
 
 #define __iter_has_more_pfx(iter)                                              \
   (((iter)->version_ptr == BGPSTREAM_ADDR_VERSION_IPV4)                        \
@@ -1804,7 +1804,7 @@ void bgpview_destroy(bgpview_t *view)
   khiter_t k;
 
   if (view->v4pfxs != NULL) {
-    for (k = kh_begin(view->v4pfxs); k < kh_end(view->v4pfxs); ++k) {
+    for (k = kh_begin(view->v4pfxs); k != kh_end(view->v4pfxs); ++k) {
       if (kh_exist(view->v4pfxs, k)) {
         peerid_pfxinfo_destroy(view, kh_value(view->v4pfxs, k));
       }
@@ -1814,7 +1814,7 @@ void bgpview_destroy(bgpview_t *view)
   }
 
   if (view->v6pfxs != NULL) {
-    for (k = kh_begin(view->v6pfxs); k < kh_end(view->v6pfxs); ++k) {
+    for (k = kh_begin(view->v6pfxs); k != kh_end(view->v6pfxs); ++k) {
       if (kh_exist(view->v6pfxs, k)) {
         peerid_pfxinfo_destroy(view, kh_value(view->v6pfxs, k));
       }
@@ -1893,12 +1893,12 @@ void bgpview_clear(bgpview_t *view)
 
 void bgpview_gc(bgpview_t *view)
 {
-  int k;
+  khiter_t k;
 
   /* note: in the current implementation we cant free pfx-peers for pfxs that
      are not invalid as this is just an array of peers. */
 
-  for (k = kh_begin(view->v4pfxs); k < kh_end(view->v4pfxs); ++k) {
+  for (k = kh_begin(view->v4pfxs); k != kh_end(view->v4pfxs); ++k) {
     if (kh_exist(view->v4pfxs, k) &&
         kh_value(view->v4pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
       peerid_pfxinfo_destroy(view, kh_value(view->v4pfxs, k));
@@ -1906,7 +1906,7 @@ void bgpview_gc(bgpview_t *view)
     }
   }
 
-  for (k = kh_begin(view->v6pfxs); k < kh_end(view->v6pfxs); ++k) {
+  for (k = kh_begin(view->v6pfxs); k != kh_end(view->v6pfxs); ++k) {
     if (kh_exist(view->v6pfxs, k) &&
         kh_value(view->v6pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
       peerid_pfxinfo_destroy(view, kh_value(view->v6pfxs, k));
@@ -1914,7 +1914,7 @@ void bgpview_gc(bgpview_t *view)
     }
   }
 
-  for (k = kh_begin(view->peerinfo); k < kh_end(view->peerinfo); ++k) {
+  for (k = kh_begin(view->peerinfo); k != kh_end(view->peerinfo); ++k) {
     if (kh_exist(view->peerinfo, k) &&
         kh_value(view->peerinfo, k).state == BGPVIEW_FIELD_INVALID) {
       if (view->peer_user_destructor != NULL &&

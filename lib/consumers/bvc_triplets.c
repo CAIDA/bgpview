@@ -338,7 +338,6 @@ void bvc_triplets_destroy(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   if (state != NULL) {
-    bvc_triplets_state_t *state = STATE;
     khint_t k;
     for (k = kh_begin(state->triplets_map); k != kh_end(state->triplets_map);
          k++) {

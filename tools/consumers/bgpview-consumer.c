@@ -73,7 +73,7 @@ static const char *filter_desc[] = {
   "match on prefix and sub-prefixes", "match on prefix", "match on origin ASN",
 };
 
-int filter_cnt = 0;
+static int filter_cnt = 0;
 static int filter_cnts[] = {
   0, 0, 0,
 };
@@ -82,22 +82,22 @@ static int peer_filters_cnt = 0;
 static int pfx_filters_cnt = 0;
 static int pfx_peer_filters_cnt = 0;
 
-bgpview_t *view = NULL;
+static bgpview_t *view = NULL;
 
 #ifdef WITH_BGPVIEW_IO_FILE
-io_t *file_handle = NULL;
+static io_t *file_handle = NULL;
 #endif
 #ifdef WITH_BGPVIEW_IO_KAFKA
-bgpview_io_kafka_t *kafka_client = NULL;
+static bgpview_io_kafka_t *kafka_client = NULL;
 #endif
 #ifdef WITH_BGPVIEW_IO_BSRT
-bgpview_io_bsrt_t *bsrt_handle = NULL;
+static bgpview_io_bsrt_t *bsrt_handle = NULL;
 #endif
 #ifdef WITH_BGPVIEW_IO_TEST
-bgpview_io_test_t *test_generator = NULL;
+static bgpview_io_test_t *test_generator = NULL;
 #endif
 #ifdef WITH_BGPVIEW_IO_ZMQ
-bgpview_io_zmq_client_t *zmq_client = NULL;
+static bgpview_io_zmq_client_t *zmq_client = NULL;
 #endif
 
 static int parse_pfx(char *value)
@@ -148,7 +148,7 @@ static int parse_pfx_exact(char *value)
 static int parse_origin(char *value)
 {
   char *endptr = NULL;
-  int asn = strtoul(value, &endptr, 10);
+  uint32_t asn = strtoul(value, &endptr, 10);
   if (*endptr != '\0') {
     fprintf(stderr, "ERROR: Invalid origin ASN value '%s'\n", value);
     return -1;
@@ -651,12 +651,10 @@ int main(int argc, char **argv)
       fprintf(stderr, "bgpview version %d.%d.%d\n", BGPVIEW_MAJOR_VERSION,
               BGPVIEW_MID_VERSION, BGPVIEW_MINOR_VERSION);
       return 0;
-      break;
 
     default:
       usage(argv[0]);
       return -1;
-      break;
     }
   }
 

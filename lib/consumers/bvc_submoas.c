@@ -632,7 +632,6 @@ static char *print_submoas_info(int caller, bvc_t *consumer,
 static void print_ongoing(bvc_t *consumer)
 {
   bvc_submoas_state_t *state = STATE;
-  submoas_prefix_t submoas_struct;
   char asn_buffer[MAX_BUFFER_LEN];
   char pfx_str[INET6_ADDRSTRLEN + 3];
   char pfx2_str[INET6_ADDRSTRLEN + 3];
@@ -640,7 +639,7 @@ static void print_ongoing(bvc_t *consumer)
   for (k = kh_begin(state->subprefix_map); k != kh_end(state->subprefix_map);
        ++k) {
     if (kh_exist(state->subprefix_map, k)) {
-      submoas_struct = kh_value(state->subprefix_map, k);
+      submoas_prefix_t submoas_struct = kh_value(state->subprefix_map, k);
       if (submoas_struct.number_of_subasns == 0) {
         continue;
       }
@@ -649,7 +648,6 @@ static void print_ongoing(bvc_t *consumer)
         continue;
       }
       state->ongoing_submoas_pfxs_count++;
-      submoas_prefix_t submoas_struct = kh_value(state->subprefix_map, k);
       if (wandio_printf(
             state->file, "%" PRIu32 "|%s|%s|ONGOING|%" PRIu32 "|%" PRIu32
                          "|%" PRIu32 "|%s    \n",

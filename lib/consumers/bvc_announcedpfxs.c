@@ -408,7 +408,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   /* prefix map iteration and update*/
-  for (k = kh_begin(state->v4pfx_ts); k < kh_end(state->v4pfx_ts); ++k) {
+  for (k = kh_begin(state->v4pfx_ts); k != kh_end(state->v4pfx_ts); ++k) {
     if (kh_exist(state->v4pfx_ts, k)) {
       /* print prefix if within the window */
       if (kh_value(state->v4pfx_ts, k) >= last_valid_timestamp) {

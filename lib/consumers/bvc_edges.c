@@ -377,7 +377,6 @@ void bvc_edges_destroy(bvc_t *consumer)
 {
   bvc_edges_state_t *state = STATE;
   if (state != NULL) {
-    bvc_edges_state_t *state = STATE;
     khint_t k;
     for (k = kh_begin(state->edges_map); k != kh_end(state->edges_map); k++) {
       if (kh_exist(state->edges_map, k)) {
