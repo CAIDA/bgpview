@@ -967,19 +967,18 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
 
               // int st=epoch_msec();
               category = insert_update_edges(consumer, asn1, asn2, pfx);
-              int buffer_len = 25;
-              char edge_str[buffer_len];
+              char edge_str[25];
               edge_str[0] = '\0';
 
               written = 0;
               // Making a char array from two ASNs
 
               if (state->vc > 1) {
-                ret = snprintf(edge_str, buffer_len - 1,
+                ret = snprintf(edge_str, sizeof(edge_str) - 1,
                                "%" PRIu32 "-%" PRIu32 "", asn1, asn2);
-                // ret =snprintf(triplet, buffer_len - 1, "%"PRIu32"-%"PRIu32"",
+                // ret =snprintf(triplet, sizeof(edge_str) - 1, "%"PRIu32"-%"PRIu32"",
                 // prev_asn, asn);
-                if (ret < 0 || ret >= buffer_len - written - 1) {
+                if (ret < 0 || ret >= sizeof(edge_str) - written - 1) {
                   fprintf(stderr, "ERROR: cannot write ASN tiplet.\n");
                   return -1;
                 }

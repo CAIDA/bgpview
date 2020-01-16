@@ -50,7 +50,7 @@
 #define MAX_IP_VERSION_ALLOWED                                                 \
   1 /* replace with BGPSTREAM_MAX_IP_VERSION_IDX, once we have ipv6 */
 
-const char *continent_strings[] = {
+static const char *continent_strings[] = {
   "??", // Unknown
   "AF", // Africa
   "AN", // Antarctica
@@ -62,7 +62,7 @@ const char *continent_strings[] = {
 };
 
 /* mapping from netacuity continent code to our string array */
-const int netacq_cont_map[] = {
+static const int netacq_cont_map[] = {
   0, // 0: '**' => '??'
   1, // 1: 'af' => 'AF'
   2, // 2: 'an' => 'AN'
@@ -583,7 +583,7 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
   int pfx_ff_cnt = bgpstream_id_set_size(STATE->ff_asns);
   assert(pfx_ff_cnt > 0);
 
-  float ratio = (float)pfx_ff_cnt / (float)totalfullfeed;
+  double ratio = (double)pfx_ff_cnt / (double)totalfullfeed;
 
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information

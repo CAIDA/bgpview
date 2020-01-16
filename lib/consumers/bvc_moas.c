@@ -116,8 +116,8 @@ moasinfo_map_hash(moas_signature_t ms)
 /** uint32 comparison function for qsort */
 static int uint32_cmp(const void *a, const void *b)
 {
-  uint32_t *x = (uint32_t *)a;
-  uint32_t *y = (uint32_t *)b;
+  const uint32_t *x = (const uint32_t *)a;
+  const uint32_t *y = (const uint32_t *)b;
   if (*x < *y) {
     return -1;
   }

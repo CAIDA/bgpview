@@ -74,7 +74,7 @@ typedef struct pt_user {
 
 /* Maps sub-prefixes to super prefixes */
 KHASH_INIT(pfx2pfx, bgpstream_pfx_t, bgpstream_pfx_t, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 
 enum {
   NEW = 0,

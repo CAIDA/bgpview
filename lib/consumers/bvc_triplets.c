@@ -131,8 +131,8 @@ typedef struct bvc_triplets_state {
   int arrival_delay_idx;
   int processed_delay_idx;
   int processing_time_idx;
-  int new_triplets_count;
-  uint32_t new_triplets_count_idx;
+  int new_triplets_count_idx;
+  uint32_t new_triplets_count;
   int ongoing_triplets_count_idx;
   uint32_t ongoing_triplets_count;
   int finished_triplets_count_idx;
@@ -636,18 +636,17 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
             }
             // Reading atleast three different ASNs to create first triplet
             if (prev_prev_asn != 0) {
-              int buffer_len = 25;
-              char triplet[buffer_len];
+              char triplet[25];
               triplet[0] = '\0';
               int written = 0;
               // Making a char array from three ASNs
 
-              ret = snprintf(triplet, buffer_len - 1,
+              ret = snprintf(triplet, sizeof(triplet) - 1,
                              "%" PRIu32 "-%" PRIu32 "-%" PRIu32 " ",
                              prev_prev_asn, prev_asn, asn);
-              // ret =snprintf(triplet, buffer_len - 1, "%"PRIu32"-%"PRIu32"",
+              // ret =snprintf(triplet, sizeof(triplet) - 1, "%"PRIu32"-%"PRIu32"",
               // prev_asn, asn);
-              if (ret < 0 || ret >= buffer_len - written - 1) {
+              if (ret < 0 || ret >= sizeof(triplet) - written - 1) {
                 fprintf(stderr, "ERROR: cannot write ASN tiplet.\n");
                 return -1;
               }

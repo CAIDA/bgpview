@@ -242,7 +242,7 @@ static int write_paths(iow_t *outfile, bgpview_iter_t *it)
   uint8_t is_core;
   uint16_t path_len;
 
-  int paths_tx = 0;
+  unsigned paths_tx = 0;
   uint32_t u32;
 
   /* foreach path, send pathid and path */
@@ -522,7 +522,7 @@ static int read_paths(io_t *infile, bgpview_iter_t *iter,
   bgpstream_as_path_store_path_id_t *idmap = NULL;
   int idmap_cnt = 0;
 
-  int paths_rx = 0;
+  unsigned paths_rx = 0;
 
   bgpview_t *view = NULL;
   bgpstream_as_path_store_t *store = NULL;
@@ -608,7 +608,8 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 {
   uint32_t pfx_cnt;
   uint16_t peer_cnt;
-  int i, j;
+  uint32_t i;
+  uint16_t j;
 
   bgpstream_pfx_t pfx;
   bgpstream_peer_id_t peerid;
@@ -617,8 +618,8 @@ static int read_pfxs(io_t *infile, bgpview_iter_t *iter,
 
   int pfx_peers_added = 0;
 
-  int pfx_rx = 0;
-  int pfx_peer_rx = 0;
+  unsigned pfx_rx = 0;
+  unsigned pfx_peer_rx = 0;
 
   int skip_pfx = 0;
   int filter;

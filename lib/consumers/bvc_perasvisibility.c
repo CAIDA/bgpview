@@ -269,7 +269,7 @@ static int peras_info_update(bvc_t *consumer, peras_info_t *per_as,
   int pfx_ff_cnt = bgpstream_id_set_size(state->ff_asns);
   assert(pfx_ff_cnt > 0);
 
-  float ratio = (float)pfx_ff_cnt / (float)totalfullfeed;
+  double ratio = (double)pfx_ff_cnt / (double)totalfullfeed;
 
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
