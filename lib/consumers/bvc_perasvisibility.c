@@ -88,7 +88,7 @@ typedef struct peras_info {
 
 /** Hash table: <origin ASn,pfxs info> */
 KHASH_INIT(as_pfxs_info, uint32_t, peras_info_t, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 
 /* our 'instance' */
 typedef struct bvc_perasvisibility_state {
@@ -182,7 +182,6 @@ static const char *threshold_string(int i)
   default:
     return "ERROR";
   }
-  return "ERROR";
 }
 
 /* ==================== ORIGINS FUNCTIONS ==================== */

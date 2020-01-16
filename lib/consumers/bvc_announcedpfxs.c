@@ -71,7 +71,7 @@ static bvc_t bvc_announcedpfxs = {BVC_ID_ANNOUNCEDPFXS, NAME,
 /** Map <ipv4-prefix,last_ts>
  */
 KHASH_INIT(bwv_v4pfx_timestamp, bgpstream_ipv4_pfx_t, uint32_t, 1,
-           bgpstream_ipv4_pfx_hash_val, bgpstream_ipv4_pfx_equal_val);
+           bgpstream_ipv4_pfx_hash_val, bgpstream_ipv4_pfx_equal_val)
 typedef khash_t(bwv_v4pfx_timestamp) bwv_v4pfx_timestamp_t;
 
 /* our 'instance' */

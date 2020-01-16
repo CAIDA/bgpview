@@ -24,6 +24,8 @@
 #ifndef __BGPVIEW_IO_BSRT_INT_H
 #define __BGPVIEW_IO_BSRT_INT_H
 
+#include "bgpstream.h"
+
 extern int (*bsrt_get_next_record)(bgpstream_t *, bgpstream_record_t **);
 extern int (*bsrt_record_get_next_elem)(bgpstream_record_t *, bgpstream_elem_t **);
 

@@ -121,7 +121,7 @@ typedef struct peer_metric_idx {
 
 /** A set that contains a unique set of origin segments */
 KHASH_INIT(origin_segments, bgpstream_as_path_seg_t *, char, 0,
-           bgpstream_as_path_seg_hash, bgpstream_as_path_seg_equal);
+           bgpstream_as_path_seg_hash, bgpstream_as_path_seg_equal)
 typedef khash_t(origin_segments) origin_segments_t;
 
 /** Information about the current status
@@ -240,7 +240,7 @@ typedef struct collector_metric_idx {
 } __attribute__((packed)) collector_metric_idx_t;
 
 /** A set that contains a unique set of peer ids */
-KHASH_INIT(peer_id_set, uint32_t, char, 0, kh_int_hash_func, kh_int_hash_equal);
+KHASH_INIT(peer_id_set, uint32_t, char, 0, kh_int_hash_func, kh_int_hash_equal)
 typedef khash_t(peer_id_set) peer_id_set_t;
 
 /** Information about the current status
@@ -307,13 +307,13 @@ typedef struct struct_collector_t {
 
 /** A map that associates peer id to collectors*/
 KHASH_INIT(peer_id_collector, uint32_t, collector_t *, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 typedef khash_t(peer_id_collector) peer_id_collector_t;
 
 /** A map that associates an a collector_t
  *  structure with each collector */
 KHASH_INIT(collector_data, char *, collector_t, 1, kh_str_hash_func,
-           kh_str_hash_equal);
+           kh_str_hash_equal)
 typedef khash_t(collector_data) collector_data_t;
 
 /** Structure that manages all the routing

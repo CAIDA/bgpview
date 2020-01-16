@@ -188,7 +188,7 @@ static char *generate_file_name(const char *template, uint32_t time)
   char *bufp = buf;
   char *buflim = buf + sizeof(buf);
 
-  char *tmpl = (char *)template;
+  const char *tmpl = template;
   char secs[11]; /* length of UINT32_MAX +1 */
   struct timeval tv;
   tv.tv_sec = 0;

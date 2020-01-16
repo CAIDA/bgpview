@@ -98,7 +98,7 @@ typedef struct triplet_info {
 } triplet_info_t;
 
 KHASH_INIT(triplets_map, char *, triplet_info_t, 1, kh_str_hash_func,
-           kh_str_hash_equal);
+           kh_str_hash_equal)
 typedef khash_t(triplets_map) triplets_map_t;
 
 /* our 'instance' */

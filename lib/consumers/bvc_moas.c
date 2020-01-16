@@ -147,13 +147,13 @@ static int moasinfo_map_equal(moas_signature_t ms1, moas_signature_t ms2)
 /** Map <moas_sig,moas_properties>: store the timestamps
  *  for each MOAS in the current window */
 KHASH_INIT(moasinfo_map, moas_signature_t, moas_properties_t, 1,
-           moasinfo_map_hash, moasinfo_map_equal);
+           moasinfo_map_hash, moasinfo_map_equal)
 typedef khash_t(moasinfo_map) moasinfo_map_t;
 
 /** Map <pfx,moas_info>: store information for each
  *  MOAS prefix in the current window */
 KHASH_INIT(pfx_moasinfo_map, bgpstream_pfx_t, moasinfo_map_t *, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 typedef khash_t(pfx_moasinfo_map) pfx_moasinfo_map_t;
 
 /* our 'instance' */

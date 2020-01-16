@@ -117,18 +117,18 @@ typedef struct submoas_prefix {
 
 /* Stores subprefixes for a given superprefix */
 KHASH_INIT(subprefixes_in_superprefix, bgpstream_pfx_t, int, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 typedef khash_t(subprefixes_in_superprefix) subprefixes_in_superprefix_t;
 
 /* Stores all the subprefixes */
 KHASH_INIT(subprefix_map, bgpstream_pfx_t, submoas_prefix_t, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 typedef khash_t(subprefix_map) subprefix_map_t;
 
 /*Stores all the superprefixes */
 KHASH_INIT(superprefix_map, bgpstream_pfx_t,
            subprefixes_in_superprefix_t *, 1, bgpstream_pfx_hash_val,
-           bgpstream_pfx_equal_val);
+           bgpstream_pfx_equal_val)
 typedef khash_t(superprefix_map) superprefix_map_t;
 
 /* our 'instance' */

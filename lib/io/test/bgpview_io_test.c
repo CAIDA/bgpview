@@ -169,7 +169,6 @@ static int parse_args(bgpview_io_test_t *generator, int argc, char **argv)
       fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
       usage();
       return -1;
-      break;
 
     case 'c':
       generator->use_random_peers = 1;
@@ -200,7 +199,6 @@ static int parse_args(bgpview_io_test_t *generator, int argc, char **argv)
     default:
       usage();
       return -1;
-      break;
     }
   }
 

@@ -103,18 +103,18 @@ typedef struct edge_info {
 } edge_info_t;
 
 KHASH_INIT(edge_list, uint32_t, edge_info_t, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 typedef khash_t(edge_list) edge_list_t;
 
 // contains all the edges
 KHASH_INIT(edges_map, uint32_t, edge_list_t *, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 typedef khash_t(edges_map) edges_map_t;
 
-KHASH_INIT(new_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal);
+KHASH_INIT(new_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal)
 typedef khash_t(new_edges) new_edges_t;
 
-KHASH_INIT(newrec_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal);
+KHASH_INIT(newrec_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal)
 typedef khash_t(newrec_edges) newrec_edges_t;
 
 /* our 'instance' */

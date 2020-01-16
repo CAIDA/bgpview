@@ -193,7 +193,7 @@ typedef struct gc_topics {
 
 /** Maps a member identity string (e.g., collector name) to a topic structure */
 KHASH_INIT(str_topic, char *, gc_topics_t *, 1, kh_str_hash_func,
-           kh_str_hash_equal);
+           kh_str_hash_equal)
 
 typedef struct global_consumer_state {
 

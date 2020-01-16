@@ -177,4 +177,6 @@ typedef struct bgpcorsaro_plugin {
 int bgpcorsaro_plugin_enable_plugin(bgpcorsaro_plugin_t *plugin,
                                     const char *plugin_args);
 
+extern bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin;
+
 #endif /* __BGPCORSARO_PLUGIN_H */

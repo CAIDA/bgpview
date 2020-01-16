@@ -21,8 +21,8 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// #include "bgpview_io_bsrt_int.h"
 #include "bgpview_io_bsrt.h"
+#include "bgpview_io_bsrt_int.h"
 #include "bgpview.h"
 #include "config.h"
 #include "utils.h"
@@ -807,7 +807,6 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
       fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
       usage(bsrt);
       exit(-1);
-      break;
 
     case '?':
     default:

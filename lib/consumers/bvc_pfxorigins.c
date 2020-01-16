@@ -91,7 +91,7 @@ typedef struct struct_origin_status_t {
 /** Map <prefix,origin_status>
  */
 KHASH_INIT(bwv_pfx_origin, bgpstream_pfx_t, origin_status_t, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 typedef khash_t(bwv_pfx_origin) bwv_pfx_origin_t;
 
 /* our 'instance' */

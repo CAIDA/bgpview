@@ -34,8 +34,6 @@
 #include "utils.h"
 #include "parse_cmd.h"
 
-extern bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin;
-
 /** @file
  *
  * @brief Code which implements the public functions of libbgpcorsaro-ish

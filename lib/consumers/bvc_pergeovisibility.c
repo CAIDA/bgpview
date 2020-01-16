@@ -96,7 +96,7 @@ KHASH_INIT(strstr, char *, char *, 1, kh_str_hash_func, kh_str_hash_equal)
 KHASH_INIT(slash24_id_set /* name */, uint32_t /* khkey_t */,
            char /* khval_t */, 0 /* kh_is_set */,
            kh_slash24_hash_func /*__hash_func */,
-           kh_slash24_hash_equal /* __hash_equal */);
+           kh_slash24_hash_equal /* __hash_equal */)
 
 /* We define our own set data structure because we need a different hash
  * function for dealing with our /24s.
