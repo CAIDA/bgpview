@@ -716,7 +716,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
           return rc;
         } else if (rc == 0) { // EOF
           bgpcorsaro_log(__func__, bgpcorsaro,
-                         "EOF from bgpstream (last_time=%f, bc->last_ts=%" PRId32,
+                         "EOF from bgpstream (last_time=%f, bc->last_ts=%ld",
                          last_time, bgpcorsaro->last_ts);
           bgpcorsaro->eof = 1;
           if (bgpcorsaro->interval_end_needed == 0)
