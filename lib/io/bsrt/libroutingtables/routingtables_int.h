@@ -47,11 +47,11 @@
  *  it can be removed from the view.  */
 #define ROUTINGTABLES_DEPRECATED_INFO_INTERVAL 24 * 3600
 
-/* the prefix is not announced in the state nor in the
+/* the prefix is not announced in the active state nor in the
  * under construction state */
-#define ROUTINGTABLES_INITIAL_PFXSTATUS_MASK      0x00
-#define ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK    0x01
-#define ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK 0x10
+#define ROUTINGTABLES_INITIAL_PFXSTATUS      0x00
+#define ROUTINGTABLES_ANNOUNCED_PFXSTATUS    0x01
+#define ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS 0x10
 
 typedef enum {
 
@@ -72,9 +72,9 @@ typedef enum {
  *  of a pfx-peer info */
 typedef struct struct_perpfx_perpeer_info_t {
 
-  /** Mask that informs the user whether the
+  /** Bitfield that indicates whether the
    *  prefix is currently announced by this peer
-   *  in the state and/or in the uc state */
+   *  in the active state and/or in the uc state */
   uint8_t pfx_status;
 
   /** Last bgp time associated with the most
@@ -268,9 +268,8 @@ typedef struct struct_collector_t {
   /** start time of the current reference RIB */
   uint32_t bgp_time_ref_rib_start_time;
 
-  /** dump time of the current under construction
-   *  RIB, if 0 the under construction process is
-   *  off, is on otherwise */
+  /** dump time of the current under construction RIB,
+   * or 0 if the under construction process is off */
   uint32_t bgp_time_uc_rib_dump_time;
 
   /** start time of the current under construction RIB */

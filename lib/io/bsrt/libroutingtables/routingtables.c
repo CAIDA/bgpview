@@ -89,11 +89,11 @@ static perpfx_perpeer_info_t *perpfx_perpeer_info_create(void)
   perpfx_perpeer_info_t *pfxpeeri =
     (perpfx_perpeer_info_t *)malloc_zero(sizeof(perpfx_perpeer_info_t));
   if (pfxpeeri != NULL) {
-    pfxpeeri->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS_MASK;
+    pfxpeeri->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
     pfxpeeri->bgp_time_last_ts = 0;
     pfxpeeri->bgp_time_uc_delta_ts = 0;
     /* the path id is ignored unless it is set by a RIB message
-     * (i.e. ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK is up), that's
+     * (i.e. ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS is on), that's
      * why we do not initialize it:
      * pfxpeeri->uc_as_path_id = ? */
   }
@@ -311,7 +311,7 @@ static void stop_uc_process(routingtables_t *rt, collector_t *c)
        * information on its rib related status */
       pp = bgpview_iter_pfx_peer_get_user(rt->iter);
       pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
+      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS;
     }
   }
 
@@ -345,11 +345,11 @@ static void reset_peerpfxdata_version(routingtables_t *rt,
       continue;
     }
     pp = bgpview_iter_pfx_peer_get_user(rt->iter);
-    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
     pp->bgp_time_last_ts = 0;
     if (reset_uc) {
       pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS_MASK;
+      pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
     }
     bgpview_iter_pfx_deactivate_peer(rt->iter);
   }
@@ -499,12 +499,12 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
               p->bgp_time_uc_rib_start - ROUTINGTABLES_RIB_BACKLOG_TIME)) {
 
           /* if the prefix is observed in the RIB */
-          if (pp->pfx_status & ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK) {
+          if (pp->pfx_status & ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS) {
 
             /* if the prefix was set (that's why we look for ts!= 0)
              * inactive in the previous state and now it is in the rib */
             if (pp->bgp_time_last_ts != 0 &&
-                !(pp->pfx_status & ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK)) {
+                !(pp->pfx_status & ROUTINGTABLES_ANNOUNCED_PFXSTATUS)) {
               p->rib_negative_mismatches_cnt++;
 
               fprintf(stderr, "Warning RIB MISMATCH @ %s.%s: %s RIB-A: %" PRIu32
@@ -521,7 +521,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
               fprintf(stderr, "Error: could not set AS path\n");
               return -1;
             }
-            pp->pfx_status = ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+            pp->pfx_status = ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
             pp->bgp_time_last_ts =
               pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start;
 
@@ -546,7 +546,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
             }
 
             bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL);
-            pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS_MASK;
+            pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
             pp->bgp_time_last_ts = 0;
             bgpview_iter_pfx_deactivate_peer(rt->iter);
           }
@@ -557,7 +557,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
            * before the RIB dumping process started then
            * we decide to keep this data and activate the field if it
            * is an announcement */
-          if (pp->pfx_status & ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK) {
+          if (pp->pfx_status & ROUTINGTABLES_ANNOUNCED_PFXSTATUS) {
             bgpview_iter_activate_peer(rt->iter);
             p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
             p->bgp_time_ref_rib_start = p->bgp_time_uc_rib_start;
@@ -568,7 +568,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
         /* reset uc fields anyway */
         pp->bgp_time_uc_delta_ts = 0;
         pp->pfx_status =
-          pp->pfx_status & (~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK);
+          pp->pfx_status & (~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS);
       }
 
       /* if state is inactive and ts is older than
@@ -758,10 +758,10 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
   /* set the pfx status and as path  */
   if (elem->type == BGPSTREAM_ELEM_TYPE_ANNOUNCEMENT) {
     /* set announced status */
-    pp->pfx_status |= ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+    pp->pfx_status |= ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
     bgpview_iter_pfx_peer_set_as_path(rt->iter, elem->as_path);
   } else { /* reset announced status */
-    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
     bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL);
   }
 
@@ -947,7 +947,7 @@ static int apply_rib_message(routingtables_t *rt, collector_t *c,
   /* we update only the uc part of the pfx-peer, i.e.:
    * the timestamp, the uc_as_path_id, and the pfx status */
   pp->bgp_time_uc_delta_ts = ts - p->bgp_time_uc_rib_start;
-  pp->pfx_status |= ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
+  pp->pfx_status |= ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS;
   if (bgpstream_as_path_store_get_path_id(rt->pathstore, elem->as_path,
                                           elem->peer_asn,
                                           &pp->uc_as_path_id) == -1) {
@@ -1139,23 +1139,20 @@ static int collector_process_corrupted_message(routingtables_t *rt,
           record->time_sec >= p->bgp_time_uc_rib_start) {
         bgpstream_id_set_insert(cor_uc_affected, peer_id);
         /* also if an end of valid rib operation was scheduled for this
-         * collector
-         * now it is not happening anymore */
+         * collector now it is not happening anymore */
         c->eovrib_flag = 0;
       }
     }
   }
 
   /* if the corrupted message is a RIB we can clear the uc state and just ignore
-   * the
    * the message */
 
   /* @note: in principle is possible for the under construction process to be
-   * affected
-   * by the corrupted record without the active information being affected.
-   * That's why
-   * we check the impact of the corrupted record (and deal with it) treating
-   * the active and uc information of a prefix peer separately */
+   * affected by the corrupted record without the active information being
+   * affected.  That's why we check the impact of the corrupted record (and
+   * deal with it) treating the active and uc information of a prefix peer
+   * separately */
 
   /* update all the prefix-peer information */
   for (bgpview_iter_first_pfx_peer(rt->iter, 0, BGPVIEW_FIELD_ALL_VALID,
@@ -1172,7 +1169,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
             pp->bgp_time_last_ts <= record->time_sec) {
           /* reset the active information if the active state is affected */
           pp->bgp_time_last_ts = 0;
-          pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK;
+          pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
           /* bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL); */
           bgpview_iter_pfx_deactivate_peer(rt->iter);
         }
@@ -1186,7 +1183,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
       /* reset the uc information if the under construction process is affected
        */
       pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK;
+      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS;
     }
   }
 
