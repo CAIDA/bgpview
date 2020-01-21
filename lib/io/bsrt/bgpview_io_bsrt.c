@@ -61,7 +61,7 @@ struct bgpview_io_bsrt {
     int rotate;
     int meta_rotate;
     int logfile_disable;
-    int minimum_time;
+    uint32_t minimum_time;
   } cfg;
 };
 
@@ -103,7 +103,7 @@ typedef struct {
   const char *pfx;
 } test_instruction_t;
 
-static test_state_t test = { NULL };
+static test_state_t test = {0};
 static char buf[65536];
 
 static test_instruction_t testscript[] = {
@@ -878,7 +878,7 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
   }
 
   /* windows */
-  int current_time = 0;
+  uint32_t current_time = 0;
   for (int i = 0; i < windows_cnt; i++) {
     bgpstream_add_interval_filter(bsrt->stream, windows[i].start, windows[i].end);
     current_time = windows[i].start;

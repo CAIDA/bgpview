@@ -218,7 +218,7 @@ struct bgpcorsaro {
   int eof;
 
   /** Minimum record time allowed */
-  int minimum_time;
+  uint32_t minimum_time;
 
   /** Maximum allowed packet inter-arrival time */
   int gap_limit;
