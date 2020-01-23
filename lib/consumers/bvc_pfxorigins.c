@@ -55,7 +55,7 @@
 #define IPV6_DEFAULT_ROUTE "0::/0"
 
 /** Default maximum number of unique origins */
-#define MAX_ORIGIN_AS_CNT 32
+#define MAX_ORIGIN_AS_CNT 64
 
 /** MAX LEN of AS PATH SEGMENT STR  */
 #define MAX_ASPATH_SEGMENT_STR 255 * 16
