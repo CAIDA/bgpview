@@ -23,7 +23,7 @@
 
 AC_PREREQ([2.68])
 
-AC_INIT([bgpview-caida], [2.0.0], [bgpstream-info@caida.org])
+AC_INIT([bgpview], [2.0.0], [bgpstream-info@caida.org])
 
 BGPVIEW_MAJOR_VERSION=2
 BGPVIEW_MID_VERSION=0
