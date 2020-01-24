@@ -818,6 +818,20 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
   // reset getopt for others
   optind = 1;
 
+  bgpstream_set_data_interface(bsrt->stream, bsrt->di_id);
+
+  if (bsrt_get_next_record == test_get_next_record) {
+    if (projects_cnt || types_cnt || collectors_cnt || windows_cnt ||
+        peerasns_cnt || prefixes_cnt || communities_cnt ||
+        interface_options_cnt || rib_period)
+    {
+        fprintf(stderr, "ERROR: most options are not allowed with bsrt -dtest.\n");
+        usage(bsrt);
+        exit(-1);
+    }
+    return 0;
+  }
+
   for (int i = 0; i < interface_options_cnt; i++) {
     if (*interface_options[i] == '?') {
       dump_if_options(bsrt);
@@ -919,8 +933,6 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
     bgpstream_set_live_mode(bsrt->stream);
   }
 #endif
-
-  bgpstream_set_data_interface(bsrt->stream, bsrt->di_id);
 
   return 0;
 }
