@@ -31,6 +31,9 @@
 #include "routingtables.h"
 #include "../bgpview_io_bsrt_int.h"
 
+// Convenience macro for iterating over a khash
+#define rt_kh_for(iter, h)  for (khint_t iter = kh_begin(h); iter != kh_end(h); ++iter)
+
 /** When the Quagga process starts dumping the
  *  RIB (at time t0), not all of the previous update
  *  messages have been processed, in other words
@@ -108,12 +111,9 @@ static void perpeer_info_destroy(void *p)
   perpeer_info_t *pi = (perpeer_info_t *)p;
 
   if (pi->announcing_ases != NULL) {
-    khiter_t k;
-    for (k = kh_begin(pi->announcing_ases);
-         k != kh_end(pi->announcing_ases); ++k) {
-      if (kh_exist(pi->announcing_ases, k)) {
-        bgpstream_as_path_seg_destroy(kh_key(pi->announcing_ases, k));
-      }
+    rt_kh_for (k, pi->announcing_ases) {
+      if (!kh_exist(pi->announcing_ases, k)) continue;
+      bgpstream_as_path_seg_destroy(kh_key(pi->announcing_ases, k));
     }
     kh_destroy(origin_segments, pi->announcing_ases);
     pi->announcing_ases = NULL;
@@ -440,9 +440,6 @@ static void update_collector_state(routingtables_t *rt, collector_t *c)
 
 static int apply_end_of_valid_rib_operations(routingtables_t *rt)
 {
-  khiter_t k;
-  khiter_t i;
-  khiter_t j;
   collector_t *c;
   int khret;
 
@@ -450,18 +447,15 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
   perpfx_perpeer_info_t *pp;
   bgpstream_pfx_t *pfx;
 
-  for (k = kh_begin(rt->collectors); k != kh_end(rt->collectors); ++k) {
-    if (kh_exist(rt->collectors, k)) {
-      c = &kh_val(rt->collectors, k);
-      if (c->eovrib_flag != 0) {
-        for (i = kh_begin(c->collector_peerids);
-             i != kh_end(c->collector_peerids); ++i) {
-          if (kh_exist(c->collector_peerids, i)) {
-            j = kh_put(peer_id_collector, rt->eorib_peers,
-                       kh_key(c->collector_peerids, i), &khret);
-            kh_value(rt->eorib_peers, j) = c;
-          }
-        }
+  rt_kh_for(k, rt->collectors) {
+    if (!kh_exist(rt->collectors, k)) continue;
+    c = &kh_val(rt->collectors, k);
+    if (c->eovrib_flag != 0) {
+      rt_kh_for(i, c->collector_peerids) {
+        if (!kh_exist(c->collector_peerids, i)) continue;
+        khiter_t j = kh_put(peer_id_collector, rt->eorib_peers,
+                   kh_key(c->collector_peerids, i), &khret);
+        kh_value(rt->eorib_peers, j) = c;
       }
     }
   }
@@ -595,44 +589,42 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
        bgpview_iter_has_more_peer(rt->iter); bgpview_iter_next_peer(rt->iter)) {
     /* check if the current field refers to a peer that belongs to
      * the current collector */
-    if ((j = kh_get(peer_id_collector, rt->eorib_peers,
-                    bgpview_iter_peer_get_peer_id(rt->iter))) !=
-        kh_end(rt->eorib_peers)) {
-      p = bgpview_iter_peer_get_user(rt->iter);
-      c = kh_value(rt->eorib_peers, j);
+    bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(rt->iter);
+    khiter_t j = kh_get(peer_id_collector, rt->eorib_peers, peerid);
+    if (j == kh_end(rt->eorib_peers)) continue;
+    p = bgpview_iter_peer_get_user(rt->iter);
+    c = kh_value(rt->eorib_peers, j);
 
-      /* if the uc rib start was never touched it means
-       * that this peer was not part of the RIB and, therefore,
-       * if it claims to be active, we deactivate it */
-      if (p->bgp_time_uc_rib_start == 0 &&
-          p->last_ts < c->bgp_time_last - ROUTINGTABLES_MAX_INACTIVE_TIME) {
-        if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
-          p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_UNKNOWN;
-          reset_peerpfxdata(rt, bgpview_iter_peer_get_peer_id(rt->iter), 0);
-          bgpview_iter_deactivate_peer(rt->iter);
-        }
-      } else {
-        /* if the peer was actively involved in the uc process
-         * we reset its variables */
-        p->bgp_time_uc_rib_start = 0;
-        p->bgp_time_uc_rib_end = 0;
+    /* if the uc rib start was never touched it means
+     * that this peer was not part of the RIB and, therefore,
+     * if it claims to be active, we deactivate it */
+    if (p->bgp_time_uc_rib_start == 0 &&
+        p->last_ts < c->bgp_time_last - ROUTINGTABLES_MAX_INACTIVE_TIME) {
+      if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
+        p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_UNKNOWN;
+        reset_peerpfxdata(rt, bgpview_iter_peer_get_peer_id(rt->iter), 0);
+        bgpview_iter_deactivate_peer(rt->iter);
       }
+    } else {
+      /* if the peer was actively involved in the uc process
+       * we reset its variables */
+      p->bgp_time_uc_rib_start = 0;
+      p->bgp_time_uc_rib_end = 0;
     }
   }
 
-  for (k = kh_begin(rt->collectors); k != kh_end(rt->collectors); ++k) {
-    if (kh_exist(rt->collectors, k)) {
-      c = &kh_val(rt->collectors, k);
-      if (c->eovrib_flag != 0) {
-        c->publish_flag = 1;
-        c->eovrib_flag = 0;
+  rt_kh_for (k, rt->collectors) {
+    if (!kh_exist(rt->collectors, k)) continue;
+    c = &kh_val(rt->collectors, k);
+    if (c->eovrib_flag != 0) {
+      c->publish_flag = 1;
+      c->eovrib_flag = 0;
 
-        /* reset all the uc information for the  collector */
-        c->bgp_time_ref_rib_dump_time = c->bgp_time_uc_rib_dump_time;
-        c->bgp_time_ref_rib_start_time = c->bgp_time_uc_rib_start_time;
-        c->bgp_time_uc_rib_dump_time = 0;
-        c->bgp_time_uc_rib_start_time = 0;
-      }
+      /* reset all the uc information for the  collector */
+      c->bgp_time_ref_rib_dump_time = c->bgp_time_uc_rib_dump_time;
+      c->bgp_time_ref_rib_start_time = c->bgp_time_uc_rib_start_time;
+      c->bgp_time_uc_rib_dump_time = 0;
+      c->bgp_time_uc_rib_start_time = 0;
     }
   }
 
@@ -643,11 +635,10 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
   bgpview_gc(rt->view);
 
   /* check the number of active peers and update the collector's state */
-  for (k = kh_begin(rt->collectors); k != kh_end(rt->collectors); ++k) {
-    if (kh_exist(rt->collectors, k)) {
-      c = &kh_val(rt->collectors, k);
-      update_collector_state(rt, c);
-    }
+  rt_kh_for (k, rt->collectors) {
+    if (!kh_exist(rt->collectors, k)) continue;
+    c = &kh_val(rt->collectors, k);
+    update_collector_state(rt, c);
   }
 
   return 0;
@@ -1048,10 +1039,7 @@ static int collector_process_valid_bgpinfo(routingtables_t *rt, collector_t *c,
     p->last_ts = record->time_sec;
 
     /* insert the peer id in the collector peer ids set */
-    if ((k = kh_get(peer_id_set, c->collector_peerids, peer_id)) ==
-        kh_end(c->collector_peerids)) {
-      k = kh_put(peer_id_set, c->collector_peerids, peer_id, &khret);
-    }
+    k = kh_put(peer_id_set, c->collector_peerids, peer_id, &khret);
 
     // fprintf(stderr, "Applying %s\n", bgpstream_record_elem_snprintf(buffer,
     // BUFFER_LEN, record, elem));
@@ -1106,7 +1094,6 @@ static int collector_process_corrupted_message(routingtables_t *rt,
                                                collector_t *c,
                                                bgpstream_record_t *record)
 {
-  khiter_t k;
   bgpstream_peer_id_t peer_id;
   perpeer_info_t *p;
   perpfx_perpeer_info_t *pp;
@@ -1119,29 +1106,27 @@ static int collector_process_corrupted_message(routingtables_t *rt,
   bgpstream_id_set_t *cor_uc_affected = bgpstream_id_set_create();
 
   /* get all the peers that belong to the current collector */
-  for (k = kh_begin(c->collector_peerids); k != kh_end(c->collector_peerids);
-       ++k) {
-    if (kh_exist(c->collector_peerids, k)) {
-      peer_id = kh_key(c->collector_peerids, k);
-      bgpview_iter_seek_peer(rt->iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
-      p = bgpview_iter_peer_get_user(rt->iter);
-      assert(p);
+  rt_kh_for (k, c->collector_peerids) {
+    if (!kh_exist(c->collector_peerids, k)) continue;
+    peer_id = kh_key(c->collector_peerids, k);
+    bgpview_iter_seek_peer(rt->iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
+    p = bgpview_iter_peer_get_user(rt->iter);
+    assert(p);
 
-      /* save all the peers affected by the corrupted record */
-      if (p->bgp_time_ref_rib_start != 0 &&
-          record->time_sec >= p->bgp_time_ref_rib_start) {
-        bgpstream_id_set_insert(cor_affected, peer_id);
-      }
+    /* save all the peers affected by the corrupted record */
+    if (p->bgp_time_ref_rib_start != 0 &&
+        record->time_sec >= p->bgp_time_ref_rib_start) {
+      bgpstream_id_set_insert(cor_affected, peer_id);
+    }
 
-      /* save all the peers whose under construction process is
-       * affected by the corrupted record */
-      if (p->bgp_time_uc_rib_start != 0 &&
-          record->time_sec >= p->bgp_time_uc_rib_start) {
-        bgpstream_id_set_insert(cor_uc_affected, peer_id);
-        /* also if an end of valid rib operation was scheduled for this
-         * collector now it is not happening anymore */
-        c->eovrib_flag = 0;
-      }
+    /* save all the peers whose under construction process is
+     * affected by the corrupted record */
+    if (p->bgp_time_uc_rib_start != 0 &&
+        record->time_sec >= p->bgp_time_uc_rib_start) {
+      bgpstream_id_set_insert(cor_uc_affected, peer_id);
+      /* also if an end of valid rib operation was scheduled for this
+       * collector now it is not happening anymore */
+      c->eovrib_flag = 0;
     }
   }
 
@@ -1390,16 +1375,14 @@ int routingtables_process_record(routingtables_t *rt,
 
 void routingtables_destroy(routingtables_t *rt)
 {
-  khiter_t k;
   if (rt != NULL) {
     if (rt->collectors != NULL) {
-      for (k = kh_begin(rt->collectors); k != kh_end(rt->collectors); ++k) {
-        if (kh_exist(rt->collectors, k)) {
-          /* deallocating value dynamic memory */
-          destroy_collector_data(&kh_val(rt->collectors, k));
-          /* deallocating string dynamic memory */
-          free(kh_key(rt->collectors, k));
-        }
+      rt_kh_for (k, rt->collectors) {
+        if (!kh_exist(rt->collectors, k)) continue;
+        /* deallocating value dynamic memory */
+        destroy_collector_data(&kh_val(rt->collectors, k));
+        /* deallocating string dynamic memory */
+        free(kh_key(rt->collectors, k));
       }
       kh_destroy(collector_data, rt->collectors);
       rt->collectors = NULL;
