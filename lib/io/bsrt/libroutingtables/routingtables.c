@@ -384,7 +384,7 @@ static void reset_peerpfxdata(routingtables_t *rt, bgpstream_peer_id_t peer_id,
   bgpview_iter_seek_peer(rt->iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
 }
 
-static int end_of_valid_rib(routingtables_t *rt, collector_t *c)
+static inline int end_of_valid_rib(routingtables_t *rt, collector_t *c)
 {
   c->eovrib_flag = 1;
   return 0;
