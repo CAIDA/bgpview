@@ -145,10 +145,8 @@ static perpeer_info_t *perpeer_info_create(routingtables_t *rt, collector_t *c,
   char ip_str[INET6_ADDRSTRLEN];
   unsigned v = 0;
   perpeer_info_t *p;
-  if ((p = (perpeer_info_t *)malloc_zero(sizeof(perpeer_info_t))) == NULL) {
-    fprintf(stderr, "Error: can't create per-peer info\n");
+  if ((p = (perpeer_info_t *)malloc_zero(sizeof(perpeer_info_t))) == NULL)
     goto err;
-  }
 
   strcpy(p->collector_str, c->collector_str);
 
@@ -178,33 +176,24 @@ static perpeer_info_t *perpeer_info_create(routingtables_t *rt, collector_t *c,
   p->rib_negative_mismatches_cnt = 0;
   p->metrics_generated = 0;
 
-  if ((p->announcing_ases = kh_init(origin_segments)) == NULL) {
-    fprintf(stderr, "Error: can't create announcing ASes (for peer)\n");
+  if ((p->announcing_ases = kh_init(origin_segments)) == NULL)
     goto err;
-  }
 
-  if ((p->announced_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL) {
-    fprintf(stderr, "Error: can't create announced ipv4 prefix (for peer)\n");
+  if ((p->announced_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL)
     goto err;
-  }
 
-  if ((p->withdrawn_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL) {
-    fprintf(stderr, "Error: can't create withdrawn ipv4 prefix (for peer)\n");
+  if ((p->withdrawn_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL)
     goto err;
-  }
 
-  if ((p->announced_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL) {
-    fprintf(stderr, "Error: can't create announced ipv6 prefix (for peer)\n");
+  if ((p->announced_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL)
     goto err;
-  }
 
-  if ((p->withdrawn_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL) {
-    fprintf(stderr, "Error: can't create withdrawn ipv6 prefix (for peer)\n");
+  if ((p->withdrawn_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL)
     goto err;
-  }
 
   return p;
 err:
+  fprintf(stderr, "Error: can't create per-peer info\n");
   perpeer_info_destroy(p);
   return NULL;
 }
@@ -254,13 +243,11 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
         "Warning: could not print collector signature: truncated output\n");
     }
 
-    if ((c_data.collector_peerids = kh_init(peer_id_set)) == NULL) {
+    if ((c_data.collector_peerids = kh_init(peer_id_set)) == NULL)
       goto err;
-    }
 
-    if ((c_data.active_ases = bgpstream_id_set_create()) == NULL) {
+    if ((c_data.active_ases = bgpstream_id_set_create()) == NULL)
       goto err;
-    }
 
     c_data.bgp_time_last = 0;
     c_data.wall_time_last = 0;
@@ -286,6 +273,7 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
   return &kh_val(rt->collectors, k);
 
 err:
+  fprintf(stderr, "Error: can't create collector data\n");
   destroy_collector_data(&c_data);
   return NULL;
 }
@@ -428,12 +416,10 @@ static void update_collector_state(routingtables_t *rt, collector_t *c)
 
   if (c->active_peers_cnt) {
     c->state = ROUTINGTABLES_COLLECTOR_STATE_UP;
+  } else if (unknown) {
+    c->state = ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN;
   } else {
-    if (unknown == 1) {
-      c->state = ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN;
-    } else {
-      c->state = ROUTINGTABLES_COLLECTOR_STATE_DOWN;
-    }
+    c->state = ROUTINGTABLES_COLLECTOR_STATE_DOWN;
   }
   return;
 }
@@ -579,39 +565,39 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
         }
       }
     }
-  }
 
-  /* reset all the uc information for the peers and check if
-   * some peers disappeared from the routing table (i.e., if some active
-   * peers are not in this RIB, then it means they went down in between
-   * the previous RIB and this RIB  and we have to deactivate them */
-  for (bgpview_iter_first_peer(rt->iter, BGPVIEW_FIELD_ALL_VALID);
-       bgpview_iter_has_more_peer(rt->iter); bgpview_iter_next_peer(rt->iter)) {
-    /* check if the current field refers to a peer that belongs to
-     * the current collector */
-    bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(rt->iter);
-    khiter_t j = kh_get(peer_id_collector, rt->eorib_peers, peerid);
-    if (j == kh_end(rt->eorib_peers)) continue;
-    p = bgpview_iter_peer_get_user(rt->iter);
-    c = kh_value(rt->eorib_peers, j);
+    /* reset all the uc information for the peers and check if
+     * some peers disappeared from the routing table (i.e., if some active
+     * peers are not in this RIB, then it means they went down in between
+     * the previous RIB and this RIB  and we have to deactivate them */
+    for (bgpview_iter_first_peer(rt->iter, BGPVIEW_FIELD_ALL_VALID);
+         bgpview_iter_has_more_peer(rt->iter); bgpview_iter_next_peer(rt->iter)) {
+      /* check if the current field refers to a peer that belongs to
+       * the current collector */
+      bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(rt->iter);
+      khiter_t j = kh_get(peer_id_collector, rt->eorib_peers, peerid);
+      if (j == kh_end(rt->eorib_peers)) continue;
+      p = bgpview_iter_peer_get_user(rt->iter);
+      c = kh_value(rt->eorib_peers, j);
 
-    /* if the uc rib start was never touched it means
-     * that this peer was not part of the RIB and, therefore,
-     * if it claims to be active, we deactivate it */
-    if (p->bgp_time_uc_rib_start == 0 &&
-        p->last_ts < c->bgp_time_last - ROUTINGTABLES_MAX_INACTIVE_TIME) {
-      if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
-        p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_UNKNOWN;
-        reset_peerpfxdata(rt, bgpview_iter_peer_get_peer_id(rt->iter), 0);
-        bgpview_iter_deactivate_peer(rt->iter);
+      /* if the uc rib start was never touched it means
+       * that this peer was not part of the RIB and, therefore,
+       * if it claims to be active, we deactivate it */
+      if (p->bgp_time_uc_rib_start == 0 &&
+          p->last_ts < c->bgp_time_last - ROUTINGTABLES_MAX_INACTIVE_TIME) {
+        if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
+          p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_UNKNOWN;
+          reset_peerpfxdata(rt, peerid, 0);
+          bgpview_iter_deactivate_peer(rt->iter);
+        }
+      } else {
+        /* if the peer was actively involved in the uc process
+         * we reset its variables */
+        p->bgp_time_uc_rib_start = 0;
+        p->bgp_time_uc_rib_end = 0;
       }
-    } else {
-      /* if the peer was actively involved in the uc process
-       * we reset its variables */
-      p->bgp_time_uc_rib_start = 0;
-      p->bgp_time_uc_rib_end = 0;
     }
-  }
+  } // (kh_size(rt->eorib_peers) > 0)
 
   rt_kh_for (k, rt->collectors) {
     if (!kh_exist(rt->collectors, k)) continue;
@@ -650,15 +636,13 @@ static int update_peer_stats(perpeer_info_t *p, bgpstream_elem_t *elem)
     /* increase announcements count for current peer */
     p->pfx_announcements_cnt++;
 
-    if (kh_get(origin_segments, p->announcing_ases,
-               bgpstream_as_path_get_origin_seg(elem->as_path)) ==
+    bgpstream_as_path_seg_t *origin =
+      bgpstream_as_path_get_origin_seg(elem->as_path);
+    if (kh_get(origin_segments, p->announcing_ases, origin) ==
         kh_end(p->announcing_ases)) {
       int khret;
-      bgpstream_as_path_seg_t *origin = bgpstream_as_path_seg_dup(
-        bgpstream_as_path_get_origin_seg(elem->as_path));
-      if (origin == NULL) {
-        fprintf(stderr,
-                "ERROR: could not allocate memory for origin segment\n");
+      if ((origin = bgpstream_as_path_seg_dup(origin)) == NULL) {
+        fprintf(stderr, "ERROR: could not duplicate origin segment\n");
         return -1;
       }
       kh_put(origin_segments, p->announcing_ases, origin, &khret);
@@ -673,6 +657,7 @@ static int update_peer_stats(perpeer_info_t *p, bgpstream_elem_t *elem)
                                     &elem->prefix.bs_ipv6);
       return 0;
     }
+
   } else {
     assert(elem->type == BGPSTREAM_ELEM_TYPE_WITHDRAWAL);
     /* increase withdrawals count for current peer */
@@ -704,7 +689,6 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
                                bgpstream_peer_id_t peer_id,
                                bgpstream_elem_t *elem, uint32_t ts)
 {
-
   assert(peer_id);
   assert(peer_id == bgpview_iter_peer_get_peer_id(rt->iter));
 
@@ -716,16 +700,13 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
   if (bgpview_iter_seek_pfx_peer(rt->iter, &elem->prefix,
                                  peer_id, BGPVIEW_FIELD_ALL_VALID,
                                  BGPVIEW_FIELD_ALL_VALID) != 0) {
-    if ((pp = (perpfx_perpeer_info_t *)bgpview_iter_pfx_peer_get_user(
-           rt->iter)) != NULL) {
-      if (ts < pp->bgp_time_last_ts) {
-        /* the update is old and it does not change the state */
-        return 0;
-      }
-    } else { /* programming error, each pfx-peer is created with an associated
-                info ds */
-      assert(0);
+    pp = (perpfx_perpeer_info_t *)bgpview_iter_pfx_peer_get_user(rt->iter);
+    assert(pp);
+    if (ts < pp->bgp_time_last_ts) {
+      /* the update is old and it does not change the state */
+      return 0;
     }
+
   } else { /* otherwise we create the prefix-peer and the associated info ds */
     if (bgpview_iter_add_pfx_peer(rt->iter, &elem->prefix,
                                   peer_id, NULL) != 0) {
@@ -739,8 +720,6 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
     }
     bgpview_iter_pfx_peer_set_user(rt->iter, pp);
   }
-
-  assert(pp != NULL);
 
   /* the ts received is more recent than the information in the pfx-peer
    * we update both ts and path */
@@ -780,54 +759,43 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
 
     /* no state change required */
     return 0;
-  } else {
-    if (bgpview_iter_peer_get_state(rt->iter) == BGPVIEW_FIELD_INACTIVE) {
-      /* if the peer is inactive, all if its pfx-peers must be inactive */
-      assert(bgpview_iter_pfx_peer_get_state(rt->iter) ==
-             BGPVIEW_FIELD_INACTIVE);
 
-      if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_UNKNOWN) {
+  } else { // peer is INACTIVE
+    /* if the peer is inactive, all if its pfx-peers must be inactive */
+    assert(bgpview_iter_pfx_peer_get_state(rt->iter) == BGPVIEW_FIELD_INACTIVE);
 
-        if (p->bgp_time_uc_rib_start != 0) {
-          /* case 1: the peer is inactive because its state is unknown and there
-           * is
-           * an under construction process going on:
-           * the peer remains inactive, the information already inserted
-           * in the pfx-peer (pp) will be used when the uc rib becomes active,
-           * while the pfx-peer remains inactive */
-          return 0;
-        } else {
-          /* case 2: the peer is inactive because its state is unknown and there
-           * is
-           * no under construction process going on
-           * the peer remains inactive, the information already inserted
-           * in the pfx-peer (pp) remains there (might be useful later)
-           * while the pfx-peer remains inactive */
-          return 0;
-        }
+    if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_UNKNOWN) {
+
+      if (p->bgp_time_uc_rib_start != 0) {
+        /* case 1: the peer is inactive because its state is unknown and there
+         * is an under construction process going on:
+         * the peer remains inactive, the information already inserted
+         * in the pfx-peer (pp) will be used when the uc rib becomes active,
+         * while the pfx-peer remains inactive */
+        return 0;
       } else {
-        /* case 3: the peer is inactive because its fsm state went down,
-         * if we receive a new update we assume the state is established
-         * and the peer is up again  */
-        bgpview_iter_activate_peer(rt->iter);
-        p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
-        p->bgp_time_ref_rib_start = ts;
-        p->bgp_time_ref_rib_end = ts;
-        if (elem->type == BGPSTREAM_ELEM_TYPE_ANNOUNCEMENT) {
-          /* the pfx-peer goes active only if we received an announcement */
-          bgpview_iter_pfx_activate_peer(rt->iter);
-        }
+        /* case 2: the peer is inactive because its state is unknown and there
+         * is no under construction process going on:
+         * the peer remains inactive, the information already inserted
+         * in the pfx-peer (pp) remains there (might be useful later)
+         * while the pfx-peer remains inactive */
         return 0;
       }
-
     } else {
-      /* a peer must exist (no matter if active or inactive)
-       * before entering this function*/
-      assert(0);
+      /* case 3: the peer is inactive because its fsm state went down,
+       * if we receive a new update we assume the state is established
+       * and the peer is up again  */
+      bgpview_iter_activate_peer(rt->iter);
+      p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
+      p->bgp_time_ref_rib_start = ts;
+      p->bgp_time_ref_rib_end = ts;
+      if (elem->type == BGPSTREAM_ELEM_TYPE_ANNOUNCEMENT) {
+        /* the pfx-peer goes active only if we received an announcement */
+        bgpview_iter_pfx_activate_peer(rt->iter);
+      }
+      return 0;
     }
   }
-
-  return 0;
 }
 
 static int apply_state_update(routingtables_t *rt, collector_t *c,
@@ -843,48 +811,44 @@ static int apply_state_update(routingtables_t *rt, collector_t *c,
 
   uint8_t reset_uc = 0;
 
-  if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED &&
-      new_state != BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
-    reset_uc = 0;
-    /* check whether the state message affects the uc process */
-    if (ts >= p->bgp_time_uc_rib_start) {
-      reset_uc = 1;
+  if (p->bgp_fsm_state != new_state) {
+    if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
+      reset_uc = 0;
+      /* check whether the state message affects the uc process */
+      if (ts >= p->bgp_time_uc_rib_start) {
+        reset_uc = 1;
 
-      /* if the end of valid rib was scheduled for the end
-       * of this interval, then anticipate it so that we
-       * can deal correctly with a state change */
-      if (c->eovrib_flag) {
-        apply_end_of_valid_rib_operations(rt);
-        bgpview_iter_seek_peer(rt->iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
+        /* if the end of valid rib was scheduled for the end
+         * of this interval, then anticipate it so that we
+         * can deal correctly with a state change */
+        if (c->eovrib_flag) {
+          apply_end_of_valid_rib_operations(rt);
+          bgpview_iter_seek_peer(rt->iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
+        }
+
+        p->bgp_time_uc_rib_start = 0;
+        p->bgp_time_uc_rib_end = 0;
       }
+      /* the peer is active and we receive a peer down message */
+      p->bgp_fsm_state = new_state;
+      p->bgp_time_ref_rib_start = ts;
+      p->bgp_time_ref_rib_end = ts;
 
-      p->bgp_time_uc_rib_start = 0;
-      p->bgp_time_uc_rib_end = 0;
-    }
-    /* the peer is active and we receive a peer down message */
-    p->bgp_fsm_state = new_state;
-    p->bgp_time_ref_rib_start = ts;
-    p->bgp_time_ref_rib_end = ts;
-
-    /* reset all peer pfx data associated with the peer */
-    reset_peerpfxdata(rt, peer_id, reset_uc);
-    bgpview_iter_deactivate_peer(rt->iter);
-  } else {
-    if (p->bgp_fsm_state != BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED &&
-        new_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
+      /* reset all peer pfx data associated with the peer */
+      reset_peerpfxdata(rt, peer_id, reset_uc);
+      bgpview_iter_deactivate_peer(rt->iter);
+    } else if (new_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
       /* the peer is inactive and we receive a peer up message */
       p->bgp_fsm_state = new_state;
       p->bgp_time_ref_rib_start = ts;
       p->bgp_time_ref_rib_end = ts;
       bgpview_iter_activate_peer(rt->iter);
     } else {
-      if (p->bgp_fsm_state != new_state) {
-        /* if the new state does not change the peer active/inactive status,
-         * update the FSM state anyway */
-        p->bgp_fsm_state = new_state;
-        p->bgp_time_ref_rib_start = ts;
-        p->bgp_time_ref_rib_end = ts;
-      }
+      /* if the new state does not change the peer active/inactive status,
+       * update the FSM state anyway */
+      p->bgp_fsm_state = new_state;
+      p->bgp_time_ref_rib_start = ts;
+      p->bgp_time_ref_rib_end = ts;
     }
   }
 
@@ -1053,25 +1017,20 @@ static int collector_process_valid_bgpinfo(routingtables_t *rt, collector_t *c,
                               record->time_sec) != 0) {
         return -1;
       }
-    } else {
-      if (elem->type == BGPSTREAM_ELEM_TYPE_PEERSTATE) {
-        /* update involving an entire peer */
-        if (apply_state_update(rt, c, peer_id, elem->new_state,
-                               record->time_sec) != 0) {
-          return -1;
-        }
-      } else {
-        if (elem->type == BGPSTREAM_ELEM_TYPE_RIB) {
-          /* apply the rib message */
-          if (apply_rib_message(rt, c, peer_id, elem,
-                                record->time_sec) != 0) {
-            return -1;
-          }
-        } else {
-          /* bgpstream bug: an elem type of a valid record cannot be UNKNOWN */
-          assert(0);
-        }
+    } else if (elem->type == BGPSTREAM_ELEM_TYPE_PEERSTATE) {
+      /* update involving an entire peer */
+      if (apply_state_update(rt, c, peer_id, elem->new_state,
+                             record->time_sec) != 0) {
+        return -1;
       }
+    } else if (elem->type == BGPSTREAM_ELEM_TYPE_RIB) {
+      /* apply the rib message */
+      if (apply_rib_message(rt, c, peer_id, elem,
+                            record->time_sec) != 0) {
+        return -1;
+      }
+    } else {
+      assert(0 && "bgpstream bug: unknown elem type");
     }
   }
   if (rc < 0) {
@@ -1209,16 +1168,13 @@ routingtables_t *routingtables_create(char *plugin_name,
                                       timeseries_t *timeseries)
 {
   routingtables_t *rt = (routingtables_t *)malloc_zero(sizeof(routingtables_t));
-  if (rt == NULL) {
+  if (rt == NULL)
     goto err;
-  }
 
-  if ((rt->peersigns = bgpstream_peer_sig_map_create()) == NULL) {
+  if ((rt->peersigns = bgpstream_peer_sig_map_create()) == NULL)
     goto err;
-  }
-  if ((rt->pathstore = bgpstream_as_path_store_create()) == NULL) {
+  if ((rt->pathstore = bgpstream_as_path_store_create()) == NULL)
     goto err;
-  }
 
   if ((rt->view = bgpview_create_shared(
          rt->peersigns, rt->pathstore, free /* view user destructor */,
@@ -1228,9 +1184,8 @@ routingtables_t *routingtables_create(char *plugin_name,
     goto err;
   }
 
-  if ((rt->iter = bgpview_iter_create(rt->view)) == NULL) {
+  if ((rt->iter = bgpview_iter_create(rt->view)) == NULL)
     goto err;
-  }
 
   /* all bgpcorsaro plugins share the same timeseries instance */
   rt->timeseries = timeseries;
@@ -1240,13 +1195,11 @@ routingtables_t *routingtables_create(char *plugin_name,
     goto err;
   }
 
-  if ((rt->collectors = kh_init(collector_data)) == NULL) {
+  if ((rt->collectors = kh_init(collector_data)) == NULL)
     goto err;
-  }
 
-  if ((rt->eorib_peers = kh_init(peer_id_collector)) == NULL) {
+  if ((rt->eorib_peers = kh_init(peer_id_collector)) == NULL)
     goto err;
-  }
 
   strcpy(rt->plugin_name, plugin_name);
 
