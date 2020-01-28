@@ -720,10 +720,11 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
                          "EOF from bgpstream (last_time=%f, bc->last_ts=%" PRId32,
                          last_time, bgpcorsaro->last_ts);
           bgpcorsaro->eof = 1;
+          if (bgpcorsaro->interval_end_needed == 0)
+            return 0; // EOF
           // end the final interval
-          rc = end_interval(bgpcorsaro, bgpcorsaro->last_ts);
-          if (rc < 0)
-            return rc;
+          if ((rc = end_interval(bgpcorsaro, bgpcorsaro->last_ts)) < 0)
+            return rc; // error
           return 1; // successful interval end.  caller can use shared_view.
         }
       } while (bsrecord->time_sec < bgpcorsaro->minimum_time);
