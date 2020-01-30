@@ -101,6 +101,7 @@ static void bgpcorsaro_free(bgpcorsaro_t *bgpcorsaro)
   /* free up the plugins first, they may try and use some of our info before
      closing */
   p = &bgpcorsaro_routingtables_plugin;
+  p->close_output(bgpcorsaro);
 
   if (bgpcorsaro->monitorname != NULL) {
     free(bgpcorsaro->monitorname);

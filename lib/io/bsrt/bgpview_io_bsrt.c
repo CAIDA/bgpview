@@ -1045,10 +1045,17 @@ void bgpview_io_bsrt_destroy(bgpview_io_bsrt_t *bsrt)
     return;
   }
 
+  if (bsrt->bgpcorsaro) {
+    bgpcorsaro_finalize_output(bsrt->bgpcorsaro);
+  }
   if (bsrt->stream) {
     bgpstream_destroy(bsrt->stream);
     bsrt->stream = NULL;
   }
+  if (bsrt->cfg.name)
+    free(bsrt->cfg.name);
+  if (bsrt->cfg.tmpl)
+    free(bsrt->cfg.tmpl);
 
   free(bsrt);
   return;
