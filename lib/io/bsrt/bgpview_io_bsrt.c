@@ -409,6 +409,7 @@ static int test_record_get_next_elem(bgpstream_record_t *bsrecord,
       // as_path
       path = bgpview_iter_pfx_peer_get_as_path(test.iter);
       bgpstream_as_path_copy(testel->as_path, path);
+      bgpstream_as_path_destroy(path);
 
       // communities
 
@@ -461,6 +462,7 @@ static int test_record_get_next_elem(bgpstream_record_t *bsrecord,
       // as_path
       path = bgpview_iter_pfx_peer_get_as_path(test.iter);
       bgpstream_as_path_copy(testel->as_path, path);
+      bgpstream_as_path_destroy(path);
 
       if (test.verbose) {
         print_elem(bsrecord, testel);
