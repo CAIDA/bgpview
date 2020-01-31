@@ -866,8 +866,6 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   // uint32_t peers_cnt;
   // char buf[MAX_BUFFER_LEN];
   int ipv_idx, i, ret, category, written;
-  /* aspath iterator structure */
-  bgpstream_as_path_iter_t path_it;
 
   /* borrowed pointer to a path segment */
   bgpstream_as_path_seg_t *seg;
@@ -925,8 +923,6 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
           continue;
         }
 
-        bgpstream_as_path_iter_reset(&path_it);
-        bgpstream_as_path_t *aspath = bgpview_iter_pfx_peer_get_as_path(it);
         // bgpstream_as_path_snprintf(buf2, MAX_BUFFER_LEN,aspath);
         // printf("As_path i saw: %s \n",buf2);
         // printf("The size of has was %d \n",kh_size(as_paths));
@@ -936,9 +932,8 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
         asn2 = 0;
         normal_asn = 0;
         prev_asn = 0;
-        while ((seg = bgpstream_as_path_get_next_seg(aspath, &path_it)) !=
-               NULL) {
-
+        bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
+        while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
           // printf("my ppers \n");
           i++;
           /* printing segment (any type) */
@@ -1025,7 +1020,6 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
           }
         }
         prev_asn = 0;
-        bgpstream_as_path_destroy(aspath);
       }
     }
     if (state->vc > 1) {
