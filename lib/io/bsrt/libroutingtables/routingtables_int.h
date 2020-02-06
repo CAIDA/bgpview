@@ -71,16 +71,13 @@ typedef enum {
 /** Information about the current status
  *  of a pfx-peer info */
 typedef struct struct_perpfx_perpeer_info_t {
+  // Note: the order of fields is designed to place fields at their natural
+  // alignment even when the struct is packed.  (Misaligned fields may incur a
+  // performance penalty and even cause memory errors on some architectures.)
 
-  /** Bitfield that indicates whether the
-   *  prefix is currently announced by this peer
-   *  in the active state and/or in the uc state */
-  uint8_t pfx_status;
-
-  /** Last bgp time associated with the most
-   *  recent operation involving the current
-   *  prefix and the current peer  */
-  uint32_t bgp_time_last_ts;
+  /** ID of the AS path observed in the current
+   *  under construction RIB. */
+  bgpstream_as_path_store_path_id_t uc_as_path_id;
 
   /** Difference between the current under
    *  construction RIB start time for the
@@ -88,9 +85,15 @@ typedef struct struct_perpfx_perpeer_info_t {
    *  received for the prefix  */
   uint16_t bgp_time_uc_delta_ts;
 
-  /** ID of the AS path observed in the current
-   *  under construction RIB. */
-  bgpstream_as_path_store_path_id_t uc_as_path_id;
+  /** Last bgp time associated with the most
+   *  recent operation involving the current
+   *  prefix and the current peer  */
+  uint32_t bgp_time_last_ts;
+
+  /** Bitfield that indicates whether the
+   *  prefix is currently announced by this peer
+   *  in the active state and/or in the uc state */
+  uint8_t pfx_status;
 
 } __attribute__((packed)) perpfx_perpeer_info_t;
 
