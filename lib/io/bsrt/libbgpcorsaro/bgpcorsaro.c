@@ -631,7 +631,6 @@ static int bgpcorsaro_start_record(bgpcorsaro_t *bgpcorsaro,
 
 static int bgpcorsaro_end_interval_for_record(bgpcorsaro_t *bgpcorsaro)
 {
-  bgpcorsaro_log(__func__, bgpcorsaro, "enter");
   /* we want to mark the end of the interval such that all pkt times are <=
      the time of the end of the interval.
      because we deal in second granularity, we simply subtract one from the
@@ -644,13 +643,11 @@ static int bgpcorsaro_end_interval_for_record(bgpcorsaro_t *bgpcorsaro)
     /* we don't free in case the client wants to try to carry on */
     return -1;
   }
-  bgpcorsaro_log(__func__, bgpcorsaro, "return");
   return 0;
 }
 
 static int bgpcorsaro_start_interval_for_record(bgpcorsaro_t *bgpcorsaro)
 {
-  bgpcorsaro_log(__func__, bgpcorsaro, "enter");
   bgpcorsaro->interval_start.number++;
 
   /* we now add the second back on to the time to get the start time */
@@ -662,7 +659,6 @@ static int bgpcorsaro_start_interval_for_record(bgpcorsaro_t *bgpcorsaro)
     return -1;
   }
   bgpcorsaro->next_report += bgpcorsaro->interval;
-  bgpcorsaro_log(__func__, bgpcorsaro, "return");
   return 0;
 }
 
