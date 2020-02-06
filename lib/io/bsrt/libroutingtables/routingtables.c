@@ -118,21 +118,13 @@ static void perpeer_info_destroy(void *p)
     kh_destroy(origin_segments, pi->announcing_ases);
     pi->announcing_ases = NULL;
   }
-  if (pi->announced_v4_pfxs != NULL) {
-    bgpstream_ipv4_pfx_set_destroy(pi->announced_v4_pfxs);
-    pi->announced_v4_pfxs = NULL;
+  if (pi->announced_pfxs != NULL) {
+    bgpstream_pfx_set_destroy(pi->announced_pfxs);
+    pi->announced_pfxs = NULL;
   }
-  if (pi->withdrawn_v4_pfxs != NULL) {
-    bgpstream_ipv4_pfx_set_destroy(pi->withdrawn_v4_pfxs);
-    pi->withdrawn_v4_pfxs = NULL;
-  }
-  if (pi->announced_v6_pfxs != NULL) {
-    bgpstream_ipv6_pfx_set_destroy(pi->announced_v6_pfxs);
-    pi->announced_v6_pfxs = NULL;
-  }
-  if (pi->withdrawn_v6_pfxs != NULL) {
-    bgpstream_ipv6_pfx_set_destroy(pi->withdrawn_v6_pfxs);
-    pi->withdrawn_v6_pfxs = NULL;
+  if (pi->withdrawn_pfxs != NULL) {
+    bgpstream_pfx_set_destroy(pi->withdrawn_pfxs);
+    pi->withdrawn_pfxs = NULL;
   }
   free(p);
 }
@@ -179,16 +171,10 @@ static perpeer_info_t *perpeer_info_create(routingtables_t *rt, collector_t *c,
   if ((p->announcing_ases = kh_init(origin_segments)) == NULL)
     goto err;
 
-  if ((p->announced_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL)
+  if ((p->announced_pfxs = bgpstream_pfx_set_create()) == NULL)
     goto err;
 
-  if ((p->withdrawn_v4_pfxs = bgpstream_ipv4_pfx_set_create()) == NULL)
-    goto err;
-
-  if ((p->announced_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL)
-    goto err;
-
-  if ((p->withdrawn_v6_pfxs = bgpstream_ipv6_pfx_set_create()) == NULL)
+  if ((p->withdrawn_pfxs = bgpstream_pfx_set_create()) == NULL)
     goto err;
 
   return p;
@@ -647,34 +633,16 @@ static int update_peer_stats(perpeer_info_t *p, bgpstream_elem_t *elem)
       }
       kh_put(origin_segments, p->announcing_ases, origin, &khret);
     }
-    if (elem->prefix.address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
-      bgpstream_ipv4_pfx_set_insert(p->announced_v4_pfxs,
-                                    &elem->prefix.bs_ipv4);
-      return 0;
-    }
-    if (elem->prefix.address.version == BGPSTREAM_ADDR_VERSION_IPV6) {
-      bgpstream_ipv6_pfx_set_insert(p->announced_v6_pfxs,
-                                    &elem->prefix.bs_ipv6);
-      return 0;
-    }
+    bgpstream_pfx_set_insert(p->announced_pfxs, &elem->prefix);
+    return 0;
 
   } else {
     assert(elem->type == BGPSTREAM_ELEM_TYPE_WITHDRAWAL);
     /* increase withdrawals count for current peer */
     p->pfx_withdrawals_cnt++;
-    if (elem->prefix.address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
-      bgpstream_ipv4_pfx_set_insert(p->withdrawn_v4_pfxs,
-                                    &elem->prefix.bs_ipv4);
-      return 0;
-    }
-    if (elem->prefix.address.version == BGPSTREAM_ADDR_VERSION_IPV6) {
-      bgpstream_ipv6_pfx_set_insert(p->withdrawn_v6_pfxs,
-                                    &elem->prefix.bs_ipv6);
-      return 0;
-    }
+    bgpstream_pfx_set_insert(p->withdrawn_pfxs, &elem->prefix);
+    return 0;
   }
-
-  return -1;
 }
 
 /** Apply an announcement update or a withdrawal update

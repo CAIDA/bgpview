@@ -197,21 +197,13 @@ typedef struct struct_perpeer_info_t {
    *  in the current interval */
   origin_segments_t *announcing_ases;
 
-  /** Set of ipv4 prefixes that have been announced at
+  /** Set of prefixes that have been announced at
    *  least once in the current interval */
-  bgpstream_ipv4_pfx_set_t *announced_v4_pfxs;
+  bgpstream_pfx_set_t *announced_pfxs;
 
-  /** Set of ipv4  prefixes that have been withdrawn at
+  /** Set of prefixes that have been withdrawn at
    *  least once in the current interval */
-  bgpstream_ipv4_pfx_set_t *withdrawn_v4_pfxs;
-
-  /** Set of ipv6 prefixes that have been announced at
-   *  least once in the current interval */
-  bgpstream_ipv6_pfx_set_t *announced_v6_pfxs;
-
-  /** Set of ipv6  prefixes that have been withdrawn at
-   *  least once in the current interval */
-  bgpstream_ipv6_pfx_set_t *withdrawn_v6_pfxs;
+  bgpstream_pfx_set_t *withdrawn_pfxs;
 
   /** number of positive mismatches at rib end time
    *  i.e. number of active prefixes that are not

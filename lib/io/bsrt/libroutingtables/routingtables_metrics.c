@@ -351,16 +351,16 @@ void routingtables_dump_metrics(routingtables_t *rt, uint32_t time_now)
                         kh_size(p->announcing_ases));
 
       timeseries_kp_set(rt->kp, p->kp_idxs.announced_v4_pfxs_idx,
-                        bgpstream_ipv4_pfx_set_size(p->announced_v4_pfxs));
+                        bgpstream_pfx_set_version_size(p->announced_pfxs, BGPSTREAM_ADDR_VERSION_IPV4));
 
       timeseries_kp_set(rt->kp, p->kp_idxs.withdrawn_v4_pfxs_idx,
-                        bgpstream_ipv4_pfx_set_size(p->withdrawn_v4_pfxs));
+                        bgpstream_pfx_set_version_size(p->withdrawn_pfxs, BGPSTREAM_ADDR_VERSION_IPV4));
 
       timeseries_kp_set(rt->kp, p->kp_idxs.announced_v6_pfxs_idx,
-                        bgpstream_ipv6_pfx_set_size(p->announced_v6_pfxs));
+                        bgpstream_pfx_set_version_size(p->announced_pfxs, BGPSTREAM_ADDR_VERSION_IPV6));
 
       timeseries_kp_set(rt->kp, p->kp_idxs.withdrawn_v6_pfxs_idx,
-                        bgpstream_ipv6_pfx_set_size(p->withdrawn_v6_pfxs));
+                        bgpstream_pfx_set_version_size(p->withdrawn_pfxs, BGPSTREAM_ADDR_VERSION_IPV6));
 
       timeseries_kp_set(rt->kp, p->kp_idxs.rib_messages_cnt_idx,
                         p->rib_messages_cnt);
@@ -389,10 +389,8 @@ void routingtables_dump_metrics(routingtables_t *rt, uint32_t time_now)
       bgpstream_as_path_seg_destroy(kh_key(p->announcing_ases, aai));
     }
     kh_clear(origin_segments, p->announcing_ases);
-    bgpstream_ipv4_pfx_set_clear(p->announced_v4_pfxs);
-    bgpstream_ipv4_pfx_set_clear(p->withdrawn_v4_pfxs);
-    bgpstream_ipv6_pfx_set_clear(p->announced_v6_pfxs);
-    bgpstream_ipv6_pfx_set_clear(p->withdrawn_v6_pfxs);
+    bgpstream_pfx_set_clear(p->announced_pfxs);
+    bgpstream_pfx_set_clear(p->withdrawn_pfxs);
     p->rib_messages_cnt = 0;
     p->pfx_announcements_cnt = 0;
     p->pfx_withdrawals_cnt = 0;
