@@ -307,51 +307,40 @@ static void stop_uc_process(routingtables_t *rt, collector_t *c)
   c->bgp_time_uc_rib_start_time = 0;
 }
 
-static void reset_peerpfxdata_version(routingtables_t *rt,
-                                      bgpstream_peer_id_t peer_id,
-                                      uint8_t reset_uc, int pfx_version)
-{
-  perpfx_perpeer_info_t *pp;
-  for (bgpview_iter_first_pfx(rt->iter, pfx_version, BGPVIEW_FIELD_ALL_VALID);
-       bgpview_iter_has_more_pfx(rt->iter); bgpview_iter_next_pfx(rt->iter)) {
-    if (bgpview_iter_pfx_seek_peer(rt->iter, peer_id,
-                                   BGPVIEW_FIELD_ALL_VALID) == 0) {
-      continue;
-    }
-    pp = bgpview_iter_pfx_peer_get_user(rt->iter);
-    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
-    pp->bgp_time_last_ts = 0;
-    if (reset_uc) {
-      pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
-    }
-    bgpview_iter_pfx_deactivate_peer(rt->iter);
-  }
-}
-
 /** Reset all the pfxpeer data associated with the
  *  provided peer id
  *  @note: this is the function to call when putting a peer down*/
 static void reset_peerpfxdata(routingtables_t *rt, bgpstream_peer_id_t peer_id,
                               uint8_t reset_uc)
 {
+  int ipv[] = { BGPSTREAM_ADDR_VERSION_IPV4, BGPSTREAM_ADDR_VERSION_IPV6, 0 };
+
   /* is this a real peer? */
   if (bgpview_iter_seek_peer(rt->iter, peer_id, BGPVIEW_FIELD_ALL_VALID) == 0) {
     return;
   }
 
-  /* disable v4 pfxs if there are any */
-  if (bgpview_iter_peer_get_pfx_cnt(rt->iter, BGPSTREAM_ADDR_VERSION_IPV4,
-                                    BGPVIEW_FIELD_ALL_VALID) > 0) {
-    reset_peerpfxdata_version(rt, peer_id, reset_uc,
-                              BGPSTREAM_ADDR_VERSION_IPV4);
-  }
-
-  /* disable v6 pfxs if there are any */
-  if (bgpview_iter_peer_get_pfx_cnt(rt->iter, BGPSTREAM_ADDR_VERSION_IPV6,
-                                    BGPVIEW_FIELD_ALL_VALID) > 0) {
-    reset_peerpfxdata_version(rt, peer_id, reset_uc,
-                              BGPSTREAM_ADDR_VERSION_IPV6);
+  for (int i = 0; ipv[i]; i++) {
+    /* disable pfxs of the given ipv if there are any */
+    if (bgpview_iter_peer_get_pfx_cnt(rt->iter, ipv[i],
+        BGPVIEW_FIELD_ALL_VALID) <= 0) {
+      continue; // optimization: loop below will find nothing, so skip it
+    }
+    for (bgpview_iter_first_pfx(rt->iter, ipv[i], BGPVIEW_FIELD_ALL_VALID);
+         bgpview_iter_has_more_pfx(rt->iter); bgpview_iter_next_pfx(rt->iter)) {
+      if (bgpview_iter_pfx_seek_peer(rt->iter, peer_id,
+          BGPVIEW_FIELD_ALL_VALID) == 0) {
+        continue;
+      }
+      perpfx_perpeer_info_t *pp = bgpview_iter_pfx_peer_get_user(rt->iter);
+      pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
+      pp->bgp_time_last_ts = 0;
+      if (reset_uc) {
+        pp->bgp_time_uc_delta_ts = 0;
+        pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
+      }
+      bgpview_iter_pfx_deactivate_peer(rt->iter);
+    }
   }
 
   /* reset the iterator to point to the peer */
