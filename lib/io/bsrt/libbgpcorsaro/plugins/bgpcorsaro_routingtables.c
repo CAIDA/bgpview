@@ -314,11 +314,6 @@ int bgpcorsaro_routingtables_process_record(bgpcorsaro_t *bgpcorsaro,
   struct bgpcorsaro_routingtables_state_t *state = STATE(bgpcorsaro);
   bgpstream_record_t *bs_record = BS_REC(record);
 
-  /* no point carrying on if a previous plugin has already decided we should
-     ignore this record */
-  if ((record->state.flags & BGPCORSARO_RECORD_STATE_FLAG_IGNORE) != 0) {
-    return 0;
-  }
   record->state.shared_view_ptr =
     routingtables_get_view_ptr(state->routing_tables);
 

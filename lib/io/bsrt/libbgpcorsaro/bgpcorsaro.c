@@ -67,16 +67,7 @@ static bgpcorsaro_record_t *bgpcorsaro_record_alloc(bgpcorsaro_t *bgpcorsaro)
 static inline void bgpcorsaro_record_state_reset(bgpcorsaro_record_t *record)
 {
   assert(record != NULL);
-
-  /* now that we have added the bgpcorsaro_tag framework we can no longer do the
-     brute-force reset of the record state to 0, each field MUST be individually
-     cleared. if you add a field to bgpcorsaro_record_state_t, you MUST reset it
-     here */
-
-  /* reset the shared view pointer */
-  record->state.shared_view_ptr = NULL;
-  /* reset the general flags */
-  record->state.flags = 0;
+  memset(&record->state, 0, sizeof(record->state));
 }
 
 /** Free the given bgpcorsaro record wrapper */

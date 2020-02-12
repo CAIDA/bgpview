@@ -119,17 +119,8 @@ struct bgpcorsaro_interval {
  * Plugins can add data to it, or check for data from earlier plugins.
  */
 struct bgpcorsaro_record_state {
-  /** Features of the record that have been identified by earlier plugins */
-  uint8_t flags;
-
   /** Pointer to routingtables views */
   bgpview_t *shared_view_ptr;
-};
-
-/** The possible record state flags */
-enum {
-  /** The record should be ignored by filter-aware plugins */
-  BGPCORSARO_RECORD_STATE_FLAG_IGNORE = 0x01,
 };
 
 /** A lightweight wrapper around a bgpstream record */
