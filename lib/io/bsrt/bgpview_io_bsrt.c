@@ -1003,9 +1003,8 @@ bgpview_io_bsrt_t *bgpview_io_bsrt_init(const char *opts, timeseries_t *timeseri
     bgpcorsaro_set_interval(bsrt->bgpcorsaro, bsrt->cfg.interval);
   }
 
-  if (bsrt->cfg.align == 1) {
-    bgpcorsaro_set_interval_alignment(bsrt->bgpcorsaro,
-                                      BGPCORSARO_INTERVAL_ALIGN_YES);
+  if (bsrt->cfg.align) {
+    bgpcorsaro_set_interval_alignment_flag(bsrt->bgpcorsaro, bsrt->cfg.align);
   }
 
   if (bsrt->cfg.rotate > 0) {

@@ -170,7 +170,7 @@ struct bgpcorsaro {
 
   /** The first interval end will be rounded down to the nearest integer
       multiple of the interval length if enabled */
-  bgpcorsaro_interval_align_t interval_align;
+  int align_intervals;
 
   /** The number of seconds after which plugins will be asked to dump data */
   int interval;

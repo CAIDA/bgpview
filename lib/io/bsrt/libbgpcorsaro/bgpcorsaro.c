@@ -66,7 +66,7 @@ static bgpcorsaro_record_t *bgpcorsaro_record_alloc(bgpcorsaro_t *bc)
 /** Reset the state for a the given bgpcorsaro record wrapper */
 static inline void bgpcorsaro_record_state_reset(bgpcorsaro_record_t *record)
 {
-  assert(record != NULL);
+  assert(record);
   memset(&record->state, 0, sizeof(record->state));
 }
 
@@ -74,7 +74,7 @@ static inline void bgpcorsaro_record_state_reset(bgpcorsaro_record_t *record)
 static void bgpcorsaro_record_free(bgpcorsaro_record_t *record)
 {
   /* we will assume that somebody else is taking care of the bgpstream record */
-  if (record != NULL) {
+  if (record) {
     free(record);
   }
 }
@@ -94,17 +94,17 @@ static void bgpcorsaro_free(bgpcorsaro_t *bc)
   p = &bgpcorsaro_routingtables_plugin;
   p->close_output(bc);
 
-  if (bc->monitorname != NULL) {
+  if (bc->monitorname) {
     free(bc->monitorname);
     bc->monitorname = NULL;
   }
 
-  if (bc->template != NULL) {
+  if (bc->template) {
     free(bc->template);
     bc->template = NULL;
   }
 
-  if (bc->record != NULL) {
+  if (bc->record) {
     bgpcorsaro_record_free(bc->record);
     bc->record = NULL;
   }
@@ -128,15 +128,13 @@ static inline void populate_interval(bgpcorsaro_interval_t *interval,
 /** Check if the meta output files should be rotated */
 static int is_meta_rotate_interval(bgpcorsaro_t *bc)
 {
-  assert(bc != NULL);
+  assert(bc);
 
   if (bc->meta_output_rotate < 0) {
     return bgpcorsaro_is_rotate_interval(bc);
-  } else if (bc->meta_output_rotate > 0 &&
-             (bc->interval_start.number + 1) % bc->meta_output_rotate == 0) {
-    return 1;
   } else {
-    return 0;
+    return (bc->meta_output_rotate > 0 &&
+            (bc->interval_start.number + 1) % bc->meta_output_rotate == 0);
   }
 }
 
@@ -184,7 +182,7 @@ static bgpcorsaro_t *bgpcorsaro_init(char *template, timeseries_t *timeseries)
   }
 
   /* set the default interval alignment value */
-  e->interval_align = BGPCORSARO_INTERVAL_ALIGN_DEFAULT;
+  e->align_intervals = BGPCORSARO_INTERVAL_ALIGN_DEFAULT;
 
   /* interval doesn't need to be actively set, use the default for now */
   e->interval = BGPCORSARO_INTERVAL_DEFAULT;
@@ -219,7 +217,7 @@ static int start_interval(bgpcorsaro_t *bc, long int_start)
 
   /* the following is to support file rotation */
   /* initialize the log file */
-  if (bc->logfile_disabled == 0 && bc->logfile == NULL) {
+  if (!bc->logfile_disabled && bc->logfile == NULL) {
     /* if this is the first interval, let them know we are switching to
        logging to a file */
     if (bc->interval_start.number == 0) {
@@ -287,7 +285,7 @@ static int end_interval(bgpcorsaro_t *bc, long int_end)
     /* this MUST be the last thing closed in case any of the other things want
        to log their end-of-interval activities (e.g. the pkt cnt from writing
        the trailers */
-    if (bc->logfile != NULL) {
+    if (bc->logfile) {
       bgpcorsaro_log_close(bc);
     }
   }
@@ -348,7 +346,7 @@ int bgpcorsaro_start_output(bgpcorsaro_t *bc)
 {
   bgpcorsaro_plugin_t *p = NULL;
 
-  assert(bc != NULL);
+  assert(bc);
 
   /* only initialize the log file if there are no time format fields in the file
      name (otherwise they will get a log file with a zero timestamp. */
@@ -356,7 +354,7 @@ int bgpcorsaro_start_output(bgpcorsaro_t *bc)
      messages will not be logged to a file. In fact nothing will be logged until
      the first record is received. */
   assert(bc->logfile == NULL);
-  if (bc->logfile_disabled == 0 &&
+  if (!bc->logfile_disabled &&
       bgpcorsaro_io_template_has_timestamp(bc) == 0) {
     bgpcorsaro_log(__func__, bc, "now logging to file"
 #ifdef DEBUG
@@ -389,24 +387,23 @@ int bgpcorsaro_start_output(bgpcorsaro_t *bc)
   return 0;
 }
 
-void bgpcorsaro_set_interval_alignment(bgpcorsaro_t *bc,
-                                       bgpcorsaro_interval_align_t align)
+void bgpcorsaro_set_interval_alignment_flag(bgpcorsaro_t *bc, int flag)
 {
-  assert(bc != NULL);
+  assert(bc);
   /* you cant set interval alignment once bgpcorsaro has started */
-  assert(bc->started == 0);
+  assert(!bc->started);
 
   bgpcorsaro_log(__func__, bc, "setting interval alignment to %d",
-                 align);
+                 flag);
 
-  bc->interval_align = align;
+  bc->align_intervals = flag;
 }
 
 void bgpcorsaro_set_interval(bgpcorsaro_t *bc, unsigned int i)
 {
-  assert(bc != NULL);
+  assert(bc);
   /* you can't set the interval once bgpcorsaro has been started */
-  assert(bc->started == 0);
+  assert(!bc->started);
 
   bgpcorsaro_log(__func__, bc, "setting interval length to %d", i);
 
@@ -415,9 +412,9 @@ void bgpcorsaro_set_interval(bgpcorsaro_t *bc, unsigned int i)
 
 void bgpcorsaro_set_output_rotation(bgpcorsaro_t *bc, int intervals)
 {
-  assert(bc != NULL);
+  assert(bc);
   /* you can't enable rotation once bgpcorsaro has been started */
-  assert(bc->started == 0);
+  assert(!bc->started);
 
   bgpcorsaro_log(__func__, bc, "setting output rotation after %d interval(s)",
                  intervals);
@@ -439,9 +436,9 @@ void bgpcorsaro_set_output_rotation(bgpcorsaro_t *bc, int intervals)
 
 void bgpcorsaro_set_meta_output_rotation(bgpcorsaro_t *bc, int intervals)
 {
-  assert(bc != NULL);
+  assert(bc);
   /* you can't enable rotation once bgpcorsaro has been started */
-  assert(bc->started == 0);
+  assert(!bc->started);
 
   bgpcorsaro_log(__func__, bc,
                  "setting meta output rotation after %d intervals(s)",
@@ -452,27 +449,19 @@ void bgpcorsaro_set_meta_output_rotation(bgpcorsaro_t *bc, int intervals)
 
 int bgpcorsaro_is_rotate_interval(bgpcorsaro_t *bc)
 {
-  assert(bc != NULL);
+  assert(bc);
 
-  if (bc->output_rotate == 0) {
-    return 0;
-  } else if ((bc->interval_start.number + 1) % bc->output_rotate == 0) {
-    return 1;
-  } else {
-    return 0;
-  }
+  return (bc->output_rotate != 0) &&
+    ((bc->interval_start.number + 1) % bc->output_rotate == 0);
 }
 
 int bgpcorsaro_set_stream(bgpcorsaro_t *bc, bgpstream_t *stream)
 {
-  assert(bc != NULL);
+  assert(bc);
 
   /* this function can actually be called once bgpcorsaro is started */
-  if (bc->stream != NULL) {
-    bgpcorsaro_log(__func__, bc, "updating stream pointer");
-  } else {
-    bgpcorsaro_log(__func__, bc, "setting stream pointer");
-  }
+  bgpcorsaro_log(__func__, bc, "%s stream pointer",
+      bc->stream ? "updating" : "setting");
 
   bc->stream = stream;
   return 0;
@@ -480,7 +469,7 @@ int bgpcorsaro_set_stream(bgpcorsaro_t *bc, bgpstream_t *stream)
 
 void bgpcorsaro_disable_logfile(bgpcorsaro_t *bc)
 {
-  assert(bc != NULL);
+  assert(bc);
   bc->logfile_disabled = 1;
 }
 
@@ -513,7 +502,7 @@ static int copy_argv(bgpcorsaro_plugin_t *plugin, int argc, char *argv[])
 int bgpcorsaro_enable_plugin(bgpcorsaro_t *bc, const char *plugin_name,
                              const char *plugin_args)
 {
-  assert(bc != NULL);
+  assert(bc);
 
   char *local_args = NULL;
   char *process_argv[MAXOPTS];
@@ -535,7 +524,7 @@ int bgpcorsaro_enable_plugin(bgpcorsaro_t *bc, const char *plugin_name,
 
   int retval = copy_argv(plugin, process_argc, process_argv);
 
-  if (local_args != NULL) {
+  if (local_args) {
     /* this is the storage for the strings until copy_argv is complete */
     free(local_args);
   }
@@ -544,15 +533,15 @@ int bgpcorsaro_enable_plugin(bgpcorsaro_t *bc, const char *plugin_name,
 
 int bgpcorsaro_set_monitorname(bgpcorsaro_t *bc, char *name)
 {
-  assert(bc != NULL);
+  assert(bc);
 
-  if (bc->started != 0) {
+  if (bc->started) {
     bgpcorsaro_log(__func__, bc, "monitor name can only be set before "
                                  "bgpcorsaro_start_output is called");
     return -1;
   }
 
-  if (bc->monitorname != NULL) {
+  if (bc->monitorname) {
     bgpcorsaro_log(__func__, bc, "updating monitor name from %s to %s",
                    bc->monitorname, name);
   } else {
@@ -600,7 +589,7 @@ static int bgpcorsaro_start_record(bgpcorsaro_t *bc,
 
     long start = ts;
     /* if we are aligning our intervals, truncate the start down */
-    if (bc->interval_align == BGPCORSARO_INTERVAL_ALIGN_YES) {
+    if (bc->align_intervals) {
       start = (start / bc->interval) * bc->interval;
     }
 
@@ -654,8 +643,8 @@ static int bgpcorsaro_start_interval_for_record(bgpcorsaro_t *bc)
 //   1: end interval
 int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
 {
-  assert(bc != NULL);
-  assert(bc->started == 1 &&
+  assert(bc);
+  assert(bc->started &&
          "bgpcorsaro_start_output must be called before records can be "
          "processed");
 
@@ -667,7 +656,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
       return -1;
   } // else, start_interval() will be called by first bgpcorsaro_start_record()
 
-  while (bc->eof == 0) {
+  while (!bc->eof) {
     // from bgpcorsaro_per_record()
     /* using an interval value of less than zero disables intervals
        such that only one distribution will be generated upon completion */
@@ -702,7 +691,7 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
                          "EOF from bgpstream (last_time=%f, bc->last_ts=%ld",
                          last_time, bc->last_ts);
           bc->eof = 1;
-          if (bc->interval_end_needed == 0)
+          if (!bc->interval_end_needed)
             return 0; // EOF
           // end the final interval
           if ((rc = end_interval(bc, bc->last_ts)) < 0)
@@ -755,8 +744,8 @@ int bgpcorsaro_finalize_output(bgpcorsaro_t *bc)
   if (bc == NULL) {
     return 0;
   }
-  if (bc->started != 0) {
-    if (bc->interval_end_needed != 0 && end_interval(bc, bc->last_ts) != 0) {
+  if (bc->interval_end_needed) {
+    if (end_interval(bc, bc->last_ts) != 0) {
       bgpcorsaro_log(__func__, bc, "could not end interval at %ld",
                      bc->last_ts);
       bgpcorsaro_free(bc);

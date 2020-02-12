@@ -58,11 +58,7 @@ typedef struct bgpcorsaro_interval bgpcorsaro_interval_t;
  * @{ */
 
 /** Settings for interval alignment */
-typedef enum bgpcorsaro_interval_align {
-  BGPCORSARO_INTERVAL_ALIGN_NO = 0,
-  BGPCORSARO_INTERVAL_ALIGN_YES = 1,
-  BGPCORSARO_INTERVAL_ALIGN_DEFAULT = BGPCORSARO_INTERVAL_ALIGN_NO,
-} bgpcorsaro_interval_align_t;
+#define BGPCORSARO_INTERVAL_ALIGN_DEFAULT 0
 
 /** @} */
 
@@ -122,15 +118,15 @@ int bgpcorsaro_start_output(bgpcorsaro_t *bgpcorsaro);
 /** Accessor function to enable/disable the alignment of the initial interval
  *
  * @param bgpcorsaro      The bgpcorsaro object to set the interval for
- * @param interval_align  Enable or disable the alignment of interval end times
+ * @param flag            Enable or disable the alignment of interval end times
  *
  * The end time of the first interval will be rounded down to the nearest
  * integer multiple of the interval length. Interval rounding makes the most
  * sense when the interval length is evenly divisible into 1 hour.
  * The default is no interval alignment.
  */
-void bgpcorsaro_set_interval_alignment(
-  bgpcorsaro_t *bgpcorsaro, bgpcorsaro_interval_align_t interval_align);
+void bgpcorsaro_set_interval_alignment_flag(
+  bgpcorsaro_t *bgpcorsaro, int flag);
 
 /** Accessor function to set the interval length
  *
