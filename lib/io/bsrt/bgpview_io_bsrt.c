@@ -159,6 +159,10 @@ static int test_get_next_record(bgpstream_t *bgpstream,
 
   if (!test.view) {
     // initialize
+    static const char *test_collector_name = "TEST_COLLECTOR";
+    static int test_peer_cnt = 7;
+    static int test_table_size = 9;
+
     test.verbose = 1;
     test.t_base = 1000000000;
     test.need_rib_start = 1;
@@ -166,10 +170,9 @@ static int test_get_next_record(bgpstream_t *bgpstream,
     test.view_size = 0;
     test.step = 0;
     testrec = malloc_zero(sizeof(*testrec));
+    strcpy(testrec->project_name, "TEST_PROJECT");
+    strcpy(testrec->collector_name, test_collector_name);
 
-    static const char *test_collector_name = "TEST_COLLECTOR";
-    static int test_peer_cnt = 7;
-    static int test_table_size = 9;
     if (!(test.view = bgpview_create(NULL, NULL, NULL, NULL))) {
       fprintf(stderr, "ERROR: can't create test view\n");
       goto err;
