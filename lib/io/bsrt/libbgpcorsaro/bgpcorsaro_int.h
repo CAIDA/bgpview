@@ -225,13 +225,13 @@ struct bgpcorsaro {
 #define TIMER_START(timer)                                                     \
   struct timeval timer_start;                                                  \
   do {                                                                         \
-    gettimeofday_wrap(&timer_start);                                           \
+    gettimeofday(&timer_start, NULL);                                          \
   } while (0)
 
 #define TIMER_END(timer)                                                       \
   struct timeval timer_end, timer_diff;                                        \
   do {                                                                         \
-    gettimeofday_wrap(&timer_end);                                             \
+    gettimeofday(&timer_end, NULL);                                            \
     timeval_subtract(&timer_diff, &timer_end, &timer_start);                   \
   } while (0)
 

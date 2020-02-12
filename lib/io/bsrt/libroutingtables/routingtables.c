@@ -70,12 +70,7 @@ static char *graphite_safe(char *buf)
   return buf;
 }
 
-static uint32_t get_wall_time_now(void)
-{
-  struct timeval tv;
-  gettimeofday_wrap(&tv);
-  return tv.tv_sec;
-}
+#define get_wall_time_now()  ((uint32_t)time(NULL))
 
 static perpfx_perpeer_info_t *perpfx_perpeer_info_create(void)
 {

@@ -150,7 +150,7 @@ static bgpcorsaro_t *bgpcorsaro_init(char *template, timeseries_t *timeseries)
   e->last_ts = -1;
 
   /* what time is it? */
-  gettimeofday_wrap(&e->init_time);
+  gettimeofday(&e->init_time, NULL);
 
   /* set a default monitorname for when im bad and directly retrieve it
      from the structure */
@@ -735,7 +735,7 @@ int bgpcorsaro_finalize_output(bgpcorsaro_t *bc)
 #ifdef WITH_PLUGIN_TIMING
   bgpcorsaro_plugin_t *p = NULL;
   struct timeval total_end, total_diff;
-  gettimeofday_wrap(&total_end);
+  gettimeofday(&total_end, NULL);
   timeval_subtract(&total_diff, &total_end, &bc->init_time);
   uint64_t total_time_usec =
     ((total_diff.tv_sec * 1000000) + total_diff.tv_usec);
