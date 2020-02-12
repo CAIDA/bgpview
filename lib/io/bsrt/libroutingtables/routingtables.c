@@ -57,23 +57,17 @@ static char buffer[BUFFER_LEN];
 
 /* ========== PRIVATE FUNCTIONS ========== */
 
-static char *graphite_safe(char *p)
+static char *graphite_safe(char *buf)
 {
-  if (p == NULL) {
-    return p;
-  }
+  if (!buf)
+    return buf;
 
-  char *r = p;
-  while (*p != '\0') {
-    if (*p == '.') {
+  for (char *p = buf; *p; p++) {
+    if (*p == '.' || *p == '*') {
       *p = '-';
     }
-    if (*p == '*') {
-      *p = '-';
-    }
-    p++;
   }
-  return r;
+  return buf;
 }
 
 static uint32_t get_wall_time_now(void)
