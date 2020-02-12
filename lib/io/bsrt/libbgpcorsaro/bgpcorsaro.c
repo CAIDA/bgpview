@@ -50,12 +50,12 @@
  */
 
 /** Allocate a bgpcorsaro record wrapper structure */
-static bgpcorsaro_record_t *bgpcorsaro_record_alloc(bgpcorsaro_t *bgpcorsaro)
+static bgpcorsaro_record_t *bgpcorsaro_record_alloc(bgpcorsaro_t *bc)
 {
   bgpcorsaro_record_t *rec;
 
   if ((rec = malloc_zero(sizeof(bgpcorsaro_record_t))) == NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "could not malloc bgpcorsaro_record");
+    bgpcorsaro_log(__func__, bc, "could not malloc bgpcorsaro_record");
     return NULL;
   }
 
@@ -80,11 +80,11 @@ static void bgpcorsaro_record_free(bgpcorsaro_record_t *record)
 }
 
 /** Cleanup and free the given bgpcorsaro instance */
-static void bgpcorsaro_free(bgpcorsaro_t *bgpcorsaro)
+static void bgpcorsaro_free(bgpcorsaro_t *bc)
 {
   bgpcorsaro_plugin_t *p = NULL;
 
-  if (bgpcorsaro == NULL) {
+  if (bc == NULL) {
     /* nothing to be done... */
     return;
   }
@@ -92,32 +92,32 @@ static void bgpcorsaro_free(bgpcorsaro_t *bgpcorsaro)
   /* free up the plugins first, they may try and use some of our info before
      closing */
   p = &bgpcorsaro_routingtables_plugin;
-  p->close_output(bgpcorsaro);
+  p->close_output(bc);
 
-  if (bgpcorsaro->monitorname != NULL) {
-    free(bgpcorsaro->monitorname);
-    bgpcorsaro->monitorname = NULL;
+  if (bc->monitorname != NULL) {
+    free(bc->monitorname);
+    bc->monitorname = NULL;
   }
 
-  if (bgpcorsaro->template != NULL) {
-    free(bgpcorsaro->template);
-    bgpcorsaro->template = NULL;
+  if (bc->template != NULL) {
+    free(bc->template);
+    bc->template = NULL;
   }
 
-  if (bgpcorsaro->record != NULL) {
-    bgpcorsaro_record_free(bgpcorsaro->record);
-    bgpcorsaro->record = NULL;
+  if (bc->record != NULL) {
+    bgpcorsaro_record_free(bc->record);
+    bc->record = NULL;
   }
 
   /* close this as late as possible */
-  bgpcorsaro_log_close(bgpcorsaro);
+  bgpcorsaro_log_close(bc);
 
-  free(bgpcorsaro);
+  free(bc);
 
   return;
 }
 
-/** Fill the given interval object with the default values */
+/** Fill the given interval object with values */
 static inline void populate_interval(bgpcorsaro_interval_t *interval,
                                      uint32_t number, uint32_t time)
 {
@@ -126,16 +126,14 @@ static inline void populate_interval(bgpcorsaro_interval_t *interval,
 }
 
 /** Check if the meta output files should be rotated */
-static int is_meta_rotate_interval(bgpcorsaro_t *bgpcorsaro)
+static int is_meta_rotate_interval(bgpcorsaro_t *bc)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
 
-  if (bgpcorsaro->meta_output_rotate < 0) {
-    return bgpcorsaro_is_rotate_interval(bgpcorsaro);
-  } else if (bgpcorsaro->meta_output_rotate > 0 &&
-             (bgpcorsaro->interval_start.number + 1) %
-                 bgpcorsaro->meta_output_rotate ==
-               0) {
+  if (bc->meta_output_rotate < 0) {
+    return bgpcorsaro_is_rotate_interval(bc);
+  } else if (bc->meta_output_rotate > 0 &&
+             (bc->interval_start.number + 1) % bc->meta_output_rotate == 0) {
     return 1;
   } else {
     return 0;
@@ -211,32 +209,32 @@ err:
 }
 
 /** Start a new interval */
-static int start_interval(bgpcorsaro_t *bgpcorsaro, long int_start)
+static int start_interval(bgpcorsaro_t *bc, long int_start)
 {
   bgpcorsaro_plugin_t *tmp = NULL;
 
   /* record this so we know when the interval started */
   /* the interval number is already incremented by start_interval_for_record */
-  bgpcorsaro->interval_start.time = int_start;
+  bc->interval_start.time = int_start;
 
   /* the following is to support file rotation */
   /* initialize the log file */
-  if (bgpcorsaro->logfile_disabled == 0 && bgpcorsaro->logfile == NULL) {
+  if (bc->logfile_disabled == 0 && bc->logfile == NULL) {
     /* if this is the first interval, let them know we are switching to
        logging to a file */
-    if (bgpcorsaro->interval_start.number == 0) {
+    if (bc->interval_start.number == 0) {
       /* there is a replica of this message in the other place that
        * bgpcorsaro_log_init is called */
-      bgpcorsaro_log(__func__, bgpcorsaro, "now logging to file"
+      bgpcorsaro_log(__func__, bc, "now logging to file"
 #ifdef DEBUG
                                            " (and stderr)"
 #endif
                      );
     }
 
-    if (bgpcorsaro_log_init(bgpcorsaro) != 0) {
-      bgpcorsaro_log(__func__, bgpcorsaro, "could not initialize log file");
-      bgpcorsaro_free(bgpcorsaro);
+    if (bgpcorsaro_log_init(bc) != 0) {
+      bgpcorsaro_log(__func__, bc, "could not initialize log file");
+      bgpcorsaro_free(bc);
       return -1;
     }
   }
@@ -247,8 +245,8 @@ static int start_interval(bgpcorsaro_t *bgpcorsaro, long int_start)
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(start_interval);
 #endif
-  if (tmp->start_interval(bgpcorsaro, &bgpcorsaro->interval_start) != 0) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "%s failed to start interval at %ld",
+  if (tmp->start_interval(bc, &bc->interval_start) != 0) {
+    bgpcorsaro_log(__func__, bc, "%s failed to start interval at %ld",
                    tmp->name, int_start);
     return -1;
   }
@@ -261,21 +259,21 @@ static int start_interval(bgpcorsaro_t *bgpcorsaro, long int_start)
 }
 
 /** End the current interval */
-static int end_interval(bgpcorsaro_t *bgpcorsaro, long int_end)
+static int end_interval(bgpcorsaro_t *bc, long int_end)
 {
   bgpcorsaro_plugin_t *tmp = NULL;
 
   bgpcorsaro_interval_t interval_end;
 
-  populate_interval(&interval_end, bgpcorsaro->interval_start.number, int_end);
+  populate_interval(&interval_end, bc->interval_start.number, int_end);
 
   /* ask each plugin to end the current interval */
   tmp = &bgpcorsaro_routingtables_plugin;
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(end_interval);
 #endif
-  if (tmp->end_interval(bgpcorsaro, &interval_end) != 0) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "%s failed to end interval at %ld",
+  if (tmp->end_interval(bc, &interval_end) != 0) {
+    bgpcorsaro_log(__func__, bc, "%s failed to end interval at %ld",
                    tmp->name, int_end);
     return -1;
   }
@@ -285,29 +283,29 @@ static int end_interval(bgpcorsaro_t *bgpcorsaro, long int_end)
 #endif
 
   /* if we are rotating, now is the time to close our output files */
-  if (is_meta_rotate_interval(bgpcorsaro)) {
+  if (is_meta_rotate_interval(bc)) {
     /* this MUST be the last thing closed in case any of the other things want
        to log their end-of-interval activities (e.g. the pkt cnt from writing
        the trailers */
-    if (bgpcorsaro->logfile != NULL) {
-      bgpcorsaro_log_close(bgpcorsaro);
+    if (bc->logfile != NULL) {
+      bgpcorsaro_log_close(bc);
     }
   }
 
-  bgpcorsaro->interval_end_needed = 0;
+  bc->interval_end_needed = 0;
   return 0;
 }
 
 /** Process the given bgpcorsaro record */
-static inline int process_record(bgpcorsaro_t *bgpcorsaro,
+static inline int process_record(bgpcorsaro_t *bc,
                                  bgpcorsaro_record_t *record)
 {
   bgpcorsaro_plugin_t *tmp = &bgpcorsaro_routingtables_plugin;
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(process_record);
 #endif
-  if (tmp->process_record(bgpcorsaro, record) < 0) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "%s failed to process record",
+  if (tmp->process_record(bc, record) < 0) {
+    bgpcorsaro_log(__func__, bc, "%s failed to process record",
                    tmp->name);
     return -1;
   }
@@ -317,7 +315,7 @@ static inline int process_record(bgpcorsaro_t *bgpcorsaro,
 #endif
 
   // replacement for old viewconsumer
-  bgpcorsaro->shared_view = record->state.shared_view_ptr;
+  bc->shared_view = record->state.shared_view_ptr;
 
   return 0;
 }
@@ -326,7 +324,7 @@ static inline int process_record(bgpcorsaro_t *bgpcorsaro,
 
 bgpcorsaro_t *bgpcorsaro_alloc_output(char *template, timeseries_t *timeseries)
 {
-  bgpcorsaro_t *bgpcorsaro;
+  bgpcorsaro_t *bc;
 
   /* quick sanity check that folks aren't trying to write to stdout */
   if (template == NULL || strcmp(template, "-") == 0) {
@@ -335,7 +333,7 @@ bgpcorsaro_t *bgpcorsaro_alloc_output(char *template, timeseries_t *timeseries)
   }
 
   /* initialize the bgpcorsaro object */
-  if ((bgpcorsaro = bgpcorsaro_init(template, timeseries)) == NULL) {
+  if ((bc = bgpcorsaro_init(template, timeseries)) == NULL) {
     bgpcorsaro_log(__func__, NULL, "could not initialize bgpcorsaro object");
     return NULL;
   }
@@ -343,30 +341,30 @@ bgpcorsaro_t *bgpcorsaro_alloc_output(char *template, timeseries_t *timeseries)
   /* 10/17/13 AK moves logging init to bgpcorsaro_start_output so that the user
      may call bgpcorsaro_disable_logfile after alloc */
 
-  return bgpcorsaro;
+  return bc;
 }
 
-int bgpcorsaro_start_output(bgpcorsaro_t *bgpcorsaro)
+int bgpcorsaro_start_output(bgpcorsaro_t *bc)
 {
   bgpcorsaro_plugin_t *p = NULL;
 
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
 
   /* only initialize the log file if there are no time format fields in the file
      name (otherwise they will get a log file with a zero timestamp. */
   /* Note that if indeed it does have a timestamp, the initialization error
      messages will not be logged to a file. In fact nothing will be logged until
      the first record is received. */
-  assert(bgpcorsaro->logfile == NULL);
-  if (bgpcorsaro->logfile_disabled == 0 &&
-      bgpcorsaro_io_template_has_timestamp(bgpcorsaro) == 0) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "now logging to file"
+  assert(bc->logfile == NULL);
+  if (bc->logfile_disabled == 0 &&
+      bgpcorsaro_io_template_has_timestamp(bc) == 0) {
+    bgpcorsaro_log(__func__, bc, "now logging to file"
 #ifdef DEBUG
                                          " (and stderr)"
 #endif
                    );
 
-    if (bgpcorsaro_log_init(bgpcorsaro) != 0) {
+    if (bgpcorsaro_log_init(bc) != 0) {
       return -1;
     }
   }
@@ -378,7 +376,7 @@ int bgpcorsaro_start_output(bgpcorsaro_t *bgpcorsaro)
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(init_output);
 #endif
-  if (p->init_output(bgpcorsaro) != 0) {
+  if (p->init_output(bc) != 0) {
     return -1;
   }
 #ifdef WITH_PLUGIN_TIMING
@@ -386,47 +384,47 @@ int bgpcorsaro_start_output(bgpcorsaro_t *bgpcorsaro)
   p->init_output_usec += TIMER_VAL(init_output);
 #endif
 
-  bgpcorsaro->started = 1;
+  bc->started = 1;
 
   return 0;
 }
 
-void bgpcorsaro_set_interval_alignment(bgpcorsaro_t *bgpcorsaro,
+void bgpcorsaro_set_interval_alignment(bgpcorsaro_t *bc,
                                        bgpcorsaro_interval_align_t align)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
   /* you cant set interval alignment once bgpcorsaro has started */
-  assert(bgpcorsaro->started == 0);
+  assert(bc->started == 0);
 
-  bgpcorsaro_log(__func__, bgpcorsaro, "setting interval alignment to %d",
+  bgpcorsaro_log(__func__, bc, "setting interval alignment to %d",
                  align);
 
-  bgpcorsaro->interval_align = align;
+  bc->interval_align = align;
 }
 
-void bgpcorsaro_set_interval(bgpcorsaro_t *bgpcorsaro, unsigned int i)
+void bgpcorsaro_set_interval(bgpcorsaro_t *bc, unsigned int i)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
   /* you can't set the interval once bgpcorsaro has been started */
-  assert(bgpcorsaro->started == 0);
+  assert(bc->started == 0);
 
-  bgpcorsaro_log(__func__, bgpcorsaro, "setting interval length to %d", i);
+  bgpcorsaro_log(__func__, bc, "setting interval length to %d", i);
 
-  bgpcorsaro->interval = i;
+  bc->interval = i;
 }
 
-void bgpcorsaro_set_output_rotation(bgpcorsaro_t *bgpcorsaro, int intervals)
+void bgpcorsaro_set_output_rotation(bgpcorsaro_t *bc, int intervals)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
   /* you can't enable rotation once bgpcorsaro has been started */
-  assert(bgpcorsaro->started == 0);
+  assert(bc->started == 0);
 
-  bgpcorsaro_log(__func__, bgpcorsaro,
-                 "setting output rotation after %d interval(s)", intervals);
+  bgpcorsaro_log(__func__, bc, "setting output rotation after %d interval(s)",
+                 intervals);
 
   /* if they have asked to rotate, but did not put a timestamp in the template,
    * we will end up clobbering files. warn them. */
-  if (bgpcorsaro_io_template_has_timestamp(bgpcorsaro) == 0) {
+  if (bgpcorsaro_io_template_has_timestamp(bc) == 0) {
     /* we skip the log and write directly out so that it is clear even if they
      * have debugging turned off */
     fprintf(stderr, "WARNING: using output rotation without any timestamp "
@@ -436,57 +434,54 @@ void bgpcorsaro_set_output_rotation(bgpcorsaro_t *bgpcorsaro, int intervals)
     /* @todo consider making this a fatal error */
   }
 
-  bgpcorsaro->output_rotate = intervals;
+  bc->output_rotate = intervals;
 }
 
-void bgpcorsaro_set_meta_output_rotation(bgpcorsaro_t *bgpcorsaro,
-                                         int intervals)
+void bgpcorsaro_set_meta_output_rotation(bgpcorsaro_t *bc, int intervals)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
   /* you can't enable rotation once bgpcorsaro has been started */
-  assert(bgpcorsaro->started == 0);
+  assert(bc->started == 0);
 
-  bgpcorsaro_log(__func__, bgpcorsaro,
+  bgpcorsaro_log(__func__, bc,
                  "setting meta output rotation after %d intervals(s)",
                  intervals);
 
-  bgpcorsaro->meta_output_rotate = intervals;
+  bc->meta_output_rotate = intervals;
 }
 
-int bgpcorsaro_is_rotate_interval(bgpcorsaro_t *bgpcorsaro)
+int bgpcorsaro_is_rotate_interval(bgpcorsaro_t *bc)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
 
-  if (bgpcorsaro->output_rotate == 0) {
+  if (bc->output_rotate == 0) {
     return 0;
-  } else if ((bgpcorsaro->interval_start.number + 1) %
-               bgpcorsaro->output_rotate ==
-             0) {
+  } else if ((bc->interval_start.number + 1) % bc->output_rotate == 0) {
     return 1;
   } else {
     return 0;
   }
 }
 
-int bgpcorsaro_set_stream(bgpcorsaro_t *bgpcorsaro, bgpstream_t *stream)
+int bgpcorsaro_set_stream(bgpcorsaro_t *bc, bgpstream_t *stream)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
 
   /* this function can actually be called once bgpcorsaro is started */
-  if (bgpcorsaro->stream != NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "updating stream pointer");
+  if (bc->stream != NULL) {
+    bgpcorsaro_log(__func__, bc, "updating stream pointer");
   } else {
-    bgpcorsaro_log(__func__, bgpcorsaro, "setting stream pointer");
+    bgpcorsaro_log(__func__, bc, "setting stream pointer");
   }
 
-  bgpcorsaro->stream = stream;
+  bc->stream = stream;
   return 0;
 }
 
-void bgpcorsaro_disable_logfile(bgpcorsaro_t *bgpcorsaro)
+void bgpcorsaro_disable_logfile(bgpcorsaro_t *bc)
 {
-  assert(bgpcorsaro != NULL);
-  bgpcorsaro->logfile_disabled = 1;
+  assert(bc != NULL);
+  bc->logfile_disabled = 1;
 }
 
 static int copy_argv(bgpcorsaro_plugin_t *plugin, int argc, char *argv[])
@@ -515,10 +510,10 @@ static int copy_argv(bgpcorsaro_plugin_t *plugin, int argc, char *argv[])
 }
 
 #define MAXOPTS 1024
-int bgpcorsaro_enable_plugin(bgpcorsaro_t *bgpcorsaro, const char *plugin_name,
+int bgpcorsaro_enable_plugin(bgpcorsaro_t *bc, const char *plugin_name,
                              const char *plugin_args)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
 
   char *local_args = NULL;
   char *process_argv[MAXOPTS];
@@ -547,109 +542,109 @@ int bgpcorsaro_enable_plugin(bgpcorsaro_t *bgpcorsaro, const char *plugin_name,
   return retval;
 }
 
-int bgpcorsaro_set_monitorname(bgpcorsaro_t *bgpcorsaro, char *name)
+int bgpcorsaro_set_monitorname(bgpcorsaro_t *bc, char *name)
 {
-  assert(bgpcorsaro != NULL);
+  assert(bc != NULL);
 
-  if (bgpcorsaro->started != 0) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "monitor name can only be set before "
-                                         "bgpcorsaro_start_output is called");
+  if (bc->started != 0) {
+    bgpcorsaro_log(__func__, bc, "monitor name can only be set before "
+                                 "bgpcorsaro_start_output is called");
     return -1;
   }
 
-  if (bgpcorsaro->monitorname != NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "updating monitor name from %s to %s",
-                   bgpcorsaro->monitorname, name);
+  if (bc->monitorname != NULL) {
+    bgpcorsaro_log(__func__, bc, "updating monitor name from %s to %s",
+                   bc->monitorname, name);
   } else {
-    bgpcorsaro_log(__func__, bgpcorsaro, "setting monitor name to %s", name);
+    bgpcorsaro_log(__func__, bc, "setting monitor name to %s", name);
   }
 
-  if ((bgpcorsaro->monitorname = strdup(name)) == NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro,
+  if ((bc->monitorname = strdup(name)) == NULL) {
+    bgpcorsaro_log(__func__, bc,
                    "could not duplicate monitor name string");
     return -1;
   }
-  bgpcorsaro_log(__func__, bgpcorsaro, "%s", bgpcorsaro->monitorname);
+  bgpcorsaro_log(__func__, bc, "%s", bc->monitorname);
   return 0;
 }
 
-const char *bgpcorsaro_get_monitorname(bgpcorsaro_t *bgpcorsaro)
+const char *bgpcorsaro_get_monitorname(bgpcorsaro_t *bc)
 {
-  return bgpcorsaro->monitorname;
+  return bc->monitorname;
 }
 
 // factored out from bgpcorsaro_per_record()
-static int bgpcorsaro_start_record(bgpcorsaro_t *bgpcorsaro,
+static int bgpcorsaro_start_record(bgpcorsaro_t *bc,
                                    bgpstream_record_t *bsrecord)
 {
   long ts;
 
   /* poke this bsrecord into our bgpcorsaro record */
-  bgpcorsaro->record->bsrecord = bsrecord;
+  bc->record->bsrecord = bsrecord;
 
   /* ensure that the state is clear */
-  bgpcorsaro_record_state_reset(bgpcorsaro->record);
+  bgpcorsaro_record_state_reset(bc->record);
 
   /* this is now the latest record we have seen */
   /** @chiara is this correct? */
   /** @chiara might be nice to provide an accessor func:
       bgpstream_get_time(record) */
-  bgpcorsaro->last_ts = ts = bsrecord->time_sec;
+  bc->last_ts = ts = bsrecord->time_sec;
 
   /* it also means we need to dump an interval end record */
-  bgpcorsaro->interval_end_needed = 1;
+  bc->interval_end_needed = 1;
 
   /* if this is the first record we record, keep the timestamp */
-  if (bgpcorsaro->record_cnt == 0) {
-    bgpcorsaro->first_ts = ts;
+  if (bc->record_cnt == 0) {
+    bc->first_ts = ts;
 
     long start = ts;
     /* if we are aligning our intervals, truncate the start down */
-    if (bgpcorsaro->interval_align == BGPCORSARO_INTERVAL_ALIGN_YES) {
-      start = (start / bgpcorsaro->interval) * bgpcorsaro->interval;
+    if (bc->interval_align == BGPCORSARO_INTERVAL_ALIGN_YES) {
+      start = (start / bc->interval) * bc->interval;
     }
 
-    if (start_interval(bgpcorsaro, start) != 0) {
-      bgpcorsaro_log(__func__, bgpcorsaro, "could not start interval at %ld",
+    if (start_interval(bc, start) != 0) {
+      bgpcorsaro_log(__func__, bc, "could not start interval at %ld",
                      ts);
       return -1;
     }
 
-    bgpcorsaro->next_report = start + bgpcorsaro->interval;
+    bc->next_report = start + bc->interval;
   }
   return 0;
 }
 
-static int bgpcorsaro_end_interval_for_record(bgpcorsaro_t *bgpcorsaro)
+static int bgpcorsaro_end_interval_for_record(bgpcorsaro_t *bc)
 {
   /* we want to mark the end of the interval such that all pkt times are <=
      the time of the end of the interval.
      because we deal in second granularity, we simply subtract one from the
      time */
-  long report = bgpcorsaro->next_report - 1;
+  long report = bc->next_report - 1;
 
-  if (end_interval(bgpcorsaro, report) != 0) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "could not end interval at %ld",
-                   bgpcorsaro->last_ts);
+  if (end_interval(bc, report) != 0) {
+    bgpcorsaro_log(__func__, bc, "could not end interval at %ld",
+                   bc->last_ts);
     /* we don't free in case the client wants to try to carry on */
     return -1;
   }
   return 0;
 }
 
-static int bgpcorsaro_start_interval_for_record(bgpcorsaro_t *bgpcorsaro)
+static int bgpcorsaro_start_interval_for_record(bgpcorsaro_t *bc)
 {
-  bgpcorsaro->interval_start.number++;
+  bc->interval_start.number++;
 
   /* we now add the second back on to the time to get the start time */
-  long report = bgpcorsaro->next_report;
-  if (start_interval(bgpcorsaro, report) != 0) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "could not start interval at %ld",
-                   bgpcorsaro->last_ts);
+  long report = bc->next_report;
+  if (start_interval(bc, report) != 0) {
+    bgpcorsaro_log(__func__, bc, "could not start interval at %ld",
+                   bc->last_ts);
     /* we don't free in case the client wants to try to carry on */
     return -1;
   }
-  bgpcorsaro->next_report += bgpcorsaro->interval;
+  bc->next_report += bc->interval;
   return 0;
 }
 
@@ -657,37 +652,37 @@ static int bgpcorsaro_start_interval_for_record(bgpcorsaro_t *bgpcorsaro)
 //   -1: error
 //   0: EOF
 //   1: end interval
-int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
+int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
 {
-  assert(bgpcorsaro != NULL);
-  assert(bgpcorsaro->started == 1 &&
+  assert(bc != NULL);
+  assert(bc->started == 1 &&
          "bgpcorsaro_start_output must be called before records can be "
          "processed");
 
-  if (bgpcorsaro->eof)
+  if (bc->eof)
     return 0;
 
-  if (bgpcorsaro->record_cnt > 0) {
-    if (bgpcorsaro_start_interval_for_record(bgpcorsaro) < 0)
+  if (bc->record_cnt > 0) {
+    if (bgpcorsaro_start_interval_for_record(bc) < 0)
       return -1;
   } // else, start_interval() will be called by first bgpcorsaro_start_record()
 
-  while (bgpcorsaro->eof == 0) {
+  while (bc->eof == 0) {
     // from bgpcorsaro_per_record()
     /* using an interval value of less than zero disables intervals
        such that only one distribution will be generated upon completion */
-    if (bgpcorsaro->interval >= 0 && bgpcorsaro->last_ts >= bgpcorsaro->next_report) {
-      if (bgpcorsaro_end_interval_for_record(bgpcorsaro) < 0)
+    if (bc->interval >= 0 && bc->last_ts >= bc->next_report) {
+      if (bgpcorsaro_end_interval_for_record(bc) < 0)
         return -1;
       return 1; // successful interval end.  caller can use shared_view.
     }
 
-    if (bgpcorsaro->record->bsrecord) {
+    if (bc->record->bsrecord) {
       /* count this record for our overall record count */
-      bgpcorsaro->record_cnt++;
+      bc->record_cnt++;
 
       /* ask each plugin to process this record */
-      if (process_record(bgpcorsaro, bgpcorsaro->record) < 0) {
+      if (process_record(bc, bc->record) < 0) {
         return -1;
       }
     }
@@ -699,73 +694,72 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bgpcorsaro)
 
       /* remove records that preceed the beginning of the stream */
       do {
-        int rc = bsrt_get_next_record(bgpcorsaro->stream, &bsrecord);
+        int rc = bsrt_get_next_record(bc->stream, &bsrecord);
         if (rc < 0) { // error
           return rc;
         } else if (rc == 0) { // EOF
-          bgpcorsaro_log(__func__, bgpcorsaro,
+          bgpcorsaro_log(__func__, bc,
                          "EOF from bgpstream (last_time=%f, bc->last_ts=%ld",
-                         last_time, bgpcorsaro->last_ts);
-          bgpcorsaro->eof = 1;
-          if (bgpcorsaro->interval_end_needed == 0)
+                         last_time, bc->last_ts);
+          bc->eof = 1;
+          if (bc->interval_end_needed == 0)
             return 0; // EOF
           // end the final interval
-          if ((rc = end_interval(bgpcorsaro, bgpcorsaro->last_ts)) < 0)
+          if ((rc = end_interval(bc, bc->last_ts)) < 0)
             return rc; // error
           return 1; // successful interval end.  caller can use shared_view.
         }
-      } while (bsrecord->time_sec < bgpcorsaro->minimum_time);
+      } while (bsrecord->time_sec < bc->minimum_time);
 
       /* check the gap limit is not exceeded */
       double this_time = bsrecord->time_sec;
-      if (bgpcorsaro->gap_limit > 0 &&                     /* gap limit is enabled */
-          last_time > 0 &&                                 /* this is not the first packet */
-          ((this_time - last_time) > 0) &&                 /* packet doesn't go backward */
-          (this_time - last_time) > bgpcorsaro->gap_limit) /* packet exceeds gap */
+      if (bc->gap_limit > 0 &&                     /* gap limit is enabled */
+          last_time > 0 &&                         /* this is not the first packet */
+          ((this_time - last_time) > 0) &&         /* packet doesn't go backward */
+          (this_time - last_time) > bc->gap_limit) /* packet exceeds gap */
       {
-        bgpcorsaro_log(__func__, bgpcorsaro,
+        bgpcorsaro_log(__func__, bc,
                        "gap limit exceeded (prev: %f this: %f diff: %f)",
                        last_time, this_time, (this_time - last_time));
         return -1;
       }
       last_time = this_time;
 
-      /*bgpcorsaro_log(__func__, bgpcorsaro, "got a record!");*/
+      /*bgpcorsaro_log(__func__, bc, "got a record!");*/
 #if 0
       {
         char buf[2048];
         bgpstream_record_snprintf(buf, sizeof(buf), bsrecord);
-        bgpcorsaro_log(__func__, bgpcorsaro, "got a record: %s", buf);
+        bgpcorsaro_log(__func__, bc, "got a record: %s", buf);
       }
 #endif
 
-      if (bgpcorsaro_start_record(bgpcorsaro, bsrecord) < 0)
+      if (bgpcorsaro_start_record(bc, bsrecord) < 0)
         return -1;
     }
   }
   return 0; // EOF
 }
 
-int bgpcorsaro_finalize_output(bgpcorsaro_t *bgpcorsaro)
+int bgpcorsaro_finalize_output(bgpcorsaro_t *bc)
 {
 #ifdef WITH_PLUGIN_TIMING
   bgpcorsaro_plugin_t *p = NULL;
   struct timeval total_end, total_diff;
   gettimeofday_wrap(&total_end);
-  timeval_subtract(&total_diff, &total_end, &bgpcorsaro->init_time);
+  timeval_subtract(&total_diff, &total_end, &bc->init_time);
   uint64_t total_time_usec =
     ((total_diff.tv_sec * 1000000) + total_diff.tv_usec);
 #endif
 
-  if (bgpcorsaro == NULL) {
+  if (bc == NULL) {
     return 0;
   }
-  if (bgpcorsaro->started != 0) {
-    if (bgpcorsaro->interval_end_needed != 0 &&
-        end_interval(bgpcorsaro, bgpcorsaro->last_ts) != 0) {
-      bgpcorsaro_log(__func__, bgpcorsaro, "could not end interval at %ld",
-                     bgpcorsaro->last_ts);
-      bgpcorsaro_free(bgpcorsaro);
+  if (bc->started != 0) {
+    if (bc->interval_end_needed != 0 && end_interval(bc, bc->last_ts) != 0) {
+      bgpcorsaro_log(__func__, bc, "could not end interval at %ld",
+                     bc->last_ts);
+      bgpcorsaro_free(bc);
       return -1;
     }
   }
@@ -799,6 +793,6 @@ int bgpcorsaro_finalize_output(bgpcorsaro_t *bgpcorsaro)
   fprintf(stderr, "Total Time (usec): %" PRIu64 "\n", total_time_usec);
 #endif
 
-  bgpcorsaro_free(bgpcorsaro);
+  bgpcorsaro_free(bc);
   return 0;
 }

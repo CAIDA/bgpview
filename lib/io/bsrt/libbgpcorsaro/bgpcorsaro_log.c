@@ -101,19 +101,18 @@ wandio_wflush(logfile); // XXX
   }
 }
 
-void bgpcorsaro_log_va(const char *func, bgpcorsaro_t *bgpcorsaro,
+void bgpcorsaro_log_va(const char *func, bgpcorsaro_t *bc,
                        const char *format, va_list args)
 {
-  iow_t *lf = (bgpcorsaro == NULL) ? NULL : bgpcorsaro->logfile;
+  iow_t *lf = (bc == NULL) ? NULL : bc->logfile;
   generic_log(func, lf, format, args);
 }
 
-void bgpcorsaro_log(const char *func, bgpcorsaro_t *bgpcorsaro,
-                    const char *format, ...)
+void bgpcorsaro_log(const char *func, bgpcorsaro_t *bc, const char *format, ...)
 {
   va_list ap;
   va_start(ap, format);
-  bgpcorsaro_log_va(func, bgpcorsaro, format, ap);
+  bgpcorsaro_log_va(func, bc, format, ap);
   va_end(ap);
 }
 
@@ -126,21 +125,20 @@ void bgpcorsaro_log_file(const char *func, iow_t *logfile, const char *format,
   va_end(ap);
 }
 
-int bgpcorsaro_log_init(bgpcorsaro_t *bgpcorsaro)
+int bgpcorsaro_log_init(bgpcorsaro_t *bc)
 {
-  if ((bgpcorsaro->logfile = bgpcorsaro_io_prepare_file_full(
-         bgpcorsaro, BGPCORSARO_IO_LOG_NAME, &bgpcorsaro->interval_start,
-         WANDIO_COMPRESS_NONE, 0, O_CREAT)) == NULL) {
+  if ((bc->logfile = bgpcorsaro_io_prepare_file_full(bc, BGPCORSARO_IO_LOG_NAME,
+          &bc->interval_start, WANDIO_COMPRESS_NONE, 0, O_CREAT)) == NULL) {
     fprintf(stderr, "could not open log for writing\n");
     return -1;
   }
   return 0;
 }
 
-void bgpcorsaro_log_close(bgpcorsaro_t *bgpcorsaro)
+void bgpcorsaro_log_close(bgpcorsaro_t *bc)
 {
-  if (bgpcorsaro->logfile != NULL) {
-    wandio_wdestroy(bgpcorsaro->logfile);
-    bgpcorsaro->logfile = NULL;
+  if (bc->logfile != NULL) {
+    wandio_wdestroy(bc->logfile);
+    bc->logfile = NULL;
   }
 }
