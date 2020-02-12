@@ -401,21 +401,16 @@ static void update_collector_state(routingtables_t *rt, collector_t *c)
 
 static int apply_end_of_valid_rib_operations(routingtables_t *rt)
 {
-  collector_t *c;
   int khret;
-
-  perpeer_info_t *p;
-  perpfx_perpeer_info_t *pp;
-  bgpstream_pfx_t *pfx;
 
   rt_kh_for(k, rt->collectors) {
     if (!kh_exist(rt->collectors, k)) continue;
-    c = &kh_val(rt->collectors, k);
+    collector_t *c = &kh_val(rt->collectors, k);
     if (c->eovrib_flag != 0) {
       rt_kh_for(i, c->collector_peerids) {
         if (!kh_exist(c->collector_peerids, i)) continue;
-        khiter_t j = kh_put(peer_id_collector, rt->eorib_peers,
-                   kh_key(c->collector_peerids, i), &khret);
+        bgpstream_peer_id_t peerid = kh_key(c->collector_peerids, i);
+        khiter_t j = kh_put(peer_id_collector, rt->eorib_peers, peerid, &khret);
         kh_value(rt->eorib_peers, j) = c;
       }
     }
@@ -432,9 +427,10 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
                                      BGPVIEW_FIELD_ALL_VALID);
          bgpview_iter_has_more_pfx_peer(rt->iter);
          bgpview_iter_next_pfx_peer(rt->iter)) {
-      p = bgpview_iter_peer_get_user(rt->iter);
-      pfx = bgpview_iter_pfx_get_pfx(rt->iter);
-      pp = bgpview_iter_pfx_peer_get_user(rt->iter);
+
+      perpeer_info_t *p = bgpview_iter_peer_get_user(rt->iter);
+      bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(rt->iter);
+      perpfx_perpeer_info_t *pp = bgpview_iter_pfx_peer_get_user(rt->iter);
 
       /* check if the current field refers to a peer involved
        * in the rib process  */
@@ -527,10 +523,8 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
       }
 
       /* if state is inactive and ts is older than
-       * ROUTINGTABLES_DEPRECATED_INFO_INTERVAL
-       * then remove the prefix peer (the garbage collection system will
-       * eventually take care
-       * of it */
+       * ROUTINGTABLES_DEPRECATED_INFO_INTERVAL then remove the prefix peer
+       * (the garbage collection system will eventually take care of it) */
       if (bgpview_iter_pfx_peer_get_state(rt->iter) == BGPVIEW_FIELD_INACTIVE) {
         if (pp->bgp_time_last_ts < rt->bgp_time_interval_start -
                                      ROUTINGTABLES_DEPRECATED_INFO_INTERVAL) {
@@ -552,8 +546,8 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
       bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(rt->iter);
       khiter_t j = kh_get(peer_id_collector, rt->eorib_peers, peerid);
       if (j == kh_end(rt->eorib_peers)) continue;
-      p = bgpview_iter_peer_get_user(rt->iter);
-      c = kh_value(rt->eorib_peers, j);
+      perpeer_info_t *p = bgpview_iter_peer_get_user(rt->iter);
+      collector_t *c = kh_value(rt->eorib_peers, j);
 
       /* if the uc rib start was never touched it means
        * that this peer was not part of the RIB and, therefore,
@@ -576,7 +570,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
 
   rt_kh_for (k, rt->collectors) {
     if (!kh_exist(rt->collectors, k)) continue;
-    c = &kh_val(rt->collectors, k);
+    collector_t *c = &kh_val(rt->collectors, k);
     if (c->eovrib_flag != 0) {
       c->publish_flag = 1;
       c->eovrib_flag = 0;
@@ -598,8 +592,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
   /* check the number of active peers and update the collector's state */
   rt_kh_for (k, rt->collectors) {
     if (!kh_exist(rt->collectors, k)) continue;
-    c = &kh_val(rt->collectors, k);
-    update_collector_state(rt, c);
+    update_collector_state(rt, &kh_val(rt->collectors, k));
   }
 
   return 0;
