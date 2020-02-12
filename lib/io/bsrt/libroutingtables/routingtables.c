@@ -1169,7 +1169,7 @@ bgpview_t *routingtables_get_view_ptr(routingtables_t *rt)
 void routingtables_set_metric_prefix(routingtables_t *rt,
     const char *metric_prefix)
 {
-  if (metric_prefix == NULL || strlen(metric_prefix) - 1 > RT_METRIC_PFX_LEN) {
+  if (metric_prefix == NULL || strlen(metric_prefix) >= RT_METRIC_PFX_LEN) {
     fprintf(stderr, "Warning: could not set metric prefix, using default %s \n",
             RT_DEFAULT_METRIC_PFX);
     strcpy(rt->metric_prefix, RT_DEFAULT_METRIC_PFX);

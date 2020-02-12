@@ -37,6 +37,11 @@
 /** Maximum string length for the metric prefix */
 #define RT_METRIC_PFX_LEN 256
 
+#if __STDC_VERSION__ >= 201100L
+_Static_assert(sizeof(RT_DEFAULT_METRIC_PFX) <= RT_METRIC_PFX_LEN,
+    "RT_DEFAULT_METRIC_PFX too long");
+#endif
+
 /** The time granularity that is used to update the
  *  last wall time for a collector */
 #define RT_COLLECTOR_WALL_UPDATE_FR 10000
