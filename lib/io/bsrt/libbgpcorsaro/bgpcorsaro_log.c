@@ -66,6 +66,7 @@ static char *timestamp_str(char *buf, const size_t len)
   return buf;
 }
 
+ATTR_FORMAT_PRINTF(3, 0)
 static void generic_log(const char *func, iow_t *logfile, const char *format,
                  va_list ap)
 {

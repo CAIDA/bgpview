@@ -37,6 +37,12 @@
  *
  */
 
+#ifdef __GNUC__
+#define ATTR_FORMAT_PRINTF(i,j) __attribute__((format(printf, i, j)))
+#else
+#define ATTR_FORMAT_PRINTF(i,j) /* empty */
+#endif
+
 /** Write a formatted string to the logfile associated with an bgpcorsaro object
  *
  * @param func         The name of the calling function (__func__)
@@ -46,14 +52,9 @@
  *
  * This function takes the same style of arguments that printf(3) does.
  */
+ATTR_FORMAT_PRINTF(3, 0)
 void bgpcorsaro_log_va(const char *func, bgpcorsaro_t *bgpcorsaro,
                        const char *format, va_list args);
-
-#ifdef __GNUC__
-#define ATTR_FORMAT_PRINTF(i,j) __attribute__((format(printf, i, j)))
-#else
-#define ATTR_FORMAT_PRINTF(i,j) /* empty */
-#endif
 
 /** Write a formatted string to the logfile associated with an bgpcorsaro object
  *
