@@ -32,39 +32,39 @@
 #include <stdint.h>
 
 /** Default metric prefix */
-#define ROUTINGTABLES_DEFAULT_METRIC_PFX "bgp"
+#define RT_DEFAULT_METRIC_PFX "bgp"
 
 /** Maximum string length for the metric prefix */
-#define ROUTINGTABLES_METRIC_PFX_LEN 256
+#define RT_METRIC_PFX_LEN 256
 
 /** The time granularity that is used to update the
  *  last wall time for a collector */
-#define ROUTINGTABLES_COLLECTOR_WALL_UPDATE_FR 10000
+#define RT_COLLECTOR_WALL_UPDATE_FR 10000
 
 /** If an information is inactive and not been seen in the
  *  last X hours, it definetely means that it has not been
  *  seen by any RIB in the last X hours, therefore, if inactive
  *  it can be removed from the view.  */
-#define ROUTINGTABLES_DEPRECATED_INFO_INTERVAL 24 * 3600
+#define RT_DEPRECATED_INFO_INTERVAL 24 * 3600
 
 /* the prefix is not announced in the active state nor in the
  * under construction state */
-#define ROUTINGTABLES_INITIAL_PFXSTATUS      0x00
-#define ROUTINGTABLES_ANNOUNCED_PFXSTATUS    0x01
-#define ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS 0x10
+#define RT_INITIAL_PFXSTATUS      0x00
+#define RT_ANNOUNCED_PFXSTATUS    0x01
+#define RT_UC_ANNOUNCED_PFXSTATUS 0x10
 
 typedef enum {
 
   /** It is not possible to infer the state of
    *  the collector (e.g. initialization time,
    *  or corrupted data) */
-  ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN = 0,
+  RT_COLLECTOR_STATE_UNKNOWN = 0,
 
   /** The collector is active */
-  ROUTINGTABLES_COLLECTOR_STATE_UP = 1,
+  RT_COLLECTOR_STATE_UP = 1,
 
   /** The collector is inactive */
-  ROUTINGTABLES_COLLECTOR_STATE_DOWN = 2,
+  RT_COLLECTOR_STATE_DOWN = 2,
 
 } collector_state_t;
 
@@ -316,7 +316,7 @@ typedef khash_t(collector_data) collector_data_t;
 struct struct_routingtables_t {
 
   /** Plugin name */
-  char plugin_name[ROUTINGTABLES_METRIC_PFX_LEN];
+  char plugin_name[RT_METRIC_PFX_LEN];
 
   /** Table of peer id <-> peer signature
    * (shared with the view) */
@@ -349,7 +349,7 @@ struct struct_routingtables_t {
   peer_id_collector_t *eorib_peers;
 
   /** Metric prefix */
-  char metric_prefix[ROUTINGTABLES_METRIC_PFX_LEN];
+  char metric_prefix[RT_METRIC_PFX_LEN];
 
   /** a borrowed pointer for timeseries */
   timeseries_t *timeseries;

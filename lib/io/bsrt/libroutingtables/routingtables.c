@@ -34,26 +34,22 @@
 // Convenience macro for iterating over a khash
 #define rt_kh_for(iter, h)  for (khint_t iter = kh_begin(h); iter != kh_end(h); ++iter)
 
-/** When the Quagga process starts dumping the
- *  RIB (at time t0), not all of the previous update
- *  messages have been processed, in other words
- *  there is a backlog queue of update that has not
- *  been processed yet, when the updates in this queue
- *  refer to timestamps before the RIB, then considering
- *  the RIB state as the most updated leads to wrong conclusions,
- *  as well as the installation of stale routes in the routing table.
- *  To prevent this case, we say that: if an update message applied
- *  to our routing table is older than the timestamp of the UC RIB
- *  and the update happened within ROUTINGTABLES_RIB_BACKLOG_TIME from
- *  the RIB start, then the update message is the one which is
- *  considered the more consistent (and therefore it should remain
- *  in the routing table after the end_of_rib process). */
-#define ROUTINGTABLES_RIB_BACKLOG_TIME 60
+/** When the Quagga process starts dumping the RIB (at time t0), not all of
+ *  the previous update messages have been processed, in other words there is
+ *  a backlog queue of update that has not been processed yet, when the
+ *  updates in this queue refer to timestamps before the RIB, then considering
+ *  the RIB state as the most updated leads to wrong conclusions, as well as
+ *  the installation of stale routes in the routing table.  To prevent this
+ *  case, we say that: if an update message applied to our routing table is
+ *  older than the timestamp of the UC RIB and the update happened within
+ *  RT_RIB_BACKLOG_TIME from the RIB start, then the update message is the one
+ *  which is considered the more consistent (and therefore it should remain in
+ *  the routing table after the end_of_rib process). */
+#define RT_RIB_BACKLOG_TIME 60
 
-/** If a peer does not receive any data for
- *  ROUTINGTABLES_MAX_INACTIVE_TIME and it is not
+/** If a peer does not receive any data for RT_MAX_INACTIVE_TIME and it is not
  *  in the RIB, then it is considered UNKNOWN */
-#define ROUTINGTABLES_MAX_INACTIVE_TIME 3600
+#define RT_MAX_INACTIVE_TIME 3600
 
 /** string buffer to contain debugging infos */
 #define BUFFER_LEN 1024
@@ -92,11 +88,11 @@ static perpfx_perpeer_info_t *perpfx_perpeer_info_create(void)
   perpfx_perpeer_info_t *pfxpeeri =
     (perpfx_perpeer_info_t *)malloc_zero(sizeof(perpfx_perpeer_info_t));
   if (pfxpeeri != NULL) {
-    pfxpeeri->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
+    pfxpeeri->pfx_status = RT_INITIAL_PFXSTATUS;
     pfxpeeri->bgp_time_last_ts = 0;
     pfxpeeri->bgp_time_uc_delta_ts = 0;
     /* the path id is ignored unless it is set by a RIB message
-     * (i.e. ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS is on), that's
+     * (i.e. RT_UC_ANNOUNCED_PFXSTATUS is on), that's
      * why we do not initialize it:
      * pfxpeeri->uc_as_path_id = ? */
   }
@@ -241,7 +237,7 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
     c_data.bgp_time_ref_rib_start_time = 0;
     c_data.bgp_time_uc_rib_dump_time = 0;
     c_data.bgp_time_uc_rib_start_time = 0;
-    c_data.state = ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN;
+    c_data.state = RT_COLLECTOR_STATE_UNKNOWN;
     c_data.active_peers_cnt = 0;
     c_data.valid_record_cnt = 0;
     c_data.corrupted_record_cnt = 0;
@@ -285,7 +281,7 @@ static void stop_uc_process(routingtables_t *rt, collector_t *c)
        * information on its rib related status */
       pp = bgpview_iter_pfx_peer_get_user(rt->iter);
       pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS;
+      pp->pfx_status &= ~RT_UC_ANNOUNCED_PFXSTATUS;
     }
   }
 
@@ -333,11 +329,11 @@ static void reset_peerpfxdata(routingtables_t *rt, bgpstream_peer_id_t peer_id,
         continue;
       }
       perpfx_perpeer_info_t *pp = bgpview_iter_pfx_peer_get_user(rt->iter);
-      pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
+      pp->pfx_status &= ~RT_ANNOUNCED_PFXSTATUS;
       pp->bgp_time_last_ts = 0;
       if (reset_uc) {
         pp->bgp_time_uc_delta_ts = 0;
-        pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
+        pp->pfx_status = RT_INITIAL_PFXSTATUS;
       }
       bgpview_iter_pfx_deactivate_peer(rt->iter);
     }
@@ -390,11 +386,11 @@ static void update_collector_state(routingtables_t *rt, collector_t *c)
   }
 
   if (c->active_peers_cnt) {
-    c->state = ROUTINGTABLES_COLLECTOR_STATE_UP;
+    c->state = RT_COLLECTOR_STATE_UP;
   } else if (unknown) {
-    c->state = ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN;
+    c->state = RT_COLLECTOR_STATE_UNKNOWN;
   } else {
-    c->state = ROUTINGTABLES_COLLECTOR_STATE_DOWN;
+    c->state = RT_COLLECTOR_STATE_DOWN;
   }
   return;
 }
@@ -440,22 +436,22 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
           p->bgp_time_uc_rib_start != 0) {
         /* if the RIB timestamp is greater than the last updated time in the
          * current state, AND  the update did not happen within
-         * ROUTINGTABLES_RIB_BACKLOG_TIME seconds before the beginning of the
+         * RT_RIB_BACKLOG_TIME seconds before the beginning of the
          * RIB (if that is so, the update message may be still buffered in the
          * quagga process), then the RIB has more updated data than our state
          * */
         if (pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start >
               pp->bgp_time_last_ts &&
             !(pp->bgp_time_last_ts >
-              p->bgp_time_uc_rib_start - ROUTINGTABLES_RIB_BACKLOG_TIME)) {
+              p->bgp_time_uc_rib_start - RT_RIB_BACKLOG_TIME)) {
 
           /* if the prefix is observed in the RIB */
-          if (pp->pfx_status & ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS) {
+          if (pp->pfx_status & RT_UC_ANNOUNCED_PFXSTATUS) {
 
             /* if the prefix was set (that's why we look for ts!= 0)
              * inactive in the previous state and now it is in the rib */
             if (pp->bgp_time_last_ts != 0 &&
-                !(pp->pfx_status & ROUTINGTABLES_ANNOUNCED_PFXSTATUS)) {
+                !(pp->pfx_status & RT_ANNOUNCED_PFXSTATUS)) {
               p->rib_negative_mismatches_cnt++;
 
               fprintf(stderr, "Warning RIB MISMATCH @ %s.%s: %s RIB-A: %" PRIu32
@@ -472,7 +468,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
               fprintf(stderr, "Error: could not set AS path\n");
               return -1;
             }
-            pp->pfx_status = ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
+            pp->pfx_status = RT_ANNOUNCED_PFXSTATUS;
             pp->bgp_time_last_ts =
               pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start;
 
@@ -497,18 +493,16 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
             }
 
             bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL);
-            pp->pfx_status = ROUTINGTABLES_INITIAL_PFXSTATUS;
+            pp->pfx_status = RT_INITIAL_PFXSTATUS;
             pp->bgp_time_last_ts = 0;
             bgpview_iter_pfx_deactivate_peer(rt->iter);
           }
         } else {
-          /* if an update is more recent than the uc information, or if
-           * the last update message was applied just
-           * ROUTINGTABLES_RIB_BACKLOG_TIME
-           * before the RIB dumping process started then
-           * we decide to keep this data and activate the field if it
-           * is an announcement */
-          if (pp->pfx_status & ROUTINGTABLES_ANNOUNCED_PFXSTATUS) {
+          /* if an update is more recent than the uc information, or if the
+           * last update message was applied just RT_RIB_BACKLOG_TIME before
+           * the RIB dumping process started then we decide to keep this data
+           * and activate the field if it is an announcement */
+          if (pp->pfx_status & RT_ANNOUNCED_PFXSTATUS) {
             bgpview_iter_activate_peer(rt->iter);
             p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
             p->bgp_time_ref_rib_start = p->bgp_time_uc_rib_start;
@@ -519,15 +513,15 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
         /* reset uc fields anyway */
         pp->bgp_time_uc_delta_ts = 0;
         pp->pfx_status =
-          pp->pfx_status & (~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS);
+          pp->pfx_status & (~RT_UC_ANNOUNCED_PFXSTATUS);
       }
 
       /* if state is inactive and ts is older than
-       * ROUTINGTABLES_DEPRECATED_INFO_INTERVAL then remove the prefix peer
+       * RT_DEPRECATED_INFO_INTERVAL then remove the prefix peer
        * (the garbage collection system will eventually take care of it) */
       if (bgpview_iter_pfx_peer_get_state(rt->iter) == BGPVIEW_FIELD_INACTIVE) {
         if (pp->bgp_time_last_ts < rt->bgp_time_interval_start -
-                                     ROUTINGTABLES_DEPRECATED_INFO_INTERVAL) {
+                                     RT_DEPRECATED_INFO_INTERVAL) {
           if (bgpview_iter_pfx_remove_peer(rt->iter) != 0) {
             return -1;
           }
@@ -553,7 +547,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
        * that this peer was not part of the RIB and, therefore,
        * if it claims to be active, we deactivate it */
       if (p->bgp_time_uc_rib_start == 0 &&
-          p->last_ts < c->bgp_time_last - ROUTINGTABLES_MAX_INACTIVE_TIME) {
+          p->last_ts < c->bgp_time_last - RT_MAX_INACTIVE_TIME) {
         if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
           p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_UNKNOWN;
           reset_peerpfxdata(rt, peerid, 0);
@@ -678,10 +672,10 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
   /* set the pfx status and as path  */
   if (elem->type == BGPSTREAM_ELEM_TYPE_ANNOUNCEMENT) {
     /* set announced status */
-    pp->pfx_status |= ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
+    pp->pfx_status |= RT_ANNOUNCED_PFXSTATUS;
     bgpview_iter_pfx_peer_set_as_path(rt->iter, elem->as_path);
   } else { /* reset announced status */
-    pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
+    pp->pfx_status &= ~RT_ANNOUNCED_PFXSTATUS;
     bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL);
   }
 
@@ -852,7 +846,7 @@ static int apply_rib_message(routingtables_t *rt, collector_t *c,
   /* we update only the uc part of the pfx-peer, i.e.:
    * the timestamp, the uc_as_path_id, and the pfx status */
   pp->bgp_time_uc_delta_ts = ts - p->bgp_time_uc_rib_start;
-  pp->pfx_status |= ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS;
+  pp->pfx_status |= RT_UC_ANNOUNCED_PFXSTATUS;
   if (bgpstream_as_path_store_get_path_id(rt->pathstore, elem->as_path,
                                           elem->peer_asn,
                                           &pp->uc_as_path_id) == -1) {
@@ -865,12 +859,10 @@ static int apply_rib_message(routingtables_t *rt, collector_t *c,
 static void refresh_collector_time(routingtables_t *rt, collector_t *c,
                                    bgpstream_record_t *record)
 {
-  /** we update the bgp_time_last and every
-   * ROUTINGTABLES_COLLECTOR_WALL_UPDATE_FR
+  /** we update the bgp_time_last and every RT_COLLECTOR_WALL_UPDATE_FR
    *  seconds we also update the last wall time */
   if (record->time_sec > c->bgp_time_last) {
-    if (record->time_sec >
-        (c->bgp_time_last + ROUTINGTABLES_COLLECTOR_WALL_UPDATE_FR)) {
+    if (record->time_sec > (c->bgp_time_last + RT_COLLECTOR_WALL_UPDATE_FR)) {
       c->wall_time_last = get_wall_time_now();
     }
     c->bgp_time_last = record->time_sec;
@@ -1063,7 +1055,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
             pp->bgp_time_last_ts <= record->time_sec) {
           /* reset the active information if the active state is affected */
           pp->bgp_time_last_ts = 0;
-          pp->pfx_status &= ~ROUTINGTABLES_ANNOUNCED_PFXSTATUS;
+          pp->pfx_status &= ~RT_ANNOUNCED_PFXSTATUS;
           /* bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL); */
           bgpview_iter_pfx_deactivate_peer(rt->iter);
         }
@@ -1077,7 +1069,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
       /* reset the uc information if the under construction process is affected
        */
       pp->bgp_time_uc_delta_ts = 0;
-      pp->pfx_status &= ~ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS;
+      pp->pfx_status &= ~RT_UC_ANNOUNCED_PFXSTATUS;
     }
   }
 
@@ -1154,7 +1146,7 @@ routingtables_t *routingtables_create(char *plugin_name,
   strcpy(rt->plugin_name, plugin_name);
 
   // set the metric prefix string to the default value
-  routingtables_set_metric_prefix(rt, ROUTINGTABLES_DEFAULT_METRIC_PFX);
+  routingtables_set_metric_prefix(rt, RT_DEFAULT_METRIC_PFX);
   rt->metrics_output_on = 1;
 
   rt->bgp_time_interval_start = 0;
@@ -1177,11 +1169,10 @@ bgpview_t *routingtables_get_view_ptr(routingtables_t *rt)
 void routingtables_set_metric_prefix(routingtables_t *rt,
     const char *metric_prefix)
 {
-  if (metric_prefix == NULL ||
-      strlen(metric_prefix) - 1 > ROUTINGTABLES_METRIC_PFX_LEN) {
+  if (metric_prefix == NULL || strlen(metric_prefix) - 1 > RT_METRIC_PFX_LEN) {
     fprintf(stderr, "Warning: could not set metric prefix, using default %s \n",
-            ROUTINGTABLES_DEFAULT_METRIC_PFX);
-    strcpy(rt->metric_prefix, ROUTINGTABLES_DEFAULT_METRIC_PFX);
+            RT_DEFAULT_METRIC_PFX);
+    strcpy(rt->metric_prefix, RT_DEFAULT_METRIC_PFX);
     return;
   }
   strcpy(rt->metric_prefix, metric_prefix);

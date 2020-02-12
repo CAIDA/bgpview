@@ -117,7 +117,7 @@ static test_instruction_t testscript[] = {
   {  699, OP_PEER_DOWN,               2,   NULL },
   {  799, OP_PEER_UP,                 5,   NULL },
   // RT will deactivate a peer if it is missing from a RIB and has sent no
-  // messages for at least ROUTINGTABLES_MAX_INACTIVE_TIME (3600s).
+  // messages for at least RT_MAX_INACTIVE_TIME (3600s).
   { 7200, OP_RIB,                     0,   NULL },
   {   -1, OP_EOS,                     0,   NULL },
 };
