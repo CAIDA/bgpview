@@ -45,7 +45,7 @@
  *  last X hours, it definetely means that it has not been
  *  seen by any RIB in the last X hours, therefore, if inactive
  *  it can be removed from the view.  */
-#define RT_DEPRECATED_INFO_INTERVAL 24 * 3600
+#define RT_DEPRECATED_INFO_INTERVAL (24 * 3600)
 
 /* the prefix is not announced in the active state nor in the
  * under construction state */
