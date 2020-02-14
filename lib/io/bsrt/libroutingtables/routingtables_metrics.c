@@ -157,7 +157,7 @@ void routingtables_dump_metrics(routingtables_t *rt, uint32_t time_now)
   /* collectors metrics */
   for (k = kh_begin(rt->collectors); k != kh_end(rt->collectors); ++k) {
     if (kh_exist(rt->collectors, k)) {
-      c = &kh_val(rt->collectors, k);
+      c = kh_val(rt->collectors, k);
 
       /* compute metrics that requires peers aggregation */
       /* get all the peers that belong to the current collector */

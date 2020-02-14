@@ -166,7 +166,7 @@ err:
   return NULL;
 }
 
-static void destroy_collector_data(collector_t *c)
+static void collector_destroy(collector_t *c)
 {
   if (c != NULL) {
     if (c->collector_peerids != NULL) {
@@ -178,6 +178,8 @@ static void destroy_collector_data(collector_t *c)
       bgpstream_id_set_destroy(c->active_ases);
     }
     c->active_ases = NULL;
+
+    free(c);
   }
 }
 
@@ -186,7 +188,7 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
 {
   khiter_t k;
   int khret;
-  collector_t c_data;
+  collector_t *c = NULL;
 
   /* create new collector-related structures if it is the first time
    * we see it */
@@ -195,6 +197,8 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
 
     /* collector data initialization (all the fields needs to be */
     /* explicitely initialized */
+    if (!(c = malloc(sizeof(collector_t))))
+      goto err;
 
     char project_name[BGPSTREAM_UTILS_STR_NAME_LEN];
     strncpy(project_name, project, BGPSTREAM_UTILS_STR_NAME_LEN);
@@ -204,45 +208,45 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
     strncpy(collector_name, collector, BGPSTREAM_UTILS_STR_NAME_LEN);
     graphite_safe(collector_name);
 
-    if (snprintf(c_data.collector_str, BGPSTREAM_UTILS_STR_NAME_LEN, "%s.%s",
+    if (snprintf(c->collector_str, BGPSTREAM_UTILS_STR_NAME_LEN, "%s.%s",
                  project_name,
                  collector_name) >= BGPSTREAM_UTILS_STR_NAME_LEN) {
       fprintf(stderr,
         "Warning: could not print collector signature: truncated output\n");
     }
 
-    if ((c_data.collector_peerids = kh_init(peer_id_set)) == NULL)
+    if ((c->collector_peerids = kh_init(peer_id_set)) == NULL)
       goto err;
 
-    if ((c_data.active_ases = bgpstream_id_set_create()) == NULL)
+    if ((c->active_ases = bgpstream_id_set_create()) == NULL)
       goto err;
 
-    c_data.bgp_time_last = 0;
-    c_data.wall_time_last = 0;
-    c_data.bgp_time_ref_rib_dump_time = 0;
-    c_data.bgp_time_ref_rib_start_time = 0;
-    c_data.bgp_time_uc_rib_dump_time = 0;
-    c_data.bgp_time_uc_rib_start_time = 0;
-    c_data.state = RT_COLLECTOR_STATE_UNKNOWN;
-    c_data.active_peers_cnt = 0;
-    c_data.valid_record_cnt = 0;
-    c_data.corrupted_record_cnt = 0;
-    c_data.empty_record_cnt = 0;
-    c_data.eovrib_flag = 0;
-    c_data.publish_flag = 0;
+    c->bgp_time_last = 0;
+    c->wall_time_last = 0;
+    c->bgp_time_ref_rib_dump_time = 0;
+    c->bgp_time_ref_rib_start_time = 0;
+    c->bgp_time_uc_rib_dump_time = 0;
+    c->bgp_time_uc_rib_start_time = 0;
+    c->state = RT_COLLECTOR_STATE_UNKNOWN;
+    c->active_peers_cnt = 0;
+    c->valid_record_cnt = 0;
+    c->corrupted_record_cnt = 0;
+    c->empty_record_cnt = 0;
+    c->eovrib_flag = 0;
+    c->publish_flag = 0;
 
-    collector_generate_metrics(rt, &c_data);
+    collector_generate_metrics(rt, c);
 
     /* insert key,value in map */
     k = kh_put(collector_data, rt->collectors, strdup(collector), &khret);
-    kh_val(rt->collectors, k) = c_data;
+    kh_val(rt->collectors, k) = c;
   }
 
-  return &kh_val(rt->collectors, k);
+  return kh_val(rt->collectors, k);
 
 err:
   fprintf(stderr, "Error: can't create collector data\n");
-  destroy_collector_data(&c_data);
+  collector_destroy(c);
   return NULL;
 }
 
@@ -387,13 +391,13 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
 
   rt_kh_for(k, rt->collectors) {
     if (!kh_exist(rt->collectors, k)) continue;
-    collector_t *c = &kh_val(rt->collectors, k);
+    collector_t *c = kh_val(rt->collectors, k);
     if (c->eovrib_flag != 0) {
       rt_kh_for(i, c->collector_peerids) {
         if (!kh_exist(c->collector_peerids, i)) continue;
         bgpstream_peer_id_t peerid = kh_key(c->collector_peerids, i);
         khiter_t j = kh_put(peer_id_collector, rt->eorib_peers, peerid, &khret);
-        kh_value(rt->eorib_peers, j) = c;
+        kh_value(rt->eorib_peers, j) = c; // borrowed pointer
       }
     }
   }
@@ -550,7 +554,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
 
   rt_kh_for (k, rt->collectors) {
     if (!kh_exist(rt->collectors, k)) continue;
-    collector_t *c = &kh_val(rt->collectors, k);
+    collector_t *c = kh_val(rt->collectors, k);
     if (c->eovrib_flag != 0) {
       c->publish_flag = 1;
       c->eovrib_flag = 0;
@@ -572,7 +576,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
   /* check the number of active peers and update the collector's state */
   rt_kh_for (k, rt->collectors) {
     if (!kh_exist(rt->collectors, k)) continue;
-    update_collector_state(rt, &kh_val(rt->collectors, k));
+    update_collector_state(rt, kh_val(rt->collectors, k));
   }
 
   return 0;
@@ -1257,13 +1261,8 @@ void routingtables_destroy(routingtables_t *rt)
 {
   if (rt != NULL) {
     if (rt->collectors != NULL) {
-      rt_kh_for (k, rt->collectors) {
-        if (!kh_exist(rt->collectors, k)) continue;
-        /* deallocating value dynamic memory */
-        destroy_collector_data(&kh_val(rt->collectors, k));
-        /* deallocating string dynamic memory */
-        free(kh_key(rt->collectors, k));
-      }
+      kh_free_vals(collector_data, rt->collectors, collector_destroy);
+      kh_free(collector_data, rt->collectors, (void (*)(char*))free);
       kh_destroy(collector_data, rt->collectors);
       rt->collectors = NULL;
     }

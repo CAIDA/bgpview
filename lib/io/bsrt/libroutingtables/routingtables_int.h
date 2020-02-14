@@ -309,9 +309,8 @@ KHASH_INIT(peer_id_collector, uint32_t, collector_t *, 1, kh_int_hash_func,
            kh_int_hash_equal)
 typedef khash_t(peer_id_collector) peer_id_collector_t;
 
-/** A map that associates an a collector_t
- *  structure with each collector */
-KHASH_INIT(collector_data, char *, collector_t, 1, kh_str_hash_func,
+/** A map that associates a collector_t with each collector name */
+KHASH_INIT(collector_data, char *, collector_t *, 1, kh_str_hash_func,
            kh_str_hash_equal)
 typedef khash_t(collector_data) collector_data_t;
 
