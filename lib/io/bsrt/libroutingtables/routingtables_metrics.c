@@ -275,11 +275,7 @@ void routingtables_dump_metrics(routingtables_t *rt, uint32_t time_now)
     }
 
     /* in all cases we have to reset the metrics */
-    for (khiter_t aai = kh_begin(p->announcing_ases);
-        aai != kh_end(p->announcing_ases); ++aai) {
-      if (!kh_exist(p->announcing_ases, aai)) continue;
-      bgpstream_as_path_seg_destroy(kh_key(p->announcing_ases, aai));
-    }
+    kh_free(origin_segments, p->announcing_ases, bgpstream_as_path_seg_destroy);
     kh_clear(origin_segments, p->announcing_ases);
     bgpstream_pfx_set_clear(p->announced_pfxs);
     bgpstream_pfx_set_clear(p->withdrawn_pfxs);

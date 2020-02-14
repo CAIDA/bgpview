@@ -96,10 +96,7 @@ static void perpeer_info_destroy(void *p)
   perpeer_info_t *pi = (perpeer_info_t *)p;
 
   if (pi->announcing_ases != NULL) {
-    rt_kh_for (k, pi->announcing_ases) {
-      if (!kh_exist(pi->announcing_ases, k)) continue;
-      bgpstream_as_path_seg_destroy(kh_key(pi->announcing_ases, k));
-    }
+    kh_free(origin_segments, pi->announcing_ases, bgpstream_as_path_seg_destroy);
     kh_destroy(origin_segments, pi->announcing_ases);
     pi->announcing_ases = NULL;
   }
