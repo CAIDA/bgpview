@@ -414,100 +414,106 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
          bgpview_iter_has_more_pfx_peer(rt->iter);
          bgpview_iter_next_pfx_peer(rt->iter)) {
 
-      perpeer_info_t *p = bgpview_iter_peer_get_user(rt->iter);
-      bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(rt->iter);
-      perpfx_perpeer_info_t *pp = bgpview_iter_pfx_peer_get_user(rt->iter);
+      perpfx_perpeer_info_t *pp = NULL;
 
       /* check if the current field refers to a peer involved
        * in the rib process  */
       if (kh_get(peer_id_collector, rt->eorib_peers,
                  bgpview_iter_peer_get_peer_id(rt->iter)) !=
-            kh_end(rt->eorib_peers) &&
-          p->bgp_time_uc_rib_start != 0) {
-        /* if the RIB timestamp is greater than the last updated time in the
-         * current state, AND  the update did not happen within
-         * RT_RIB_BACKLOG_TIME seconds before the beginning of the RIB (if
-         * that is so, the update message may be still buffered in the quagga
-         * process), then the RIB has more updated data than our state */
-        if (pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start >
-              pp->bgp_time_last_ts &&
-            !(pp->bgp_time_last_ts >
-              p->bgp_time_uc_rib_start - RT_RIB_BACKLOG_TIME)) {
+            kh_end(rt->eorib_peers)) {
 
-          /* if the prefix is observed in the RIB */
-          if (pp->pfx_status & RT_UC_ANNOUNCED_PFXSTATUS) {
+        perpeer_info_t *p = bgpview_iter_peer_get_user(rt->iter);
+        if (p->bgp_time_uc_rib_start != 0) {
 
-            /* if the prefix was set (that's why we look for ts!= 0)
-             * inactive in the previous state and now it is in the rib */
-            if (pp->bgp_time_last_ts != 0 &&
-                !(pp->pfx_status & RT_ANNOUNCED_PFXSTATUS)) {
-              p->rib_negative_mismatches_cnt++;
+          bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(rt->iter);
+          pp = bgpview_iter_pfx_peer_get_user(rt->iter);
+          /* if the RIB timestamp is greater than the last updated time in the
+           * current state, AND  the update did not happen within
+           * RT_RIB_BACKLOG_TIME seconds before the beginning of the RIB (if
+           * that is so, the update message may be still buffered in the quagga
+           * process), then the RIB has more updated data than our state */
+          if (pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start >
+                pp->bgp_time_last_ts &&
+              !(pp->bgp_time_last_ts >
+                p->bgp_time_uc_rib_start - RT_RIB_BACKLOG_TIME)) {
 
-              fprintf(stderr, "Warning RIB MISMATCH @ %s.%s: %s RIB-A: %" PRIu32
-                              " STATE-W: %" PRIu32 "\n",
-                      p->collector_str, p->peer_str,
-                      bgpstream_pfx_snprintf(buffer, INET6_ADDRSTRLEN + 3, pfx),
-                      pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start,
-                      pp->bgp_time_last_ts);
+            /* if the prefix is observed in the RIB */
+            if (pp->pfx_status & RT_UC_ANNOUNCED_PFXSTATUS) {
+
+              /* if the prefix was set (that's why we look for ts!= 0)
+               * inactive in the previous state and now it is in the rib */
+              if (pp->bgp_time_last_ts != 0 &&
+                  !(pp->pfx_status & RT_ANNOUNCED_PFXSTATUS)) {
+                p->rib_negative_mismatches_cnt++;
+
+                fprintf(stderr, "Warning RIB MISMATCH @ %s.%s: %s RIB-A: %" PRIu32
+                                " STATE-W: %" PRIu32 "\n",
+                        p->collector_str, p->peer_str,
+                        bgpstream_pfx_snprintf(buffer, INET6_ADDRSTRLEN + 3, pfx),
+                        pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start,
+                        pp->bgp_time_last_ts);
+              }
+
+              /* Updating the state with RIB information */
+              if (bgpview_iter_pfx_peer_set_as_path_by_id(
+                    rt->iter, pp->uc_as_path_id) != 0) {
+                fprintf(stderr, "Error: could not set AS path\n");
+                return -1;
+              }
+              pp->pfx_status = RT_ANNOUNCED_PFXSTATUS;
+              pp->bgp_time_last_ts =
+                pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start;
+
+              bgpview_iter_activate_peer(rt->iter);
+              p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
+              p->bgp_time_ref_rib_start = p->bgp_time_uc_rib_start;
+              p->bgp_time_ref_rib_end = p->bgp_time_uc_rib_end;
+              bgpview_iter_pfx_activate_peer(rt->iter);
+            } else {
+              /* the last modification of the current pfx is before the current
+               * uc rib but the prefix is not in the uc rib: therefore we
+               * deactivate the field (it may be already inactive) */
+              if (bgpview_iter_pfx_peer_get_state(rt->iter) ==
+                  BGPVIEW_FIELD_ACTIVE) {
+                p->rib_positive_mismatches_cnt++;
+                fprintf(stderr, "Warning RIB MISMATCH @ %s.%s: %s RIB-W: %" PRIu32
+                                " STATE-A: %" PRIu32 "\n",
+                        p->collector_str, p->peer_str,
+                        bgpstream_pfx_snprintf(buffer, INET6_ADDRSTRLEN + 3, pfx),
+                        pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start,
+                        pp->bgp_time_last_ts);
+              }
+
+              bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL);
+              pp->pfx_status = RT_INITIAL_PFXSTATUS;
+              pp->bgp_time_last_ts = 0;
+              bgpview_iter_pfx_deactivate_peer(rt->iter);
             }
-
-            /* Updating the state with RIB information */
-            if (bgpview_iter_pfx_peer_set_as_path_by_id(
-                  rt->iter, pp->uc_as_path_id) != 0) {
-              fprintf(stderr, "Error: could not set AS path\n");
-              return -1;
-            }
-            pp->pfx_status = RT_ANNOUNCED_PFXSTATUS;
-            pp->bgp_time_last_ts =
-              pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start;
-
-            bgpview_iter_activate_peer(rt->iter);
-            p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
-            p->bgp_time_ref_rib_start = p->bgp_time_uc_rib_start;
-            p->bgp_time_ref_rib_end = p->bgp_time_uc_rib_end;
-            bgpview_iter_pfx_activate_peer(rt->iter);
           } else {
-            /* the last modification of the current pfx is before the current
-             * uc rib but the prefix is not in the uc rib: therefore we
-             * deactivate the field (it may be already inactive) */
-            if (bgpview_iter_pfx_peer_get_state(rt->iter) ==
-                BGPVIEW_FIELD_ACTIVE) {
-              p->rib_positive_mismatches_cnt++;
-              fprintf(stderr, "Warning RIB MISMATCH @ %s.%s: %s RIB-W: %" PRIu32
-                              " STATE-A: %" PRIu32 "\n",
-                      p->collector_str, p->peer_str,
-                      bgpstream_pfx_snprintf(buffer, INET6_ADDRSTRLEN + 3, pfx),
-                      pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start,
-                      pp->bgp_time_last_ts);
+            /* if an update is more recent than the uc information, or if the
+             * last update message was applied just RT_RIB_BACKLOG_TIME before
+             * the RIB dumping process started then we decide to keep this data
+             * and activate the field if it is an announcement */
+            if (pp->pfx_status & RT_ANNOUNCED_PFXSTATUS) {
+              bgpview_iter_activate_peer(rt->iter);
+              p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
+              p->bgp_time_ref_rib_start = p->bgp_time_uc_rib_start;
+              p->bgp_time_ref_rib_end = p->bgp_time_uc_rib_end;
+              bgpview_iter_pfx_activate_peer(rt->iter);
             }
-
-            bgpview_iter_pfx_peer_set_as_path(rt->iter, NULL);
-            pp->pfx_status = RT_INITIAL_PFXSTATUS;
-            pp->bgp_time_last_ts = 0;
-            bgpview_iter_pfx_deactivate_peer(rt->iter);
           }
-        } else {
-          /* if an update is more recent than the uc information, or if the
-           * last update message was applied just RT_RIB_BACKLOG_TIME before
-           * the RIB dumping process started then we decide to keep this data
-           * and activate the field if it is an announcement */
-          if (pp->pfx_status & RT_ANNOUNCED_PFXSTATUS) {
-            bgpview_iter_activate_peer(rt->iter);
-            p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED;
-            p->bgp_time_ref_rib_start = p->bgp_time_uc_rib_start;
-            p->bgp_time_ref_rib_end = p->bgp_time_uc_rib_end;
-            bgpview_iter_pfx_activate_peer(rt->iter);
-          }
+          /* reset uc fields anyway */
+          pp->bgp_time_uc_delta_ts = 0;
+          pp->pfx_status &= ~RT_UC_ANNOUNCED_PFXSTATUS;
         }
-        /* reset uc fields anyway */
-        pp->bgp_time_uc_delta_ts = 0;
-        pp->pfx_status &= ~RT_UC_ANNOUNCED_PFXSTATUS;
       }
 
       /* if state is inactive and ts is older than
        * RT_DEPRECATED_INFO_INTERVAL then remove the prefix peer
        * (the garbage collection system will eventually take care of it) */
       if (bgpview_iter_pfx_peer_get_state(rt->iter) == BGPVIEW_FIELD_INACTIVE) {
+        if (!pp)
+          pp = bgpview_iter_pfx_peer_get_user(rt->iter);
         if (pp->bgp_time_last_ts < rt->bgp_time_interval_start -
                                      RT_DEPRECATED_INFO_INTERVAL) {
           if (bgpview_iter_pfx_remove_peer(rt->iter) != 0) {
