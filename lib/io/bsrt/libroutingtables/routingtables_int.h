@@ -347,9 +347,10 @@ struct struct_routingtables_t {
    *  current state */
   collector_data_t *collectors;
 
-  /* set of peers for which we have to
-   * perform the end of valid rib operations at
-   * the end of the interval */
+  /* set of peers (and their collectors) for which we have to perform the end
+   * of valid rib operations at the end of the interval (used only during
+   * apply_end_of_valid_rib_operations(); stored here so its allocated memory
+   * can be reused) */
   peer_id_collector_t *eorib_peers;
 
   /** Metric prefix */

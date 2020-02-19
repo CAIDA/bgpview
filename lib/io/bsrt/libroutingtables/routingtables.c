@@ -426,10 +426,9 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
           p->bgp_time_uc_rib_start != 0) {
         /* if the RIB timestamp is greater than the last updated time in the
          * current state, AND  the update did not happen within
-         * RT_RIB_BACKLOG_TIME seconds before the beginning of the
-         * RIB (if that is so, the update message may be still buffered in the
-         * quagga process), then the RIB has more updated data than our state
-         * */
+         * RT_RIB_BACKLOG_TIME seconds before the beginning of the RIB (if
+         * that is so, the update message may be still buffered in the quagga
+         * process), then the RIB has more updated data than our state */
         if (pp->bgp_time_uc_delta_ts + p->bgp_time_uc_rib_start >
               pp->bgp_time_last_ts &&
             !(pp->bgp_time_last_ts >
@@ -502,8 +501,7 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
         }
         /* reset uc fields anyway */
         pp->bgp_time_uc_delta_ts = 0;
-        pp->pfx_status =
-          pp->pfx_status & (~RT_UC_ANNOUNCED_PFXSTATUS);
+        pp->pfx_status &= ~RT_UC_ANNOUNCED_PFXSTATUS;
       }
 
       /* if state is inactive and ts is older than
@@ -525,8 +523,8 @@ static int apply_end_of_valid_rib_operations(routingtables_t *rt)
      * the previous RIB and this RIB  and we have to deactivate them */
     for (bgpview_iter_first_peer(rt->iter, BGPVIEW_FIELD_ALL_VALID);
          bgpview_iter_has_more_peer(rt->iter); bgpview_iter_next_peer(rt->iter)) {
-      /* check if the current field refers to a peer that belongs to
-       * the current collector */
+      /* check if the current field refers to a peer involved
+       * in the rib process  */
       bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(rt->iter);
       khiter_t j = kh_get(peer_id_collector, rt->eorib_peers, peerid);
       if (j == kh_end(rt->eorib_peers)) continue;
