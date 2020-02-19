@@ -247,6 +247,10 @@ struct bgpview {
    * I.e. is it possible to add a user pointer to a pfx-peer?
    */
   int disable_extended;
+
+  uint8_t need_gc_v4pfxs;
+  uint8_t need_gc_v6pfxs;
+  uint8_t need_gc_peerinfo;
 };
 
 struct bgpview_iter {
@@ -1311,6 +1315,7 @@ int bgpview_iter_remove_peer(bgpview_iter_t *iter)
 
   /* set the state to invalid and reset the counters */
   peerinfo_reset(&kh_value(iter->view->peerinfo, iter->peer_it));
+  iter->view->need_gc_peerinfo = 1;
   iter->view->peerinfo_cnt[BGPVIEW_FIELD_INACTIVE]--;
 
   return 0;
@@ -1402,10 +1407,12 @@ int bgpview_iter_remove_pfx(bgpview_iter_t *iter)
   switch (iter->version_ptr) {
   case BGPSTREAM_ADDR_VERSION_IPV4:
     iter->view->v4pfxs_cnt[BGPVIEW_FIELD_INACTIVE]--;
+    iter->view->need_gc_v4pfxs = 1;
     break;
 
   case BGPSTREAM_ADDR_VERSION_IPV6:
     iter->view->v6pfxs_cnt[BGPVIEW_FIELD_INACTIVE]--;
+    iter->view->need_gc_v6pfxs = 1;
     break;
 
   default:
@@ -1874,6 +1881,8 @@ void bgpview_clear(bgpview_t *view)
     }
     __iter_next_pfx(lit);
   }
+  view->need_gc_v4pfxs = (kh_size(view->v4pfxs) > 0);
+  view->need_gc_v6pfxs = (kh_size(view->v6pfxs) > 0);
   view->v4pfxs_cnt[BGPVIEW_FIELD_INACTIVE] = 0;
   view->v4pfxs_cnt[BGPVIEW_FIELD_ACTIVE] = 0;
   view->v6pfxs_cnt[BGPVIEW_FIELD_INACTIVE] = 0;
@@ -1885,6 +1894,7 @@ void bgpview_clear(bgpview_t *view)
     peerinfo_reset(&kh_value(view->peerinfo, lit->peer_it));
     __iter_next_peer(lit);
   }
+  view->need_gc_peerinfo = (kh_size(view->peerinfo) > 0);
   view->peerinfo_cnt[BGPVIEW_FIELD_INACTIVE] = 0;
   view->peerinfo_cnt[BGPVIEW_FIELD_ACTIVE] = 0;
 
@@ -1898,31 +1908,40 @@ void bgpview_gc(bgpview_t *view)
   /* note: in the current implementation we cant free pfx-peers for pfxs that
      are not invalid as this is just an array of peers. */
 
-  for (k = kh_begin(view->v4pfxs); k != kh_end(view->v4pfxs); ++k) {
-    if (kh_exist(view->v4pfxs, k) &&
-        kh_value(view->v4pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
-      peerid_pfxinfo_destroy(view, kh_value(view->v4pfxs, k));
-      kh_del(bwv_v4pfx_peerid_pfxinfo, view->v4pfxs, k);
-    }
-  }
-
-  for (k = kh_begin(view->v6pfxs); k != kh_end(view->v6pfxs); ++k) {
-    if (kh_exist(view->v6pfxs, k) &&
-        kh_value(view->v6pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
-      peerid_pfxinfo_destroy(view, kh_value(view->v6pfxs, k));
-      kh_del(bwv_v6pfx_peerid_pfxinfo, view->v6pfxs, k);
-    }
-  }
-
-  for (k = kh_begin(view->peerinfo); k != kh_end(view->peerinfo); ++k) {
-    if (kh_exist(view->peerinfo, k) &&
-        kh_value(view->peerinfo, k).state == BGPVIEW_FIELD_INVALID) {
-      if (view->peer_user_destructor != NULL &&
-          kh_value(view->peerinfo, k).user != NULL) {
-        view->peer_user_destructor(kh_value(view->peerinfo, k).user);
+  if (view->need_gc_v4pfxs) {
+    for (k = kh_begin(view->v4pfxs); k != kh_end(view->v4pfxs); ++k) {
+      if (kh_exist(view->v4pfxs, k) &&
+          kh_value(view->v4pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
+        peerid_pfxinfo_destroy(view, kh_value(view->v4pfxs, k));
+        kh_del(bwv_v4pfx_peerid_pfxinfo, view->v4pfxs, k);
       }
-      kh_del(bwv_peerid_peerinfo, view->peerinfo, k);
     }
+    view->need_gc_v4pfxs = 0;
+  }
+
+  if (view->need_gc_v6pfxs) {
+    for (k = kh_begin(view->v6pfxs); k != kh_end(view->v6pfxs); ++k) {
+      if (kh_exist(view->v6pfxs, k) &&
+          kh_value(view->v6pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
+        peerid_pfxinfo_destroy(view, kh_value(view->v6pfxs, k));
+        kh_del(bwv_v6pfx_peerid_pfxinfo, view->v6pfxs, k);
+      }
+    }
+    view->need_gc_v6pfxs = 0;
+  }
+
+  if (view->need_gc_peerinfo) {
+    for (k = kh_begin(view->peerinfo); k != kh_end(view->peerinfo); ++k) {
+      if (kh_exist(view->peerinfo, k) &&
+          kh_value(view->peerinfo, k).state == BGPVIEW_FIELD_INVALID) {
+        if (view->peer_user_destructor != NULL &&
+            kh_value(view->peerinfo, k).user != NULL) {
+          view->peer_user_destructor(kh_value(view->peerinfo, k).user);
+        }
+        kh_del(bwv_peerid_peerinfo, view->peerinfo, k);
+      }
+    }
+    view->need_gc_peerinfo = 0;
   }
 }
 
