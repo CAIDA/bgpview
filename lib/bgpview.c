@@ -881,8 +881,7 @@ int bgpview_iter_seek_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peerid,
                            uint8_t state_mask)
 {
   __iter_seek_peer(iter, peerid, state_mask);
-  if (iter->peer_it == kh_end(iter->view->peerinfo) ||
-      !kh_exist(iter->view->peerinfo, iter->peer_it)) {
+  if (iter->peer_it == kh_end(iter->view->peerinfo)) {
     return 0;
   }
   if (iter->peer_state_mask &
