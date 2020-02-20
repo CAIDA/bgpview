@@ -517,9 +517,9 @@ static int add_v6pfx(bgpview_iter_t *iter, bgpstream_ipv6_pfx_t *pfx)
 static int add_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx)
 {
   if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
-    return add_v4pfx(iter, (bgpstream_ipv4_pfx_t *)(pfx));
+    return add_v4pfx(iter, &pfx->bs_ipv4);
   } else if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV6) {
-    return add_v6pfx(iter, (bgpstream_ipv6_pfx_t *)(pfx));
+    return add_v6pfx(iter, &pfx->bs_ipv6);
   }
 
   return -1;
