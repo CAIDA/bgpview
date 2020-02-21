@@ -652,7 +652,8 @@ int bgpview_iter_remove_peer(bgpview_iter_t *iter);
  * @param peer_id       peer identifier
  * @param as_path       pointer to the AS path for the prefix as observed
  *                      by peer peer_id (NULL for no path)
- * @return 0 if the insertion was successful, <0 otherwise
+ * @return 1 if the pfx-peer was inserted, 0 if it already existed, <0 for
+ * error.
  *
  * In order for the function to succeed the peer must exist (it can be either
  * active or inactive).
@@ -660,9 +661,18 @@ int bgpview_iter_remove_peer(bgpview_iter_t *iter);
  * When this function returns successfully, the provided iterator will be
  * pointing to the inserted prefix-peer (even if it already existed).
  */
-int bgpview_iter_add_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
+int bgpview_iter_seek_add_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
                               bgpstream_peer_id_t peer_id,
                               bgpstream_as_path_t *as_path);
+
+/** Identical to bgpview_iter_seek_add_pfx_peer() except that this always
+ * returns 0 for success, regardless of whether the pfx-peer already existed.
+ *
+ * It is more efficient to call bgpview_iter_seek_add_pfx_peer() than
+ * `if (bgpview_iter_seek_pfx_peer(...)==0) { bgpview_iter_add_pfx_peer(...); }`
+ */
+#define bgpview_iter_add_pfx_peer(iter, pfx, peer_id, as_path) \
+    (-(bgpview_iter_seek_add_pfx_peer(iter, pfx, peer_id, as_path) < 0))
 
 /** Insert a new pfx-peer information in the BGP Watcher view (with an already
  * known existing AS Path ID)
@@ -707,15 +717,22 @@ int bgpview_iter_remove_pfx(bgpview_iter_t *iter);
  * @param peer_id       peer identifier
  * @param as_path       pointer to the AS path for the prefix as observed
  *                      by peer peer_id (NULL for no path)
- * @return 0 if the insertion was successful, <0 otherwise
+ * @return 1 if the peer was inserted, 0 if already existed, <0 for error.
  *
  * @note: in order for the function to succeed the peer must
  *        exist (it can be either active or inactive)
  * @note: when a new pfx-peer is created its state is set to
  *        inactive.
  */
-int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
-                              bgpstream_as_path_t *as_path);
+int bgpview_iter_pfx_seek_add_peer(bgpview_iter_t *iter,
+                                   bgpstream_peer_id_t peer_id,
+                                   bgpstream_as_path_t *as_path);
+
+/** Identical to bgpview_iter_pfx_seek_add_peer() except this always returns 0
+ * for success, regardless of whether the peer already existed in pfx.
+ */
+#define bgpview_iter_pfx_add_peer(iter, peer_id, as_path) \
+    (-(bgpview_iter_pfx_seek_add_peer(iter, peer_id, as_path) < 0))
 
 /** Insert a new peer info into the currently iterated pfx (with an already
  * known existing AS Path ID)
@@ -723,7 +740,7 @@ int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
  * @param iter          pointer to a view iterator
  * @param peer_id       peer identifier
  * @param path_id       AS Path Store ID of the corresponding AS Path
- * @return 0 if the insertion was successful, <0 otherwise
+ * @return 1 if the peer was inserted, 0 if already existed, <0 for error.
  *
  * In order for the function to succeed the peer must exist (it can be either
  * active or inactive).
@@ -731,9 +748,16 @@ int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
  * The provided path ID must correspond to the appropriate AS Path in the store
  * used by this view.
  */
-int bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
+int bgpview_iter_pfx_seek_add_peer_by_id(bgpview_iter_t *iter,
                                     bgpstream_peer_id_t peer_id,
                                     bgpstream_as_path_store_path_id_t path_id);
+
+/** Identical to bgpview_iter_pfx_seek_add_peer_by_id() except this always
+ * returns 0 for success, regardless of whether the peer already existed in
+ * pfx.
+ */
+#define bgpview_iter_pfx_add_peer_by_id(iter, peer_id, path_id) \
+    (-(bgpview_iter_pfx_seek_add_peer_by_id(iter, peer_id, path_id) < 0))
 
 /** Remove the current peer from the current prefix currently referenced by the
  * given iterator

@@ -368,7 +368,7 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
 
   /* it was already here and active... */
   if (BWV_PFX_GET_PEER_STATE(v, peerid) != BGPVIEW_FIELD_INVALID) {
-    return 0;
+    return 0; // already exists
   }
 
   BWV_PFX_SET_PEER_STATE(v, peerid, BGPVIEW_FIELD_INACTIVE);
@@ -392,7 +392,7 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
     return -1;
   }
 
-  return 0;
+  return 1; // inserted
 }
 
 static inline void pfx_peer_info_destroy(bgpview_t *view, bwv_pfx_peerinfo_t *v)
@@ -1212,13 +1212,6 @@ int bgpview_iter_seek_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
                                bgpstream_peer_id_t peerid, uint8_t pfx_mask,
                                uint8_t peer_mask)
 {
-  // all these filters are reset to default, and then
-  // set by the single seek fuctions
-  iter->version_filter = 0;
-  iter->version_ptr = BGPSTREAM_ADDR_VERSION_IPV4;
-  iter->pfx_state_mask = 0;
-  iter->pfx_peer_state_mask = 0;
-
   if (bgpview_iter_seek_pfx(iter, pfx, pfx_mask) &&
       bgpview_iter_pfx_seek_peer(iter, peerid, peer_mask)) {
     return 1;
@@ -1320,15 +1313,29 @@ int bgpview_iter_remove_peer(bgpview_iter_t *iter)
   return 0;
 }
 
-int bgpview_iter_add_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
-                              bgpstream_peer_id_t peer_id,
-                              bgpstream_as_path_t *as_path)
+int bgpview_iter_seek_add_pfx_peer(bgpview_iter_t *iter,
+                                   bgpstream_pfx_t *pfx,
+                                   bgpstream_peer_id_t peer_id,
+                                   bgpstream_as_path_t *as_path)
 {
   bgpstream_as_path_store_path_id_t path_id;
   bgpstream_peer_sig_t *ps;
 
+  if (bgpview_iter_seek_pfx(iter, pfx, BGPVIEW_FIELD_ALL_VALID)) {
+    if (bgpview_iter_pfx_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID)) {
+      return 0; // already exists
+    }
+  } else {
+    /* we have to first create (or un-invalid) the prefix */
+    if (add_pfx(iter, pfx) != 0) {
+      return -1;
+    }
+  }
+  /* iter is now positioned at the prefix */
+
   /* the peer must already exist */
-  if (bgpview_iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID) == 0) {
+  __iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
+  if (iter->peer_it == kh_end(iter->view->peerinfo)) {
     return -1;
   }
   /* get the peer ASN */
@@ -1340,16 +1347,8 @@ int bgpview_iter_add_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
     return -1;
   }
 
-  /* now seek to the prefix */
-  if (bgpview_iter_seek_pfx(iter, pfx, BGPVIEW_FIELD_ALL_VALID) == 0) {
-    /* we have to first create (or un-invalid) the prefix */
-    if (add_pfx(iter, pfx) != 0) {
-      return -1;
-    }
-  }
-
   /* now insert the prefix-peer info */
-  return bgpview_iter_pfx_add_peer_by_id(iter, peer_id, path_id);
+  return bgpview_iter_pfx_seek_add_peer_by_id(iter, peer_id, path_id);
 }
 
 int bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
@@ -1421,7 +1420,7 @@ int bgpview_iter_remove_pfx(bgpview_iter_t *iter)
   return 0;
 }
 
-int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
+int bgpview_iter_pfx_seek_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
                               bgpstream_as_path_t *as_path)
 {
   bgpstream_as_path_store_path_id_t path_id;
@@ -1436,8 +1435,9 @@ int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
     return -1;
   }
 
-  if (peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
-                            __pfx_peerinfos(iter), peer_id, path_id) != 0) {
+  int rc = peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
+    __pfx_peerinfos(iter), peer_id, path_id);
+  if (rc < 0) {
     return -1;
   }
 
@@ -1445,18 +1445,19 @@ int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
   iter->pfx_peer_it = peer_id;
   iter->pfx_peer_it_valid = 1;
   iter->pfx_peer_state_mask = BGPVIEW_FIELD_ALL_VALID;
-  return 0;
+  return rc;
 }
 
-int bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
+int bgpview_iter_pfx_seek_add_peer_by_id(bgpview_iter_t *iter,
                                     bgpstream_peer_id_t peer_id,
                                     bgpstream_as_path_store_path_id_t path_id)
 {
   /* this code is mostly a duplicate of the above func, for efficiency */
   __iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
 
-  if (peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
-                            __pfx_peerinfos(iter), peer_id, path_id) != 0) {
+  int rc = peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
+    __pfx_peerinfos(iter), peer_id, path_id);
+  if (rc < 0) {
     return -1;
   }
 
@@ -1464,7 +1465,7 @@ int bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
   iter->pfx_peer_it = peer_id;
   iter->pfx_peer_it_valid = 1;
   iter->pfx_peer_state_mask = BGPVIEW_FIELD_ALL_VALID;
-  return 0;
+  return rc;
 }
 
 int bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter)
