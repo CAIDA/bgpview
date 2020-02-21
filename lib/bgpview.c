@@ -454,13 +454,12 @@ static int add_v4pfx(bgpview_iter_t *iter, bgpstream_ipv4_pfx_t *pfx)
   khiter_t k;
   int khret;
 
-  if ((k = kh_get(bwv_v4pfx_peerid_pfxinfo, iter->view->v4pfxs, *pfx)) ==
-      kh_end(iter->view->v4pfxs)) {
-    /* pfx doesn't exist yet */
+  k = kh_put(bwv_v4pfx_peerid_pfxinfo, iter->view->v4pfxs, *pfx, &khret);
+  if (khret > 0) {
+    /* pfx didn't exist */
     if ((new_pfxpeerinfo = peerid_pfxinfo_create()) == NULL) {
       return -1;
     }
-    k = kh_put(bwv_v4pfx_peerid_pfxinfo, iter->view->v4pfxs, *pfx, &khret);
     kh_value(iter->view->v4pfxs, k) = new_pfxpeerinfo;
 
     /* pfx is invalid at this point */
@@ -487,13 +486,12 @@ static int add_v6pfx(bgpview_iter_t *iter, bgpstream_ipv6_pfx_t *pfx)
   khiter_t k;
   int khret;
 
-  if ((k = kh_get(bwv_v6pfx_peerid_pfxinfo, iter->view->v6pfxs, *pfx)) ==
-      kh_end(iter->view->v6pfxs)) {
-    /* pfx doesn't exist yet */
+  k = kh_put(bwv_v6pfx_peerid_pfxinfo, iter->view->v6pfxs, *pfx, &khret);
+  if (khret > 0) {
+    /* pfx didn't exist */
     if ((new_pfxpeerinfo = peerid_pfxinfo_create()) == NULL) {
       return -1;
     }
-    k = kh_put(bwv_v6pfx_peerid_pfxinfo, iter->view->v6pfxs, *pfx, &khret);
     kh_value(iter->view->v6pfxs, k) = new_pfxpeerinfo;
 
     /* pfx is invalid at this point */
