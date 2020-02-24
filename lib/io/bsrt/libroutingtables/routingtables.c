@@ -174,11 +174,6 @@ static void collector_destroy(collector_t *c)
     }
     c->collector_peerids = NULL;
 
-    if (c->active_ases != NULL) {
-      bgpstream_id_set_destroy(c->active_ases);
-    }
-    c->active_ases = NULL;
-
     free(c);
   }
 }
@@ -216,9 +211,6 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
     }
 
     if ((c->collector_peerids = kh_init(peer_id_set)) == NULL)
-      goto err;
-
-    if ((c->active_ases = bgpstream_id_set_create()) == NULL)
       goto err;
 
     c->bgp_time_last = 0;
@@ -1129,6 +1121,9 @@ routingtables_t *routingtables_create(char *plugin_name,
   if ((rt->eorib_peers = kh_init(peer_id_collector)) == NULL)
     goto err;
 
+  if ((rt->c_active_ases = bgpstream_id_set_create()) == NULL)
+    goto err;
+
   strcpy(rt->plugin_name, plugin_name);
 
   // set the metric prefix string to the default value
@@ -1266,6 +1261,11 @@ void routingtables_destroy(routingtables_t *rt)
     if (rt->eorib_peers != NULL) {
       kh_destroy(peer_id_collector, rt->eorib_peers);
       rt->eorib_peers = NULL;
+    }
+
+    if (rt->c_active_ases != NULL) {
+      bgpstream_id_set_destroy(rt->c_active_ases);
+      rt->c_active_ases = NULL;
     }
 
     if (rt->iter != NULL) {

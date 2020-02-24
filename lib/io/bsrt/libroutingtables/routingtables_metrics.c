@@ -170,7 +170,7 @@ void routingtables_dump_metrics(routingtables_t *rt, uint32_t time_now)
           assert(p);
           if (bgpview_iter_peer_get_state(rt->iter) == BGPVIEW_FIELD_ACTIVE) {
             sg = bgpstream_peer_sig_map_get_sig(rt->peersigns, peer_id);
-            bgpstream_id_set_insert(c->active_ases, sg->peer_asnumber);
+            bgpstream_id_set_insert(rt->c_active_ases, sg->peer_asnumber);
           }
         }
       }
@@ -193,7 +193,7 @@ void routingtables_dump_metrics(routingtables_t *rt, uint32_t time_now)
       timeseries_kp_set(rt->kp, c->kp_idxs.active_peers_cnt_idx,
                         c->active_peers_cnt);
       timeseries_kp_set(rt->kp, c->kp_idxs.active_asns_cnt_idx,
-                        bgpstream_id_set_size(c->active_ases));
+                        bgpstream_id_set_size(rt->c_active_ases));
 
       /* flush metrics ? */
       if (c->publish_flag) {
@@ -207,7 +207,7 @@ void routingtables_dump_metrics(routingtables_t *rt, uint32_t time_now)
       c->corrupted_record_cnt = 0;
       c->empty_record_cnt = 0;
       /* c->active_peers_cnt is updated by every single message */
-      bgpstream_id_set_clear(c->active_ases);
+      bgpstream_id_set_clear(rt->c_active_ases);
     }
   }
 

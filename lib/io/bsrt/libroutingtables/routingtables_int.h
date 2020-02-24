@@ -294,9 +294,6 @@ typedef struct struct_collector_t {
   /** number of active peers at the end of the interval */
   uint32_t active_peers_cnt;
 
-  /** unique set of active ASes at the end of the interval */
-  bgpstream_id_set_t *active_ases;
-
   /** number of valid records received in the interval */
   uint32_t valid_record_cnt;
 
@@ -356,6 +353,11 @@ struct struct_routingtables_t {
    * apply_end_of_valid_rib_operations(); stored here so its allocated memory
    * can be reused) */
   peer_id_collector_t *eorib_peers;
+
+  /** unique set of active ASes per collector at the end of the interval
+   * (used only during routingtables_dump_metrics(); stored here so its
+   * allocated memory can be reused) */
+  bgpstream_id_set_t *c_active_ases;
 
   /** Metric prefix */
   char metric_prefix[RT_METRIC_PFX_LEN];
