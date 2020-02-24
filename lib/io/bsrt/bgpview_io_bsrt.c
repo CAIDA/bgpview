@@ -150,6 +150,11 @@ static int print_elem(bgpstream_record_t *record, bgpstream_elem_t *elem)
   return 0;
 }
 
+// Internal bgpstream function for testing only
+int bgpstream_as_path_append(bgpstream_as_path_t *path,
+                             bgpstream_as_path_seg_type_t type, uint32_t *asns,
+                             int asns_cnt);
+
 static int test_get_next_record(bgpstream_t *bgpstream,
     bgpstream_record_t **bsrecord)
 {
@@ -209,7 +214,6 @@ static int test_get_next_record(bgpstream_t *bgpstream,
       }
 
       for (int i = 1; i <= test_table_size; i++) {
-        bgpstream_as_path_seg_asn_t segs[6];
         bgpstream_pfx_t test_prefix;
         test_prefix.address.version = BGPSTREAM_ADDR_VERSION_IPV4;
         test_prefix.address.bs_ipv4.addr.s_addr = TEST_PFX(peer, i);
@@ -217,17 +221,22 @@ static int test_get_next_record(bgpstream_t *bgpstream,
 
         int seg_cnt = (peer + i) % 5 + 2; // 2 - 6 segments
 
-        segs[seg_cnt-1].type = BGPSTREAM_AS_PATH_SEG_ASN;
-        segs[seg_cnt-1].asn = TEST_ORIGIN_ASN(peer, i);
-        for (int hop = 1; hop < seg_cnt-1; hop++) {
-          segs[seg_cnt-1-hop].type = BGPSTREAM_AS_PATH_SEG_ASN;
-          segs[seg_cnt-1-hop].asn = TEST_HOP_ASN(peer, i, hop);
-        }
-        segs[0].type = BGPSTREAM_AS_PATH_SEG_ASN;
-        segs[0].asn = peer_asn;
+        uint32_t asn_set[3];
         bgpstream_as_path_clear(test_as_path);
-        bgpstream_as_path_populate_from_data(test_as_path, (uint8_t*)segs,
-            sizeof(bgpstream_as_path_seg_asn_t) * seg_cnt);
+        bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_ASN, &peer_asn, 1);
+        for (int hop = seg_cnt-2; hop > 0; hop--) {
+          asn_set[0] = TEST_HOP_ASN(peer, i, hop);
+          bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_ASN, asn_set, 1);
+        }
+        asn_set[0] = TEST_ORIGIN_ASN(peer, i);
+        if (peer == 4 && i % 3 == 0) {
+          // insert an AS SET to make things interesting
+          asn_set[1] = asn_set[0] + 100;
+          asn_set[2] = asn_set[0] + 200;
+          bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_SET, asn_set, 2+i%2);
+        } else {
+          bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_ASN, asn_set, 1);
+        }
 
         if (bgpview_iter_add_pfx_peer(test.iter, &test_prefix, peer_id, test_as_path) != 0) {
           fprintf(stderr, "ERROR: can't add prefix to test view\n");
