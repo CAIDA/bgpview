@@ -786,7 +786,8 @@ int main(int argc, char **argv)
 err:
   shutdown_io();
   filters_destroy();
-  bgpview_destroy(view);
+  if (!view_is_borrowed)
+    bgpview_destroy(view);
   bgpview_consumer_manager_destroy(&manager);
   timeseries_free(&timeseries);
   return -1;
