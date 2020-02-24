@@ -984,7 +984,6 @@ static int collector_process_corrupted_message(routingtables_t *rt,
                                                collector_t *c,
                                                bgpstream_record_t *record)
 {
-  bgpstream_peer_id_t peer_id;
   perpeer_info_t *p;
   perpfx_perpeer_info_t *pp;
 
@@ -998,7 +997,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
   /* get all the peers that belong to the current collector */
   rt_kh_for (k, c->collector_peerids) {
     if (!kh_exist(c->collector_peerids, k)) continue;
-    peer_id = kh_key(c->collector_peerids, k);
+    bgpstream_peer_id_t peer_id = kh_key(c->collector_peerids, k);
     bgpview_iter_seek_peer(rt->iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
     p = bgpview_iter_peer_get_user(rt->iter);
     assert(p);
@@ -1035,11 +1034,11 @@ static int collector_process_corrupted_message(routingtables_t *rt,
        bgpview_iter_has_more_pfx_peer(rt->iter);
        bgpview_iter_next_pfx_peer(rt->iter)) {
     pp = bgpview_iter_pfx_peer_get_user(rt->iter);
+    bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(rt->iter);
 
     if (record->type == BGPSTREAM_UPDATE) {
       /* we reset the active state iff the corrupted dump is an update */
-      if (bgpstream_id_set_exists(cor_affected,
-                                  bgpview_iter_peer_get_peer_id(rt->iter))) {
+      if (bgpstream_id_set_exists(cor_affected, peer_id)) {
         if (pp->bgp_time_last_ts != 0 &&
             pp->bgp_time_last_ts <= record->time_sec) {
           /* reset the active information if the active state is affected */
@@ -1053,8 +1052,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
 
     /* we reset the under construction process at all times */
 
-    if (bgpstream_id_set_exists(cor_uc_affected,
-                                bgpview_iter_peer_get_peer_id(rt->iter))) {
+    if (bgpstream_id_set_exists(cor_uc_affected, peer_id)) {
       /* reset the uc information if the under construction process is affected
        */
       pp->bgp_time_uc_delta_ts = 0;
@@ -1065,13 +1063,13 @@ static int collector_process_corrupted_message(routingtables_t *rt,
   /* update all the peer information */
   for (bgpview_iter_first_peer(rt->iter, BGPVIEW_FIELD_ALL_VALID);
        bgpview_iter_has_more_peer(rt->iter); bgpview_iter_next_peer(rt->iter)) {
+    bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(rt->iter);
 
     p = bgpview_iter_peer_get_user(rt->iter);
 
     /* the peer goes down iff we receive a corrupted update */
     if (record->type == BGPSTREAM_UPDATE) {
-      if (bgpstream_id_set_exists(cor_affected,
-                                  bgpview_iter_peer_get_peer_id(rt->iter))) {
+      if (bgpstream_id_set_exists(cor_affected, peer_id)) {
         p->bgp_fsm_state = BGPSTREAM_ELEM_PEERSTATE_UNKNOWN;
         p->bgp_time_ref_rib_start = 0;
         p->bgp_time_ref_rib_end = 0;
@@ -1080,8 +1078,7 @@ static int collector_process_corrupted_message(routingtables_t *rt,
     }
     /* and reset the under construction process always */
 
-    if (bgpstream_id_set_exists(cor_uc_affected,
-                                bgpview_iter_peer_get_peer_id(rt->iter))) {
+    if (bgpstream_id_set_exists(cor_uc_affected, peer_id)) {
       p->bgp_time_uc_rib_start = 0;
       p->bgp_time_uc_rib_end = 0;
     }
