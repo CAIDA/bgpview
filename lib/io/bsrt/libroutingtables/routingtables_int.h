@@ -42,9 +42,11 @@ _Static_assert(sizeof(RT_DEFAULT_METRIC_PFX) <= RT_METRIC_PFX_LEN,
     "RT_DEFAULT_METRIC_PFX too long");
 #endif
 
+#if 0
 /** The time granularity that is used to update the
  *  last wall time for a collector */
 #define RT_COLLECTOR_WALL_UPDATE_FR 10000
+#endif
 
 /** If an information is inactive and not been seen in the
  *  last X hours, it definetely means that it has not been
@@ -258,9 +260,11 @@ typedef struct struct_collector_t {
    *  in bgp operations (bgp time) */
   uint32_t bgp_time_last;
 
+#if 0 // not used
   /** last time this collector was involved
    *  in valid bgp operations (wall time) */
   uint32_t wall_time_last;
+#endif
 
   /** dump time of the current reference RIB */
   uint32_t bgp_time_ref_rib_dump_time;

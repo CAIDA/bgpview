@@ -222,7 +222,9 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
       goto err;
 
     c->bgp_time_last = 0;
+#if 0
     c->wall_time_last = 0;
+#endif
     c->bgp_time_ref_rib_dump_time = 0;
     c->bgp_time_ref_rib_start_time = 0;
     c->bgp_time_uc_rib_dump_time = 0;
@@ -747,11 +749,9 @@ static int apply_state_update(routingtables_t *rt, collector_t *c,
 
   p->state_messages_cnt++;
 
-  uint8_t reset_uc = 0;
-
   if (p->bgp_fsm_state != new_state) {
     if (p->bgp_fsm_state == BGPSTREAM_ELEM_PEERSTATE_ESTABLISHED) {
-      reset_uc = 0;
+      uint8_t reset_uc = 0;
       /* check whether the state message affects the uc process */
       if (ts >= p->bgp_time_uc_rib_start) {
         reset_uc = 1;
@@ -846,15 +846,18 @@ static int apply_rib_message(routingtables_t *rt, collector_t *c,
   return 0;
 }
 
-static void refresh_collector_time(routingtables_t *rt, collector_t *c,
+static inline void refresh_collector_time(routingtables_t *rt, collector_t *c,
                                    bgpstream_record_t *record)
 {
   /** we update the bgp_time_last and every RT_COLLECTOR_WALL_UPDATE_FR
    *  seconds we also update the last wall time */
   if (record->time_sec > c->bgp_time_last) {
+#if 0
+    // I don't think this is right, but it's never used anyway. --kkeys
     if (record->time_sec > (c->bgp_time_last + RT_COLLECTOR_WALL_UPDATE_FR)) {
       c->wall_time_last = get_wall_time_now();
     }
+#endif
     c->bgp_time_last = record->time_sec;
   }
 }
