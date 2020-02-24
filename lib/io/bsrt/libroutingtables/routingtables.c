@@ -859,7 +859,6 @@ static void refresh_collector_time(routingtables_t *rt, collector_t *c,
   }
 }
 
-/* debug static int peerscount = 0; */
 static int collector_process_valid_bgpinfo(routingtables_t *rt, collector_t *c,
                                            bgpstream_record_t *record)
 {
@@ -909,12 +908,11 @@ static int collector_process_valid_bgpinfo(routingtables_t *rt, collector_t *c,
 
       /* in order to avoid to maintain status for route servers, we only accept
        * reachability information from external BGP sessions that do prepend
-       * their
-       * peer AS number */
+       * their peer AS number */
       bgpstream_as_path_iter_reset(&pi);
       seg = bgpstream_as_path_get_next_seg(elem->as_path, &pi);
-      if (seg->type == BGPSTREAM_AS_PATH_SEG_ASN &&
-          ((bgpstream_as_path_seg_asn_t *)seg)->asn != elem->peer_asn) {
+      if (!(seg->type == BGPSTREAM_AS_PATH_SEG_ASN &&
+          ((bgpstream_as_path_seg_asn_t *)seg)->asn == elem->peer_asn)) {
         continue;
       }
     }
