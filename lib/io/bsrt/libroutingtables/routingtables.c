@@ -919,10 +919,8 @@ static int collector_process_valid_bgpinfo(routingtables_t *rt, collector_t *c,
 
     /* get the peer id or create a new peer with state inactive
      * (if it did not exist already) */
-    if ((peer_id =
-           bgpview_iter_add_peer(rt->iter, record->collector_name,
-                                 (bgpstream_ip_addr_t *)&elem->peer_ip,
-                                 elem->peer_asn)) == 0) {
+    if ((peer_id = bgpview_iter_add_peer(rt->iter, record->collector_name,
+        &elem->peer_ip, elem->peer_asn)) == 0) {
       return -1;
     }
 
