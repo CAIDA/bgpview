@@ -1027,13 +1027,6 @@ bgpview_io_bsrt_t *bgpview_io_bsrt_init(const char *opts, timeseries_t *timeseri
     bgpcorsaro_set_meta_output_rotation(bsrt->bgpcorsaro, bsrt->cfg.meta_rotate);
   }
 
-  // hardcoded "routingtables" plugin
-  if (bgpcorsaro_enable_plugin(bsrt->bgpcorsaro, "routingtables", "") != 0) {
-    fprintf(stderr, "ERROR: Could not enable plugin %s\n", "routingtables");
-    usage(bsrt);
-    goto err;
-  }
-
   if (bsrt->cfg.logfile_disable != 0) {
     bgpcorsaro_disable_logfile(bsrt->bgpcorsaro);
   }

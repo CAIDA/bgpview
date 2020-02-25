@@ -243,12 +243,12 @@ off_t bgpcorsaro_io_write_plugin_start(bgpcorsaro_t *bc, iow_t *file,
   assert(plugin != NULL);
 
   return wandio_printf(file, "# BGPCORSARO_PLUGIN_DATA_START %s\n",
-                       plugin->name);
+                       PLUGIN_NAME);
 }
 
 void bgpcorsaro_io_print_plugin_start(bgpcorsaro_plugin_t *plugin)
 {
-  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_START %s\n", plugin->name);
+  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_START %s\n", PLUGIN_NAME);
 }
 
 off_t bgpcorsaro_io_write_plugin_end(bgpcorsaro_t *bc, iow_t *file,
@@ -256,10 +256,10 @@ off_t bgpcorsaro_io_write_plugin_end(bgpcorsaro_t *bc, iow_t *file,
 {
   assert(plugin != NULL);
 
-  return wandio_printf(file, "# BGPCORSARO_PLUGIN_DATA_END %s\n", plugin->name);
+  return wandio_printf(file, "# BGPCORSARO_PLUGIN_DATA_END %s\n", PLUGIN_NAME);
 }
 
 void bgpcorsaro_io_print_plugin_end(bgpcorsaro_plugin_t *plugin)
 {
-  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_END %s\n", plugin->name);
+  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_END %s\n", PLUGIN_NAME);
 }

@@ -21,6 +21,7 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "bgpcorsaro_int.h"
+#include "plugins/bgpcorsaro_routingtables.h"
 #include "../bgpview_io_bsrt_int.h"
 #include "config.h"
 
@@ -92,7 +93,7 @@ static void bgpcorsaro_free(bgpcorsaro_t *bc)
   /* free up the plugins first, they may try and use some of our info before
      closing */
   p = &bgpcorsaro_routingtables_plugin;
-  p->close_output(bc);
+  bgpcorsaro_routingtables_close_output(bc);
 
   if (bc->monitorname) {
     free(bc->monitorname);
@@ -209,8 +210,6 @@ err:
 /** Start a new interval */
 static int start_interval(bgpcorsaro_t *bc, long int_start)
 {
-  bgpcorsaro_plugin_t *tmp = NULL;
-
   /* record this so we know when the interval started */
   /* the interval number is already incremented by start_interval_for_record */
   bc->interval_start.time = int_start;
@@ -239,18 +238,17 @@ static int start_interval(bgpcorsaro_t *bc, long int_start)
 
   /* ask each plugin to start a new interval */
   /* plugins should rotate their files now too */
-  tmp = &bgpcorsaro_routingtables_plugin;
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(start_interval);
 #endif
-  if (tmp->start_interval(bc, &bc->interval_start) != 0) {
+  if (bgpcorsaro_routingtables_start_interval(bc, &bc->interval_start) != 0) {
     bgpcorsaro_log(__func__, bc, "%s failed to start interval at %ld",
-                   tmp->name, int_start);
+                   PLUGIN_NAME, int_start);
     return -1;
   }
 #ifdef WITH_PLUGIN_TIMING
   TIMER_END(start_interval);
-  tmp->start_interval_usec += TIMER_VAL(start_interval);
+  bgpcorsaro_routingtables_plugin.start_interval_usec += TIMER_VAL(start_interval);
 #endif
 
   return 0;
@@ -259,25 +257,22 @@ static int start_interval(bgpcorsaro_t *bc, long int_start)
 /** End the current interval */
 static int end_interval(bgpcorsaro_t *bc, long int_end)
 {
-  bgpcorsaro_plugin_t *tmp = NULL;
-
   bgpcorsaro_interval_t interval_end;
 
   populate_interval(&interval_end, bc->interval_start.number, int_end);
 
   /* ask each plugin to end the current interval */
-  tmp = &bgpcorsaro_routingtables_plugin;
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(end_interval);
 #endif
-  if (tmp->end_interval(bc, &interval_end) != 0) {
+  if (bgpcorsaro_routingtables_end_interval(bc, &interval_end) != 0) {
     bgpcorsaro_log(__func__, bc, "%s failed to end interval at %ld",
-                   tmp->name, int_end);
+                   PLUGIN_NAME, int_end);
     return -1;
   }
 #ifdef WITH_PLUGIN_TIMING
   TIMER_END(end_interval);
-  tmp->end_interval_usec += TIMER_VAL(end_interval);
+  bgpcorsaro_routingtables_plugin.end_interval_usec += TIMER_VAL(end_interval);
 #endif
 
   /* if we are rotating, now is the time to close our output files */
@@ -298,18 +293,17 @@ static int end_interval(bgpcorsaro_t *bc, long int_end)
 static inline int process_record(bgpcorsaro_t *bc,
                                  bgpcorsaro_record_t *record)
 {
-  bgpcorsaro_plugin_t *tmp = &bgpcorsaro_routingtables_plugin;
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(process_record);
 #endif
-  if (tmp->process_record(bc, record) < 0) {
+  if (bgpcorsaro_routingtables_process_record(bc, record) < 0) {
     bgpcorsaro_log(__func__, bc, "%s failed to process record",
-                   tmp->name);
+                   PLUGIN_NAME);
     return -1;
   }
 #ifdef WITH_PLUGIN_TIMING
   TIMER_END(process_record);
-  tmp->process_record_usec += TIMER_VAL(process_record);
+  bgpcorsaro_routingtables_plugin.process_record_usec += TIMER_VAL(process_record);
 #endif
 
   // replacement for old viewconsumer
@@ -374,7 +368,7 @@ int bgpcorsaro_start_output(bgpcorsaro_t *bc)
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(init_output);
 #endif
-  if (p->init_output(bc) != 0) {
+  if (bgpcorsaro_routingtables_init_output(bc) != 0) {
     return -1;
   }
 #ifdef WITH_PLUGIN_TIMING
@@ -471,64 +465,6 @@ void bgpcorsaro_disable_logfile(bgpcorsaro_t *bc)
 {
   assert(bc);
   bc->logfile_disabled = 1;
-}
-
-static int copy_argv(bgpcorsaro_plugin_t *plugin, int argc, char *argv[])
-{
-  int i;
-  plugin->argc = argc;
-
-  /* malloc the pointers for the array */
-  if ((plugin->argv = malloc(sizeof(char *) * (plugin->argc + 1))) == NULL) {
-    return -1;
-  }
-
-  for (i = 0; i < plugin->argc; i++) {
-    if ((plugin->argv[i] = malloc(strlen(argv[i]) + 1)) == NULL) {
-      return -1;
-    }
-    strncpy(plugin->argv[i], argv[i], strlen(argv[i]) + 1);
-  }
-
-  /* as per ANSI spec, the last element in argv must be a NULL pointer */
-  /* can't find the actual spec, but http://en.wikipedia.org/wiki/Main_function
-     as well as other sources confirm this is standard */
-  plugin->argv[plugin->argc] = NULL;
-
-  return 0;
-}
-
-#define MAXOPTS 1024
-int bgpcorsaro_enable_plugin(bgpcorsaro_t *bc, const char *plugin_name,
-                             const char *plugin_args)
-{
-  assert(bc);
-
-  char *local_args = NULL;
-  char *process_argv[MAXOPTS];
-  int process_argc = 0;
-  bgpcorsaro_plugin_t *plugin = &bgpcorsaro_routingtables_plugin;
-
-  bgpcorsaro_log(__func__, NULL, "enabling %s", plugin->name);
-
-  /* now lets set the arguments for the plugin */
-  /* we do this here, before we check if it is enabled to allow the args
-     to be re-set, so long as it is before the plugin is started */
-  if (plugin_args == NULL)
-    plugin_args = "";
-  /* parse the args into argc and argv */
-  local_args = strdup(plugin_args);
-  parse_cmd(local_args, &process_argc, process_argv, MAXOPTS, plugin->name);
-
-  plugin->argc = 0;
-
-  int retval = copy_argv(plugin, process_argc, process_argv);
-
-  if (local_args) {
-    /* this is the storage for the strings until copy_argv is complete */
-    free(local_args);
-  }
-  return retval;
 }
 
 int bgpcorsaro_set_monitorname(bgpcorsaro_t *bc, char *name)

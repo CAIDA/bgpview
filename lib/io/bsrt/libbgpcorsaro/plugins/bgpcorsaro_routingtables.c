@@ -52,20 +52,8 @@
     than 1 interval to drain the buffers, consider increasing this number */
 #define OUTFILE_POINTERS 2
 
-/** The name of this plugin */
-#define PLUGIN_NAME "routingtables"
-
-/** The version of this plugin */
-#define PLUGIN_VERSION "0.1"
-
 /** Common plugin information across all instances */
-bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin = {
-  PLUGIN_NAME,                                               /* name */
-  PLUGIN_VERSION,                                            /* version */
-  BGPCORSARO_PLUGIN_ID_ROUTINGTABLES,                        /* id */
-  BGPCORSARO_PLUGIN_GENERATE_PTRS(bgpcorsaro_routingtables), /* func ptrs */
-  BGPCORSARO_PLUGIN_GENERATE_TAIL,
-};
+bgpcorsaro_plugin_t bgpcorsaro_routingtables_plugin;
 
 /** Holds the state for an instance of this plugin */
 struct bgpcorsaro_routingtables_state_t {
@@ -103,56 +91,6 @@ static struct bgpcorsaro_routingtables_state_t *bgpcorsaro_routingtables_state =
 #define PLUGIN(bgpcorsaro)                                                     \
   (&bgpcorsaro_routingtables_plugin)
 
-/** Print usage information to stderr */
-static void usage(bgpcorsaro_t *bgpcorsaro)
-{
-  bgpcorsaro_plugin_t *plugin = PLUGIN(bgpcorsaro);
-  struct bgpcorsaro_routingtables_state_t *state = STATE(bgpcorsaro);
-
-  fprintf(stderr,
-          "plugin usage: %s [<options>]\n"
-          "       -m <prefix>                  metric prefix (default: %s)\n"
-          "       -q                           turn off metrics output  "
-          "(default: on)\n", // end of options
-          plugin->argv[0],
-          routingtables_get_metric_prefix(state->routing_tables));
-}
-
-/** Parse the arguments given to the plugin */
-static int parse_args(bgpcorsaro_t *bgpcorsaro)
-{
-  int opt;
-  bgpcorsaro_plugin_t *plugin = PLUGIN(bgpcorsaro);
-  struct bgpcorsaro_routingtables_state_t *state = STATE(bgpcorsaro);
-
-  if (plugin->argc <= 0) {
-    return 0;
-  }
-
-  /* NB: remember to reset optind to 1 before using getopt! */
-  optind = 1;
-
-  /* parsing args */
-
-  while ((opt = getopt(plugin->argc, plugin->argv, ":m:q?")) >= 0) {
-    switch (opt) {
-    case 'm':
-      state->metric_prefix = strdup(optarg);
-      break;
-    case 'q':
-      state->metrics_output_on = 0;
-      break;
-    case '?':
-    case ':':
-    default:
-      usage(bgpcorsaro);
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
 /* == PUBLIC PLUGIN FUNCS BELOW HERE == */
 
 /** Implements the init_output function of the plugin API */
@@ -170,8 +108,8 @@ int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)
   }
 
   /** initialize plugin custom variables */
-  if ((state->routing_tables = routingtables_create(
-         PLUGIN(bgpcorsaro)->argv[0], bgpcorsaro->timeseries)) == NULL) {
+  if ((state->routing_tables = routingtables_create(PLUGIN_NAME,
+      bgpcorsaro->timeseries)) == NULL) {
     bgpcorsaro_log(__func__, bgpcorsaro,
                    "could not create routingtables in routingtables plugin");
     goto err;
@@ -180,11 +118,6 @@ int bgpcorsaro_routingtables_init_output(bgpcorsaro_t *bgpcorsaro)
   state->metrics_output_on = 1; // default: on
 
   bgpcorsaro_routingtables_state = state;
-
-  /* parse the arguments */
-  if (parse_args(bgpcorsaro) != 0) {
-    goto err;
-  }
 
   // update state with parsed args
   if (state->metric_prefix != NULL) {
@@ -245,9 +178,9 @@ int bgpcorsaro_routingtables_start_interval(bgpcorsaro_t *bgpcorsaro,
 
   if (state->outfile == NULL) {
     if ((state->outfile_p[state->outfile_n] = bgpcorsaro_io_prepare_file(
-           bgpcorsaro, PLUGIN(bgpcorsaro)->name, int_start)) == NULL) {
+           bgpcorsaro, PLUGIN_NAME, int_start)) == NULL) {
       bgpcorsaro_log(__func__, bgpcorsaro, "could not open %s output file",
-                     PLUGIN(bgpcorsaro)->name);
+                     PLUGIN_NAME);
       return -1;
     }
     state->outfile = state->outfile_p[state->outfile_n];
@@ -259,7 +192,7 @@ int bgpcorsaro_routingtables_start_interval(bgpcorsaro_t *bgpcorsaro,
     // an error occurred during the interval_end operations
     bgpcorsaro_log(__func__, bgpcorsaro,
                    "could not start interval for %s plugin",
-                   PLUGIN(bgpcorsaro)->name);
+                   PLUGIN_NAME);
     return -1;
   }
 
@@ -281,7 +214,7 @@ int bgpcorsaro_routingtables_end_interval(bgpcorsaro_t *bgpcorsaro,
   if (routingtables_interval_end(state->routing_tables, int_end->time) < 0) {
     // an error occurred during the interval_end operations
     bgpcorsaro_log(__func__, bgpcorsaro, "could not end interval for %s plugin",
-                   PLUGIN(bgpcorsaro)->name);
+                   PLUGIN_NAME);
     return -1;
   }
 

@@ -106,12 +106,8 @@ bgpcorsaro_t *bgpcorsaro_alloc_output(char *template, timeseries_t *timeseries);
  * @param bgpcorsaro       The bgpcorsaro object to start
  * @return 0 if bgpcorsaro is started successfully, -1 if an error occurs
  *
- * It is only when this function is called that the plugins will parse their
- * arguments and initialize any state (open files etc).
- *
- * @warning Plugins may use getopt to parse their arguments, please be sure
- * that you are not using the getopt global variables (optarg, optind etc) when
- * calling this function.
+ * It is only when this function is called that the plugins will
+ * initialize any state (open files etc).
  */
 int bgpcorsaro_start_output(bgpcorsaro_t *bgpcorsaro);
 
@@ -188,20 +184,6 @@ int bgpcorsaro_set_stream(bgpcorsaro_t *bgpcorsaro, bgpstream_t *stream);
  * bgpcorsaro_start_output
  */
 void bgpcorsaro_disable_logfile(bgpcorsaro_t *bgpcorsaro);
-
-/** Attempt to enable a plugin using the given plugin name
- *
- * @param bgpcorsaro    The bgpcorsaro object to enable the plugin for
- * @param plugin_name   The string name of the plugin to enable
- * @param plugin_args   The string of arguments to pass to the plugin
- * @return 0 if the plugin was successfully enabled, -1 if an error occurs
- *
- * Until this function is called successfully, all compiled plugins are
- * considered enabled. Once it has been called, only the plugins explicitly
- * enabled using this function will be used
- */
-int bgpcorsaro_enable_plugin(bgpcorsaro_t *bgpcorsaro, const char *plugin_name,
-                             const char *plugin_args);
 
 /** Accessor function to set the monitor name
  *
