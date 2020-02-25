@@ -858,6 +858,7 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
     ms.n = 0;
     if(ms.origins_dyn != NULL){
       free(ms.origins_dyn);
+      ms.origins_dyn = NULL;
     }
 
     for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
