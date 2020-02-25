@@ -54,9 +54,6 @@
 /** Maximum number of origin ASns in statically allocated array */
 #define MAX_STATIC_ORIGINS 4
 
-/** Maximum number of origin ASns */
-#define MAX_UNIQUE_ORIGINS 128
-
 /** Default size of window: 1 week (s) */
 #define DEFAULT_WINDOW_SIZE (7 * 24 * 3600)
 
@@ -901,11 +898,25 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
         if (i == ms.n) {
           if(i >= MAX_STATIC_ORIGINS){
             if(ms.origins_dyn == NULL){
-              // allocate dyanmic array
-              if ((ms.origins_dyn = malloc_zero(sizeof(uint32_t)*MAX_UNIQUE_ORIGINS)) == NULL) {
+              // dynamic array first allocation
+              if ((ms.origins_dyn = malloc_zero(sizeof(uint32_t)*MAX_STATIC_ORIGINS)) == NULL) {
+                return -1;
+              }
+            } else if (i % MAX_STATIC_ORIGINS == 0){
+              // if it needs more space to store origins, realloc
+              // the size of which should be MAX_STATIC_ORIGINS * (i/MAX_STATIC_ORIGINS) = ms.n
+              //
+              // for example, if MAX_STATIC_ORIGINS is 4 and ms.n == 8, we need to realloc the
+              // dynamic memory space to 8/4 * 4 = 8. We have 4 static origins, and change from
+              // having 4 uint32 for dynamic origins to 8 uint32 for dynamic origins
+              if ((ms.origins_dyn = realloc(ms.origins_dyn, sizeof(uint32_t) * ms.n)) == NULL) {
                 return -1;
               }
             }
+            // at this point, we are safe on accessing the memory because:
+            // 1. we have just allocated the space the first time, or
+            // 2. we have allocated the space previously and have not used it up yet, or
+            // 3. we have just reallocated with extra space
             ms.origins_dyn[ms.n-MAX_STATIC_ORIGINS] = origin_asn;
           } else {
             ms.origins[ms.n] = origin_asn;
