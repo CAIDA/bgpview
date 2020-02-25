@@ -40,6 +40,6 @@ int bgpcorsaro_routingtables_start_interval(struct bgpcorsaro *bgpcorsaro,
 int bgpcorsaro_routingtables_end_interval(struct bgpcorsaro *bgpcorsaro,
     struct bgpcorsaro_interval *int_end);
 int bgpcorsaro_routingtables_process_record(struct bgpcorsaro *bgpcorsaro,
-    struct bgpcorsaro_record *record);
+    struct bgpstream_record *bs_record);
 
 #endif /* __BGPCORSARO_ROUTINGTABLES_H */

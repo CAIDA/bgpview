@@ -242,13 +242,11 @@ int bgpcorsaro_routingtables_end_interval(bgpcorsaro_t *bgpcorsaro,
 
 /** Implements the process_record function of the plugin API */
 int bgpcorsaro_routingtables_process_record(bgpcorsaro_t *bgpcorsaro,
-                                            bgpcorsaro_record_t *record)
+                                            bgpstream_record_t *bs_record)
 {
   struct bgpcorsaro_routingtables_state_t *state = STATE(bgpcorsaro);
-  bgpstream_record_t *bs_record = BS_REC(record);
 
-  record->state.shared_view_ptr =
-    routingtables_get_view_ptr(state->routing_tables);
+  bgpcorsaro->shared_view = routingtables_get_view_ptr(state->routing_tables);
 
   return routingtables_process_record(state->routing_tables, bs_record);
 }

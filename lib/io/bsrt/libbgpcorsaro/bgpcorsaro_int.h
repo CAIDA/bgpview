@@ -113,29 +113,6 @@ struct bgpcorsaro_interval {
 /** The interval after which we will end an interval */
 #define BGPCORSARO_INTERVAL_DEFAULT 60
 
-/** Bgpcorsaro state for a record
- *
- * This is passed, along with the record, to each plugin.
- * Plugins can add data to it, or check for data from earlier plugins.
- */
-struct bgpcorsaro_record_state {
-  /** Pointer to routingtables views */
-  bgpview_t *shared_view_ptr;
-};
-
-/** A lightweight wrapper around a bgpstream record */
-struct bgpcorsaro_record {
-  /** The bgpcorsaro state associated with this record */
-  bgpcorsaro_record_state_t state;
-
-  /** A pointer to the underlying bgpstream record */
-  bgpstream_record_t *bsrecord;
-};
-
-/** Convenience macro to get to the bgpstream recprd inside a bgpcorsaro
-    record */
-#define BS_REC(bgpcorsaro_record) (bgpcorsaro_record->bsrecord)
-
 /** Bgpcorsaro output state */
 struct bgpcorsaro {
   /** The local wall time that bgpcorsaro was started at */
@@ -165,8 +142,8 @@ struct bgpcorsaro {
   /** A borrowed pointer to a libtimeseries instance */
   timeseries_t *timeseries;
 
-  /** A pointer to the wrapper record passed to the plugins */
-  bgpcorsaro_record_t *record;
+  /** A pointer to the record passed to the plugins */
+  bgpstream_record_t *bsrecord;
 
   /** The first interval end will be rounded down to the nearest integer
       multiple of the interval length if enabled */

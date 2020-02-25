@@ -50,41 +50,9 @@
  *
  */
 
-/** Allocate a bgpcorsaro record wrapper structure */
-static bgpcorsaro_record_t *bgpcorsaro_record_alloc(bgpcorsaro_t *bc)
-{
-  bgpcorsaro_record_t *rec;
-
-  if ((rec = malloc_zero(sizeof(bgpcorsaro_record_t))) == NULL) {
-    bgpcorsaro_log(__func__, bc, "could not malloc bgpcorsaro_record");
-    return NULL;
-  }
-
-  /* this bgpcorsaro record still needs a bgpstream record to be loaded... */
-  return rec;
-}
-
-/** Reset the state for a the given bgpcorsaro record wrapper */
-static inline void bgpcorsaro_record_state_reset(bgpcorsaro_record_t *record)
-{
-  assert(record);
-  memset(&record->state, 0, sizeof(record->state));
-}
-
-/** Free the given bgpcorsaro record wrapper */
-static void bgpcorsaro_record_free(bgpcorsaro_record_t *record)
-{
-  /* we will assume that somebody else is taking care of the bgpstream record */
-  if (record) {
-    free(record);
-  }
-}
-
 /** Cleanup and free the given bgpcorsaro instance */
 static void bgpcorsaro_free(bgpcorsaro_t *bc)
 {
-  bgpcorsaro_plugin_t *p = NULL;
-
   if (bc == NULL) {
     /* nothing to be done... */
     return;
@@ -92,7 +60,6 @@ static void bgpcorsaro_free(bgpcorsaro_t *bc)
 
   /* free up the plugins first, they may try and use some of our info before
      closing */
-  p = &bgpcorsaro_routingtables_plugin;
   bgpcorsaro_routingtables_close_output(bc);
 
   if (bc->monitorname) {
@@ -105,9 +72,9 @@ static void bgpcorsaro_free(bgpcorsaro_t *bc)
     bc->template = NULL;
   }
 
-  if (bc->record) {
-    bgpcorsaro_record_free(bc->record);
-    bc->record = NULL;
+  if (bc->bsrecord) {
+    /* we will assume that somebody else is taking care of the bgpstream record */
+    bc->bsrecord = NULL;
   }
 
   /* close this as late as possible */
@@ -175,12 +142,6 @@ static bgpcorsaro_t *bgpcorsaro_init(char *template, timeseries_t *timeseries)
 
   /* use the default compression level for now */
   e->compress_level = 6;
-
-  /* lets get us a wrapper record ready */
-  if ((e->record = bgpcorsaro_record_alloc(e)) == NULL) {
-    bgpcorsaro_log(__func__, e, "could not create bgpcorsaro record");
-    goto err;
-  }
 
   /* set the default interval alignment value */
   e->align_intervals = BGPCORSARO_INTERVAL_ALIGN_DEFAULT;
@@ -291,12 +252,12 @@ static int end_interval(bgpcorsaro_t *bc, long int_end)
 
 /** Process the given bgpcorsaro record */
 static inline int process_record(bgpcorsaro_t *bc,
-                                 bgpcorsaro_record_t *record)
+                                 bgpstream_record_t *bsrecord)
 {
 #ifdef WITH_PLUGIN_TIMING
   TIMER_START(process_record);
 #endif
-  if (bgpcorsaro_routingtables_process_record(bc, record) < 0) {
+  if (bgpcorsaro_routingtables_process_record(bc, bsrecord) < 0) {
     bgpcorsaro_log(__func__, bc, "%s failed to process record",
                    PLUGIN_NAME);
     return -1;
@@ -305,9 +266,6 @@ static inline int process_record(bgpcorsaro_t *bc,
   TIMER_END(process_record);
   bgpcorsaro_routingtables_plugin.process_record_usec += TIMER_VAL(process_record);
 #endif
-
-  // replacement for old viewconsumer
-  bc->shared_view = record->state.shared_view_ptr;
 
   return 0;
 }
@@ -505,10 +463,7 @@ static int bgpcorsaro_start_record(bgpcorsaro_t *bc,
   long ts;
 
   /* poke this bsrecord into our bgpcorsaro record */
-  bc->record->bsrecord = bsrecord;
-
-  /* ensure that the state is clear */
-  bgpcorsaro_record_state_reset(bc->record);
+  bc->bsrecord = bsrecord;
 
   /* this is now the latest record we have seen */
   /** @chiara is this correct? */
@@ -602,12 +557,12 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
       return 1; // successful interval end.  caller can use shared_view.
     }
 
-    if (bc->record->bsrecord) {
+    if (bc->bsrecord) {
       /* count this record for our overall record count */
       bc->record_cnt++;
 
       /* ask each plugin to process this record */
-      if (process_record(bc, bc->record) < 0) {
+      if (process_record(bc, bc->bsrecord) < 0) {
         return -1;
       }
     }
@@ -669,7 +624,6 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
 int bgpcorsaro_finalize_output(bgpcorsaro_t *bc)
 {
 #ifdef WITH_PLUGIN_TIMING
-  bgpcorsaro_plugin_t *p = NULL;
   struct timeval total_end, total_diff;
   gettimeofday(&total_end, NULL);
   timeval_subtract(&total_diff, &total_end, &bc->init_time);
@@ -692,7 +646,7 @@ int bgpcorsaro_finalize_output(bgpcorsaro_t *bc)
 #ifdef WITH_PLUGIN_TIMING
   fprintf(stderr, "========================================\n");
   fprintf(stderr, "Plugin Timing\n");
-  p = &bgpcorsaro_routingtables_plugin;
+  bgpcorsaro_plugin_t *p = &bgpcorsaro_routingtables_plugin;
   {
     fprintf(stderr, "----------------------------------------\n");
     fprintf(stderr, "%s\n", p->name);
