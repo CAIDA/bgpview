@@ -326,7 +326,7 @@ static void update_moas_counters(bvc_t *consumer, moas_category_t mc)
 }
 
 static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
-                    bgpstream_pfx_t *pfx, moas_signature_t *ms,
+                    bgpstream_pfx_t *pfx,
                     moas_properties_t *mp, moas_category_t mc, uint32_t ts)
 {
   bvc_moas_state_t *state = STATE;
@@ -361,13 +361,6 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
    * is new or
    * new-recurring
    */
-  /*
-  old version:
-  if (wandio_printf(state->wandio_fh,
-                    "%" PRIu32 "|%s|%s|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|",
-                    ts, pfx_str, get_category_str(mc), mp->first_seen,
-                    mp->start, mp->end) == -1) {
-  */
 
   if (wandio_printf(state->wandio_fh,
                     "%" PRIu32 "|%s|%s|",
@@ -375,22 +368,6 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
     fprintf(stderr, "ERROR: Could not write data to file\n");
     return -1;
   }
-  /*
-  int i;
-  int ret;
-  for (i = 0; i < ms->n; i++) {
-    // last origin
-    if (i == ms->n - 1) {
-      ret = wandio_printf(state->wandio_fh, "%" PRIu32, ms->origins[i]);
-    } else {
-      ret = wandio_printf(state->wandio_fh, "%" PRIu32 " ", ms->origins[i]);
-    }
-    if (ret == -1) {
-      fprintf(stderr, "ERROR: Could not write data to file\n");
-      return -1;
-    }
-  }
-  */
   if (mc == NEW || mc == NEWREC) {
     /* mc is either NEW or NEWREC, hence we print the set of AS paths
      * as observed by all full feed peers */
@@ -487,7 +464,7 @@ static int clean_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
             if (mpro->end < ts) {
               // report finished moases
               if (mpro->start > 0) {
-                if (log_moas(consumer, NULL, NULL, pfx, ms,
+                if (log_moas(consumer, NULL, NULL, pfx,
                              mpro, FINISHED, ts) != 0) {
                   return -1;
                 }
@@ -566,7 +543,7 @@ static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 
   moas_properties = &kh_value(per_pfx_moases, k);
 
-  return log_moas(consumer, view, it, pfx, ms, moas_properties, mc, ts);
+  return log_moas(consumer, view, it, pfx, moas_properties, mc, ts);
 }
 
 /** Create timeseries metrics */
@@ -811,7 +788,7 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
   int ipv_idx; // ip version index
   bgpstream_peer_id_t peerid;
   bgpstream_as_path_seg_t *origin_seg;
-  moas_signature_t ms;
+  moas_signature_t ms; // creating moas signature
   int i;
   uint32_t origin_asn;
   uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
