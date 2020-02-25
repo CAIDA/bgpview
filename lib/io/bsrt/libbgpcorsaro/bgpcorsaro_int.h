@@ -122,7 +122,7 @@ struct bgpcorsaro {
   bgpstream_t *stream;
 
   /** The name of the monitor that bgpcorsaro is running on */
-  char *monitorname;
+  char monitorname[HOST_NAME_MAX+1];
 
   /** The template used to create bgpcorsaro output files */
   char *template;

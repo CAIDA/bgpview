@@ -29,6 +29,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "bgpcorsaro_io.h"
 #include "bgpcorsaro_log.h"
@@ -61,11 +62,6 @@ static void bgpcorsaro_free(bgpcorsaro_t *bc)
   /* free up the plugins first, they may try and use some of our info before
      closing */
   bgpcorsaro_routingtables_close_output(bc);
-
-  if (bc->monitorname) {
-    free(bc->monitorname);
-    bc->monitorname = NULL;
-  }
 
   if (bc->template) {
     free(bc->template);
@@ -122,7 +118,8 @@ static bgpcorsaro_t *bgpcorsaro_init(char *template, timeseries_t *timeseries)
 
   /* set a default monitorname for when im bad and directly retrieve it
      from the structure */
-  e->monitorname = strdup(STR(BGPCORSARO_MONITOR_NAME));
+  gethostname(e->monitorname, HOST_NAME_MAX);
+  e->monitorname[HOST_NAME_MAX] = '\0';
 
   /* template does, however */
   /* check that it is valid */
@@ -425,7 +422,7 @@ void bgpcorsaro_disable_logfile(bgpcorsaro_t *bc)
   bc->logfile_disabled = 1;
 }
 
-int bgpcorsaro_set_monitorname(bgpcorsaro_t *bc, char *name)
+int bgpcorsaro_set_monitorname(bgpcorsaro_t *bc, const char *name)
 {
   assert(bc);
 
@@ -442,17 +439,20 @@ int bgpcorsaro_set_monitorname(bgpcorsaro_t *bc, char *name)
     bgpcorsaro_log(__func__, bc, "setting monitor name to %s", name);
   }
 
-  if ((bc->monitorname = strdup(name)) == NULL) {
-    bgpcorsaro_log(__func__, bc,
-                   "could not duplicate monitor name string");
-    return -1;
-  }
+  strncpy(bc->monitorname, name, HOST_NAME_MAX);
+  bc->monitorname[HOST_NAME_MAX] = '\0';
   bgpcorsaro_log(__func__, bc, "%s", bc->monitorname);
   return 0;
 }
 
 const char *bgpcorsaro_get_monitorname(bgpcorsaro_t *bc)
 {
+  static char monitorname[HOST_NAME_MAX+1];
+  if (!bc || !*bc->monitorname) {
+    gethostname(monitorname, HOST_NAME_MAX);
+    monitorname[HOST_NAME_MAX] = '\0';
+    return monitorname;
+  }
   return bc->monitorname;
 }
 

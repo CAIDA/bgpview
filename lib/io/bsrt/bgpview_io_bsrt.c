@@ -558,13 +558,10 @@ static void usage(bgpview_io_bsrt_t *bsrt)
 #if 0
     "                    (omitting the end parameter enables live mode)*\n"
 #endif
-    "   -P <period>    process a rib files every <period> seconds (bgp "
-    "time)\n"
-    "   -j <peer ASN>  return valid elems originated by a specific peer "
-    "ASN*\n"
-    "   -k <prefix>    return valid elems associated with a specific "
-    "prefix*\n"
-    "   -y <community> return valid elems with the specified community* \n"
+    "   -P <period>    process a rib files every <period> seconds (bgp time)\n"
+    "   -j <peer ASN>  return valid elems originated by a specific peer ASN*\n"
+    "   -k <prefix>    return valid elems associated with a specific prefix*\n"
+    "   -y <community> return valid elems with the specified community*\n"
     "                  (format: asn:value, the '*' metacharacter is "
     "recognized)\n"
 #if 0
@@ -581,22 +578,19 @@ static void usage(bgpview_io_bsrt_t *bsrt)
     BGPVIEW_IO_BSRT_INTERVAL_DEFAULT, BGPVIEW_IO_BSRT_GAPLIMIT_DEFAULT);
   fprintf(
     stderr,
-    "   -n <name>      monitor name (default: " STR(
-      BGPCORSARO_MONITOR_NAME) ")\n"
-                               "   -O <outfile>   use <outfile> as a "
-                               "template for file names.\n"
-                               "                   - %%X => plugin name\n"
-                               "                   - %%N => monitor name\n"
-                               "                   - see man strftime(3) "
-                               "for more options\n"
-                               "   -r <intervals> rotate output files "
-                               "after n intervals\n"
-                               "   -R <intervals> rotate bgpcorsaro meta "
-                               "files after n intervals\n"
-                               "\n"
-                               "   -h             print this help menu\n"
-                               "* denotes an option that can be given "
-                               "multiple times\n");
+    "   -n <name>      monitor name (default: %s)\n",
+      bgpcorsaro_get_monitorname(bsrt->bgpcorsaro));
+  fprintf(
+    stderr,
+    "   -O <outfile>   use <outfile> as a template for file names.\n"
+    "                   - %%X => plugin name\n"
+    "                   - %%N => monitor name\n"
+    "                   - see man strftime(3) for more options\n"
+    "   -r <intervals> rotate output files after n intervals\n"
+    "   -R <intervals> rotate bgpcorsaro meta files after n intervals\n"
+    "\n"
+    "   -h             print this help menu\n"
+    "* denotes an option that can be given multiple times\n");
 
 }
 
@@ -1006,7 +1000,7 @@ bgpview_io_bsrt_t *bgpview_io_bsrt_init(const char *opts, timeseries_t *timeseri
   bsrt->bgpcorsaro->minimum_time = bsrt->cfg.minimum_time;
   bsrt->bgpcorsaro->gap_limit = bsrt->cfg.gap_limit;
 
-  if (bsrt->cfg.name != NULL && bgpcorsaro_set_monitorname(bsrt->bgpcorsaro, bsrt->cfg.name) != 0) {
+  if (bsrt->cfg.name && bgpcorsaro_set_monitorname(bsrt->bgpcorsaro, bsrt->cfg.name) != 0) {
     bgpcorsaro_log(__func__, bsrt->bgpcorsaro, "failed to set monitor name");
     goto err;
   }

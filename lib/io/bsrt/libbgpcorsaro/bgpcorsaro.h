@@ -191,11 +191,9 @@ void bgpcorsaro_disable_logfile(bgpcorsaro_t *bgpcorsaro);
  * @param name          The string to set as the monitor name
  * @return 0 if the name was successfully set, -1 if an error occurs
  *
- * If it is not set, the value defined at compile time is used. This
- * is either the hostname of the machine it was compiled on, or a value
- * passed to configure using --with-monitorname
+ * If it is not set, the value of gethostname() is used.
  */
-int bgpcorsaro_set_monitorname(bgpcorsaro_t *bgpcorsaro, char *name);
+int bgpcorsaro_set_monitorname(bgpcorsaro_t *bgpcorsaro, const char *name);
 
 /** Accessor function to get the monitor name string
  *
