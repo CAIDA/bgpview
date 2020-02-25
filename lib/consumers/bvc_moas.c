@@ -51,6 +51,9 @@
 /** Maximum size of the str output buffer */
 #define MAX_BUFFER_LEN 1024
 
+/** Maximum number of origin ASns in statically allocated array */
+#define MAX_STATIC_ORIGINS 4
+
 /** Maximum number of origin ASns */
 #define MAX_UNIQUE_ORIGINS 128
 
@@ -93,8 +96,9 @@ typedef struct moas_properties {
 
 /** List of origin ASns in a MOAS */
 typedef struct moas_signature {
-  uint32_t origins[MAX_UNIQUE_ORIGINS];
-  uint8_t n;
+  uint32_t origins[MAX_STATIC_ORIGINS];  // static allocated origins array
+  uint32_t *origins_dyn;  // dynamically allocated origins array
+  uint8_t n;  // total number of origins in the signature
 } moas_signature_t;
 
 /** MOAS signature hash function */
@@ -108,7 +112,12 @@ moasinfo_map_hash(moas_signature_t ms)
   uint8_t i;
   uint32_t h = 0;
   for (i = 0; i < ms.n; i++) {
-    h += ms.origins[i];
+    if(i >= MAX_STATIC_ORIGINS){
+        // outside the static origins range
+      h += ms.origins_dyn[i-MAX_STATIC_ORIGINS];
+    } else {
+      h += ms.origins[i];
+    }
   }
   return h;
 }
@@ -135,8 +144,15 @@ static int moasinfo_map_equal(moas_signature_t ms1, moas_signature_t ms2)
     qsort(&ms2.origins, ms2.n, sizeof(uint32_t), uint32_cmp);
     int i;
     for (i = 0; i < ms1.n; i++) {
-      if (ms1.origins[i] != ms2.origins[i]) {
-        return 0;
+      if(i >= MAX_STATIC_ORIGINS){
+        // outside the static origins range
+        if (ms1.origins_dyn[i-MAX_STATIC_ORIGINS] != ms2.origins_dyn[i-MAX_STATIC_ORIGINS]) {
+          return 0;
+        }
+      } else {
+        if (ms1.origins[i] != ms2.origins[i]) {
+          return 0;
+        }
       }
     }
     return 1;
@@ -838,7 +854,11 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
 
     ipv_idx = bgpstream_ipv2idx(pfx->address.version);
 
+    // clear moas signature
     ms.n = 0;
+    if(ms.origins_dyn != NULL){
+      free(ms.origins_dyn);
+    }
 
     for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
          bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
@@ -866,13 +886,29 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
         /* check if origin is already in the moas signature struct
          * this check works when the signature is empty too */
         for (i = 0; i < ms.n; i++) {
-          if (ms.origins[i] == origin_asn) {
-            break;
+          if(i >= MAX_STATIC_ORIGINS){
+            if (ms.origins_dyn[i-MAX_STATIC_ORIGINS] == origin_asn) {
+              break;
+            }
+          } else {
+            if (ms.origins[i] == origin_asn) {
+              break;
+            }
           }
         }
         /* if the origin was not found, add it */
         if (i == ms.n) {
-          ms.origins[ms.n] = origin_asn;
+          if(i >= MAX_STATIC_ORIGINS){
+            if(ms.origins_dyn == NULL){
+              // allocate dyanmic array
+              if ((ms.origins_dyn = malloc_zero(sizeof(uint32_t)*MAX_UNIQUE_ORIGINS)) == NULL) {
+                return -1;
+              }
+            }
+            ms.origins_dyn[ms.n-MAX_STATIC_ORIGINS] = origin_asn;
+          } else {
+            ms.origins[ms.n] = origin_asn;
+          }
           ms.n++;
         }
       }
