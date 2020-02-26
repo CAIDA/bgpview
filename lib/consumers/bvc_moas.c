@@ -472,6 +472,7 @@ static int clean_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
 
           /* outdated moas, remove it */
           if (mpro->end < last_valid_ts) {
+            free(ms->origins_dyn);  // free dynamically allocated space if any
             kh_del(moasinfo_map, per_pfx_moases, m);
           } else {
             if (mpro->end < ts) {
@@ -854,7 +855,6 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
     // clear moas signature
     ms.n = 0;
     if(ms.origins_dyn != NULL){
-      free(ms.origins_dyn);
       ms.origins_dyn = NULL;
     }
 
