@@ -897,26 +897,28 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
         /* if the origin was not found, add it */
         if (i == ms.n) {
           if(i >= MAX_STATIC_ORIGINS){
-            if(ms.origins_dyn == NULL){
-              // dynamic array first allocation
-              if ((ms.origins_dyn = malloc_zero(sizeof(uint32_t)*MAX_STATIC_ORIGINS)) == NULL) {
-                return -1;
-              }
-            } else if (i % MAX_STATIC_ORIGINS == 0){
+            if (i % MAX_STATIC_ORIGINS == 0){
               // if it needs more space to store origins, realloc
               // the size of which should be MAX_STATIC_ORIGINS * (i/MAX_STATIC_ORIGINS) = ms.n
               //
-              // for example, if MAX_STATIC_ORIGINS is 4 and ms.n == 8, we need to realloc the
-              // dynamic memory space to 8/4 * 4 = 8. We have 4 static origins, and change from
-              // having 4 uint32 for dynamic origins to 8 uint32 for dynamic origins
+              // example case 1:
+              // ms.n == 4
+              // we need to allocate the space for the first time,
+              // we do realloc(ms.origins_dyn, sizeof(uint32_t)*4), where ms.origins_dyn==NULL
+              //
+              // example case 2:
+              // ms.n == 8
+              // we need to allocate more space for dynamic array,
+              // we do realloc(ms.origins_dyn, sizeof(uint32_t)*8)
+              //
+              // by induction, the future cases will increase the dynamic array space by MAX_STATIC_ORIGINS
+              // everytime it reaches outside the range of the dynamic array.
               if ((ms.origins_dyn = realloc(ms.origins_dyn, sizeof(uint32_t) * ms.n)) == NULL) {
                 return -1;
               }
             }
-            // at this point, we are safe on accessing the memory because:
-            // 1. we have just allocated the space the first time, or
-            // 2. we have allocated the space previously and have not used it up yet, or
-            // 3. we have just reallocated with extra space
+            // at this point, we have allocated memory space for storing
+            // the origin asn at the dynamic array
             ms.origins_dyn[ms.n-MAX_STATIC_ORIGINS] = origin_asn;
           } else {
             ms.origins[ms.n] = origin_asn;
