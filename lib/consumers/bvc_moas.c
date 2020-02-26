@@ -770,10 +770,20 @@ void bvc_moas_destroy(bvc_t *consumer)
   if (state != NULL) {
 
     if (state->current_moases != NULL) {
-      khiter_t p;
+      moasinfo_map_t *per_pfx_moases;
+      moas_signature_t *ms;
+      khiter_t p,m;
       for (p = kh_begin(state->current_moases);
            p != kh_end(state->current_moases); p++) {
         if (kh_exist(state->current_moases, p)) {
+          /* free dynamic origins array for each moas */
+          per_pfx_moases = kh_val(state->current_moases, p);
+          for (m = kh_begin(per_pfx_moases); m != kh_end(per_pfx_moases); m++) {
+            if (kh_exist(per_pfx_moases, m)) {
+              ms = &kh_key(per_pfx_moases, m);
+              free(ms->origins_dyn);
+            }
+          }
           kh_destroy(moasinfo_map, kh_val(state->current_moases, p));
         }
       }
