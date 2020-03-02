@@ -218,23 +218,11 @@ off_t bgpcorsaro_io_write_interval_start(bgpcorsaro_t *bc, iow_t *file,
                        int_start->number, int_start->time);
 }
 
-void bgpcorsaro_io_print_interval_start(bgpcorsaro_interval_t *int_start)
-{
-  fprintf(stdout, "# BGPCORSARO_INTERVAL_START %d %" PRIu32 "\n",
-          int_start->number, int_start->time);
-}
-
 off_t bgpcorsaro_io_write_interval_end(bgpcorsaro_t *bc, iow_t *file,
                                        bgpcorsaro_interval_t *int_end)
 {
   return wandio_printf(file, "# BGPCORSARO_INTERVAL_END %d %ld\n",
                        int_end->number, int_end->time);
-}
-
-void bgpcorsaro_io_print_interval_end(bgpcorsaro_interval_t *int_end)
-{
-  fprintf(stdout, "# BGPCORSARO_INTERVAL_END %d %" PRIu32 "\n", int_end->number,
-          int_end->time);
 }
 
 off_t bgpcorsaro_io_write_plugin_start(bgpcorsaro_t *bc, iow_t *file,
@@ -246,20 +234,10 @@ off_t bgpcorsaro_io_write_plugin_start(bgpcorsaro_t *bc, iow_t *file,
                        PLUGIN_NAME);
 }
 
-void bgpcorsaro_io_print_plugin_start(bgpcorsaro_plugin_t *plugin)
-{
-  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_START %s\n", PLUGIN_NAME);
-}
-
 off_t bgpcorsaro_io_write_plugin_end(bgpcorsaro_t *bc, iow_t *file,
                                      bgpcorsaro_plugin_t *plugin)
 {
   assert(plugin != NULL);
 
   return wandio_printf(file, "# BGPCORSARO_PLUGIN_DATA_END %s\n", PLUGIN_NAME);
-}
-
-void bgpcorsaro_io_print_plugin_end(bgpcorsaro_plugin_t *plugin)
-{
-  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_END %s\n", PLUGIN_NAME);
 }
