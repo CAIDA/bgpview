@@ -71,7 +71,7 @@ static char *generate_file_name(bgpcorsaro_t *bc, const char *plugin,
 
   char *tmpl = bc->template;
   char secs[11]; /* length of UINT32_MAX +1 */
-  struct timeval tv;
+  time_t t;
 
   for (; *tmpl; ++tmpl) {
     if (*tmpl == '.' && compress_type == WANDIO_COMPRESS_NONE) {
@@ -120,8 +120,8 @@ static char *generate_file_name(bgpcorsaro_t *bc, const char *plugin,
 
   /* now let strftime have a go */
   if (interval != NULL) {
-    tv.tv_sec = interval->time;
-    strftime(tbuf, sizeof(tbuf), buf, gmtime(&tv.tv_sec));
+    t = interval->time;
+    strftime(tbuf, sizeof(tbuf), buf, gmtime(&t));
     return strdup(tbuf);
   }
 
