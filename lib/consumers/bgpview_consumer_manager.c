@@ -88,6 +88,9 @@
 /* Sub-prefix consumer */
 #include "bvc_subpfx.h"
 
+/* Per-peer prefix origins consumer */
+#include "bvc_peerpfxorigins.h"
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -170,6 +173,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to subpfx alloc function */
   bvc_subpfx_alloc,
+
+  /** Pointer to peerpfxorigins alloc function */
+  bvc_peerpfxorigins_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */

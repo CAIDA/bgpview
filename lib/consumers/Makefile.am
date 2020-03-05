@@ -100,6 +100,11 @@ CONSUMER_SRCS += \
 	bvc_pfxorigins.c \
 	bvc_pfxorigins.h
 
+# Peerpfxorigins consumer
+CONSUMER_SRCS += \
+        bvc_peerpfxorigins.c \
+        bvc_peerpfxorigins.h
+
 # Routed Space Consumer (no dependencies)
 CONSUMER_SRCS += \
 	bvc_routedspace.c \
