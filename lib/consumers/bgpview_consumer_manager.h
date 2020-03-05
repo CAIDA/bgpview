@@ -170,13 +170,17 @@ typedef enum bvc_id {
       "submoas" consumer and adds the "defcon" consumer features */
   BVC_ID_SUBPFX = 17,
 
+  /** Outputs the current origin ASNs observed for each prefix by each
+      peer */
+  BVC_ID_PEERPFXORIGINS = 18,
+
   /** @todo add more consumers here */
 
   /** Lowest numbered bgpview consumer ID */
   BVC_ID_FIRST = BVC_ID_TEST,
 
   /** Highest numbered bgpview consumer ID */
-  BVC_ID_LAST = BVC_ID_SUBPFX,
+  BVC_ID_LAST = BVC_ID_PEERPFXORIGINS,
 
 } bvc_id_t;
 
