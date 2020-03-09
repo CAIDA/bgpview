@@ -51,8 +51,8 @@
 /** Maximum size of the str output buffer */
 #define MAX_BUFFER_LEN 1024
 
-/** Maximum number of origin ASns */
-#define MAX_UNIQUE_ORIGINS 128
+/** Maximum number of origin ASns in statically allocated array */
+#define MAX_STATIC_ORIGINS 4
 
 /** Default size of window: 1 week (s) */
 #define DEFAULT_WINDOW_SIZE (7 * 24 * 3600)
@@ -93,8 +93,9 @@ typedef struct moas_properties {
 
 /** List of origin ASns in a MOAS */
 typedef struct moas_signature {
-  uint32_t origins[MAX_UNIQUE_ORIGINS];
-  uint8_t n;
+  uint32_t origins[MAX_STATIC_ORIGINS];  // static allocated origins array
+  uint32_t *origins_dyn;  // dynamically allocated origins array
+  uint8_t n;  // total number of origins in the signature
 } moas_signature_t;
 
 /** MOAS signature hash function */
@@ -108,7 +109,12 @@ moasinfo_map_hash(moas_signature_t ms)
   uint8_t i;
   uint32_t h = 0;
   for (i = 0; i < ms.n; i++) {
-    h += ms.origins[i];
+    if(i >= MAX_STATIC_ORIGINS){
+        // outside the static origins range
+      h += ms.origins_dyn[i-MAX_STATIC_ORIGINS];
+    } else {
+      h += ms.origins[i];
+    }
   }
   return h;
 }
@@ -135,8 +141,15 @@ static int moasinfo_map_equal(moas_signature_t ms1, moas_signature_t ms2)
     qsort(&ms2.origins, ms2.n, sizeof(uint32_t), uint32_cmp);
     int i;
     for (i = 0; i < ms1.n; i++) {
-      if (ms1.origins[i] != ms2.origins[i]) {
-        return 0;
+      if(i >= MAX_STATIC_ORIGINS){
+        // outside the static origins range
+        if (ms1.origins_dyn[i-MAX_STATIC_ORIGINS] != ms2.origins_dyn[i-MAX_STATIC_ORIGINS]) {
+          return 0;
+        }
+      } else {
+        if (ms1.origins[i] != ms2.origins[i]) {
+          return 0;
+        }
       }
     }
     return 1;
@@ -326,7 +339,7 @@ static void update_moas_counters(bvc_t *consumer, moas_category_t mc)
 }
 
 static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
-                    bgpstream_pfx_t *pfx, moas_signature_t *ms,
+                    bgpstream_pfx_t *pfx,
                     moas_properties_t *mp, moas_category_t mc, uint32_t ts)
 {
   bvc_moas_state_t *state = STATE;
@@ -361,13 +374,6 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
    * is new or
    * new-recurring
    */
-  /*
-  old version:
-  if (wandio_printf(state->wandio_fh,
-                    "%" PRIu32 "|%s|%s|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|",
-                    ts, pfx_str, get_category_str(mc), mp->first_seen,
-                    mp->start, mp->end) == -1) {
-  */
 
   if (wandio_printf(state->wandio_fh,
                     "%" PRIu32 "|%s|%s|",
@@ -375,22 +381,6 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
     fprintf(stderr, "ERROR: Could not write data to file\n");
     return -1;
   }
-  /*
-  int i;
-  int ret;
-  for (i = 0; i < ms->n; i++) {
-    // last origin
-    if (i == ms->n - 1) {
-      ret = wandio_printf(state->wandio_fh, "%" PRIu32, ms->origins[i]);
-    } else {
-      ret = wandio_printf(state->wandio_fh, "%" PRIu32 " ", ms->origins[i]);
-    }
-    if (ret == -1) {
-      fprintf(stderr, "ERROR: Could not write data to file\n");
-      return -1;
-    }
-  }
-  */
   if (mc == NEW || mc == NEWREC) {
     /* mc is either NEW or NEWREC, hence we print the set of AS paths
      * as observed by all full feed peers */
@@ -482,12 +472,13 @@ static int clean_moas(bvc_t *consumer, uint32_t ts, uint32_t last_valid_ts)
 
           /* outdated moas, remove it */
           if (mpro->end < last_valid_ts) {
+            free(ms->origins_dyn);  // free dynamically allocated space if any
             kh_del(moasinfo_map, per_pfx_moases, m);
           } else {
             if (mpro->end < ts) {
               // report finished moases
               if (mpro->start > 0) {
-                if (log_moas(consumer, NULL, NULL, pfx, ms,
+                if (log_moas(consumer, NULL, NULL, pfx,
                              mpro, FINISHED, ts) != 0) {
                   return -1;
                 }
@@ -566,7 +557,7 @@ static int add_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
 
   moas_properties = &kh_value(per_pfx_moases, k);
 
-  return log_moas(consumer, view, it, pfx, ms, moas_properties, mc, ts);
+  return log_moas(consumer, view, it, pfx, moas_properties, mc, ts);
 }
 
 /** Create timeseries metrics */
@@ -779,10 +770,20 @@ void bvc_moas_destroy(bvc_t *consumer)
   if (state != NULL) {
 
     if (state->current_moases != NULL) {
-      khiter_t p;
+      moasinfo_map_t *per_pfx_moases;
+      moas_signature_t *ms;
+      khiter_t p,m;
       for (p = kh_begin(state->current_moases);
            p != kh_end(state->current_moases); p++) {
         if (kh_exist(state->current_moases, p)) {
+          /* free dynamic origins array for each moas */
+          per_pfx_moases = kh_val(state->current_moases, p);
+          for (m = kh_begin(per_pfx_moases); m != kh_end(per_pfx_moases); m++) {
+            if (kh_exist(per_pfx_moases, m)) {
+              ms = &kh_key(per_pfx_moases, m);
+              free(ms->origins_dyn);
+            }
+          }
           kh_destroy(moasinfo_map, kh_val(state->current_moases, p));
         }
       }
@@ -811,7 +812,7 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
   int ipv_idx; // ip version index
   bgpstream_peer_id_t peerid;
   bgpstream_as_path_seg_t *origin_seg;
-  moas_signature_t ms;
+  moas_signature_t ms; // creating moas signature
   int i;
   uint32_t origin_asn;
   uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
@@ -861,7 +862,11 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
 
     ipv_idx = bgpstream_ipv2idx(pfx->address.version);
 
+    // clear moas signature
     ms.n = 0;
+    if(ms.origins_dyn != NULL){
+      ms.origins_dyn = NULL;
+    }
 
     for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
          bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
@@ -889,13 +894,45 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
         /* check if origin is already in the moas signature struct
          * this check works when the signature is empty too */
         for (i = 0; i < ms.n; i++) {
-          if (ms.origins[i] == origin_asn) {
-            break;
+          if(i >= MAX_STATIC_ORIGINS){
+            if (ms.origins_dyn[i-MAX_STATIC_ORIGINS] == origin_asn) {
+              break;
+            }
+          } else {
+            if (ms.origins[i] == origin_asn) {
+              break;
+            }
           }
         }
         /* if the origin was not found, add it */
         if (i == ms.n) {
-          ms.origins[ms.n] = origin_asn;
+          if(i >= MAX_STATIC_ORIGINS){
+            if (i % MAX_STATIC_ORIGINS == 0){
+              // if it needs more space to store origins, realloc
+              // the size of which should be MAX_STATIC_ORIGINS * (i/MAX_STATIC_ORIGINS) = ms.n
+              //
+              // example case 1:
+              // ms.n == 4
+              // we need to allocate the space for the first time,
+              // we do realloc(ms.origins_dyn, sizeof(uint32_t)*4), where ms.origins_dyn==NULL
+              //
+              // example case 2:
+              // ms.n == 8
+              // we need to allocate more space for dynamic array,
+              // we do realloc(ms.origins_dyn, sizeof(uint32_t)*8)
+              //
+              // by induction, the future cases will increase the dynamic array space by MAX_STATIC_ORIGINS
+              // everytime it reaches outside the range of the dynamic array.
+              if ((ms.origins_dyn = realloc(ms.origins_dyn, sizeof(uint32_t) * ms.n)) == NULL) {
+                return -1;
+              }
+            }
+            // at this point, we have allocated memory space for storing
+            // the origin asn at the dynamic array
+            ms.origins_dyn[ms.n-MAX_STATIC_ORIGINS] = origin_asn;
+          } else {
+            ms.origins[ms.n] = origin_asn;
+          }
           ms.n++;
         }
       }
