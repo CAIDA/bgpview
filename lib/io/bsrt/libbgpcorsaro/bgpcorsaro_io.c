@@ -69,19 +69,20 @@ static char *generate_file_name(bgpcorsaro_t *bc, const char *plugin,
   char *bufp = buf;
   char *buflim = buf + sizeof(buf);
 
-  char *tmpl = bc->template;
+  const char *tmpl, *end = NULL;
   char secs[11]; /* length of UINT32_MAX +1 */
   time_t t;
 
-  for (; *tmpl; ++tmpl) {
-    if (*tmpl == '.' && compress_type == WANDIO_COMPRESS_NONE) {
-      if (strncmp(tmpl, BGPCORSARO_IO_ZLIB_SUFFIX,
-                  strlen(BGPCORSARO_IO_ZLIB_SUFFIX)) == 0 ||
-          strncmp(tmpl, BGPCORSARO_IO_BZ2_SUFFIX,
-                  strlen(BGPCORSARO_IO_BZ2_SUFFIX)) == 0) {
-        break;
-      }
-    } else if (*tmpl == '%') {
+  if (bc->compress != WANDIO_COMPRESS_NONE && bc->compress != compress_type) {
+    // suffix on template doesn't correspond to desired compress_type
+    end = strrchr(bc->template, '.');
+  }
+  if (!end) {
+    end = strchr(bc->template, '\0');
+  }
+
+  for (tmpl = bc->template; tmpl != end; ++tmpl) {
+    if (*tmpl == '%') {
       switch (*++tmpl) {
       case '\0':
         --tmpl;

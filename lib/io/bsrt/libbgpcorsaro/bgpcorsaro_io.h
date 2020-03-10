@@ -37,12 +37,6 @@
  *
  */
 
-/** The suffix used to detect gzip output is desired */
-#define BGPCORSARO_IO_ZLIB_SUFFIX ".gz"
-
-/** The suffix used to detect bzip output is desired */
-#define BGPCORSARO_IO_BZ2_SUFFIX ".bz2"
-
 /** The character to replace with the name of the plugin */
 #define BGPCORSARO_IO_PLUGIN_PATTERN 'X'
 /** The pattern to replace in the output file name with the name of the plugin
