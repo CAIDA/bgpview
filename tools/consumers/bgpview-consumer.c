@@ -719,7 +719,6 @@ int main(int argc, char **argv)
     assert(consumer_cmds[i] != NULL);
     if (bgpview_consumer_manager_enable_consumer_from_str(
           manager, consumer_cmds[i]) == NULL) {
-      usage(argv[0]);
       goto err;
     }
   }
