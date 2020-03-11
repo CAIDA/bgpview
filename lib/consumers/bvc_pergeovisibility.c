@@ -1363,6 +1363,14 @@ int bvc_pergeovisibility_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  /* get full feed peer ids from Visibility */
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr,
+            "ERROR: The Per-Geo Visibility requires the Visibility consumer "
+            "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -1453,14 +1461,6 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
 
   /* compute arrival delay */
   arrival_delay = epoch_sec() - bgpview_get_time(view);
-
-  /* get full feed peer ids from Visibility */
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr,
-            "ERROR: The Per-Geo Visibility requires the Visibility consumer "
-            "to be run first\n");
-    return -1;
-  }
 
   /* create a new iterator */
   bgpview_iter_t *it;

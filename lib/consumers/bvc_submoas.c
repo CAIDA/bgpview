@@ -413,6 +413,12 @@ int bvc_submoas_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: moas requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -1506,12 +1512,6 @@ int bvc_submoas_process_view(bvc_t *consumer, bgpview_t *view)
   state->newrec_submoas_pfxs_count = 0;
   int count;
   count = 0;
-
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: moas requires the Visibility consumer "
-                    "to be run first\n");
-    return -1;
-  }
 
   if ((it = bgpview_iter_create(view)) == NULL) {
     return -1;

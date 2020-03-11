@@ -280,6 +280,12 @@ int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: Announced-pfxs requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -322,12 +328,6 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   int ipv4_idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
 
   if ((it = bgpview_iter_create(view)) == NULL) {
-    return -1;
-  }
-
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: Announced-pfxs requires the Visibility consumer "
-                    "to be run first\n");
     return -1;
   }
 

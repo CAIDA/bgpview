@@ -765,6 +765,13 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  /* check visibility has been computed */
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: moas requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -815,13 +822,6 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
   int i;
   uint32_t origin_asn;
   uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
-
-  /* check visibility has been computed */
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: moas requires the Visibility consumer "
-                    "to be run first\n");
-    return -1;
-  }
 
   /* compute arrival delay */
   state->arrival_delay = epoch_sec() - bgpview_get_time(view);

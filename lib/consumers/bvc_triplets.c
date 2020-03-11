@@ -326,6 +326,13 @@ int bvc_triplets_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  /* check visibility has been computed */
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: edges requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   /* init */
   return 0;
 
@@ -561,13 +568,6 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
   uint32_t prev_prev_asn;
   // print ongoing triplets
   print_ongoing_triplets(consumer);
-
-  /* check visibility has been computed */
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: edges requires the Visibility consumer "
-                    "to be run first\n");
-    return -1;
-  }
 
   /* create view iterator */
   if ((it = bgpview_iter_create(view)) == NULL) {

@@ -273,6 +273,7 @@ static void dump_gen_metrics(bvc_t *consumer)
 static void reset_chain_state(bvc_t *consumer)
 {
   int i;
+  CHAIN_STATE->visibility_computed = 0;
   for (i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; i++) {
     CHAIN_STATE->peer_ids_cnt[i] = 0;
     bgpstream_id_set_clear(CHAIN_STATE->full_feed_peer_ids[i]);
@@ -330,6 +331,8 @@ int bvc_visibility_init(bvc_t *consumer, int argc, char **argv)
   if (create_gen_metrics(consumer) != 0) {
     goto err;
   }
+
+  CHAIN_STATE->visibility_computed = 1;
 
   return 0;
 
