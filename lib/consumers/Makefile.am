@@ -152,6 +152,8 @@ CONSUMER_SRCS += \
 
 libbgpview_consumers_la_SOURCES = bgpview_consumer_manager.h   \
 				  bgpview_consumer_manager.c   \
+				  bgpview_consumer_utils.h   \
+				  bgpview_consumer_utils.c   \
 				  bgpview_consumer_interface.h \
 				  $(CONSUMER_SRCS)
 

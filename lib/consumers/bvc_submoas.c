@@ -23,6 +23,7 @@
 
 #include "bvc_submoas.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
@@ -30,11 +31,8 @@
 #include <wandio.h>
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "submoas"
@@ -59,9 +57,6 @@
 
 /** Default output folder: current folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -150,7 +145,7 @@ typedef struct bvc_submoas_state {
 
   /** output folder */
   char output_folder[MAX_BUFFER_LEN];
-  char filename[MAX_BUFFER_LEN];
+  char filename[BVCU_PATH_MAX];
   /** Contains all subprefixes */
   subprefix_map_t *subprefix_map;
   /** Contains all superprefix */
@@ -324,18 +319,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* checking that output_folder is a valid folder */
-  struct stat st;
-  errno = 0;
-  if (stat(state->output_folder, &st) == -1) {
-    fprintf(stderr, "Error: %s does not exist\n", state->output_folder);
+  if (!bvcu_is_writable_folder(state->output_folder)) {
     usage(consumer);
     return -1;
-  } else {
-    if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "Error: %s is not a directory \n", state->output_folder);
-      usage(consumer);
-      return -1;
-    }
   }
 
   return 0;
@@ -1479,13 +1465,8 @@ int bvc_submoas_process_view(bvc_t *consumer, bgpview_t *view)
   } else {
     state->current_window_size = state->window_size;
   }
-  snprintf(state->filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT,
-           state->output_folder, state->time_now, state->current_window_size);
-  state->file = NULL;
-  if ((state->file = wandio_wcreate(
-         state->filename, wandio_detect_compression_type(state->filename),
-         DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", state->filename);
+  if (!(state->file = bvcu_open_outfile(state->filename, OUTPUT_FILE_FORMAT,
+        state->output_folder, state->time_now, state->current_window_size))) {
     return -1;
   }
 
@@ -1681,16 +1662,7 @@ int bvc_submoas_process_view(bvc_t *consumer, bgpview_t *view)
   /* Close outuput file */
   wandio_wdestroy(state->file);
   /* generate the .done file */
-  iow_t *f = NULL;
-  snprintf(state->filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
-           state->output_folder, state->time_now, state->current_window_size);
-  if ((f = wandio_wcreate(state->filename,
-                          wandio_detect_compression_type(state->filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", state->filename);
-    return -1;
-  }
-  wandio_wdestroy(f);
+  bvcu_create_donefile(state->filename);
   /* compute processed delay */
   state->processed_delay = epoch_sec() - bgpview_get_time(view);
   state->processing_time = state->processed_delay - state->arrival_delay;

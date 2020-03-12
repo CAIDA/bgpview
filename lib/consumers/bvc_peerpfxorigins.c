@@ -23,23 +23,18 @@
 
 #include "bvc_peerpfxorigins.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <assert.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <wandio.h>
 
 #define NAME "peer-pfx-origins"
 #define PEER_TABLE_NAME NAME"-peertable"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /** Default number of unique origins */
 #define ORIGIN_CNT 512
@@ -74,8 +69,14 @@ typedef struct bvc_peerpfxorigins_state {
   /** output directory */
   char *outdir;
 
+  /** peer table output file name */
+  char peers_outfile_name[BVCU_PATH_MAX];
+
   /** peer table output file */
   iow_t *peers_outfile;
+
+  /** prefix origins output file name */
+  char pfx_outfile_name[BVCU_PATH_MAX];
 
   /** prefix origins output file */
   iow_t *pfx_outfile;
@@ -95,66 +96,32 @@ typedef struct bvc_peerpfxorigins_state {
 
 static int open_outfiles(bvc_t *consumer, uint32_t vtime)
 {
-  char filename[1024];
-
   if (STATE->peer_count_only == 0) {
     /* peers table */
-    if (snprintf(filename, sizeof(filename),
-                 "%s/" PEER_TABLE_NAME ".%" PRIu32 ".gz", STATE->outdir,
-                 vtime) >= sizeof(filename)) {
-      fprintf(stderr, "ERROR: File name too long for buffer\n");
+    if (!(STATE->peers_outfile = bvcu_open_outfile(STATE->peers_outfile_name,
+        "%s/" PEER_TABLE_NAME ".%" PRIu32 ".gz", STATE->outdir, vtime)))
       return -1;
-    }
-    if ((STATE->peers_outfile =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-      return -1;
-    }
   }
 
   /* pfx origins table */
-  if (snprintf(filename, sizeof(filename), "%s/" NAME ".%" PRIu32 ".gz",
-               STATE->outdir, vtime) >= sizeof(filename)) {
-    fprintf(stderr, "ERROR: File name too long for buffer\n");
+  if (!(STATE->pfx_outfile = bvcu_open_outfile(STATE->pfx_outfile_name,
+        "%s/" NAME ".%" PRIu32 ".gz", STATE->outdir, vtime)))
     return -1;
-  }
-  if ((STATE->pfx_outfile =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-    return -1;
-  }
 
   return 0;
 }
 
 static int close_outfiles(bvc_t *consumer, uint32_t vtime)
 {
-  char filename[1024];
-
   if (STATE->peer_count_only == 0) {
     wandio_wdestroy(STATE->peers_outfile);
     STATE->peers_outfile = NULL;
-
-    if (snprintf(filename, sizeof(filename),
-                 "%s/" PEER_TABLE_NAME ".%" PRIu32 ".gz.done", STATE->outdir,
-                 vtime) >= sizeof(filename)) {
-      fprintf(stderr, "ERROR: File name too long for buffer\n");
-      return -1;
-    }
-    fclose(fopen(filename, "w"));
+    bvcu_create_donefile(STATE->peers_outfile_name);
   }
 
   wandio_wdestroy(STATE->pfx_outfile);
   STATE->pfx_outfile = NULL;
-
-  if (snprintf(filename, sizeof(filename), "%s/" NAME ".%" PRIu32 ".gz.done",
-               STATE->outdir, vtime) >= sizeof(filename)) {
-    fprintf(stderr, "ERROR: File name too long for buffer\n");
-    return -1;
-  }
-  fclose(fopen(filename, "w"));
+  bvcu_create_donefile(STATE->pfx_outfile_name);
 
   return 0;
 }

@@ -23,18 +23,16 @@
 
 #include "bvc_moas.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "moas"
@@ -59,9 +57,6 @@
 
 /** Default output folder: current folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -174,6 +169,9 @@ typedef struct bvc_moas_state {
   /** wandio file handler */
   iow_t *wandio_fh;
 
+  /** output filename */
+  char output_filename[BVCU_PATH_MAX];
+
   /** output folder */
   char output_folder[MAX_BUFFER_LEN];
 
@@ -243,18 +241,12 @@ static int init_output_log(bvc_t *consumer, uint32_t ts)
 {
 
   bvc_moas_state_t *state = STATE;
-  char filename[MAX_BUFFER_LEN];
   state->wandio_fh = NULL;
 
-  /* OUTPUT_FILE_FORMAT "%s/"NAME".%"PRIu32".%"PRIu32"s-window.events.gz" */
-  snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT, state->output_folder,
-           ts, state->current_window_size);
-
   /* open file for writing */
-  if ((state->wandio_fh =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
+  if (!(state->wandio_fh = bvcu_open_outfile(state->output_filename,
+      OUTPUT_FILE_FORMAT, state->output_folder, ts,
+      state->current_window_size))) {
     return -1;
   }
 
@@ -270,22 +262,11 @@ static int init_output_log(bvc_t *consumer, uint32_t ts)
 static int close_output_log(bvc_t *consumer, uint32_t ts)
 {
   bvc_moas_state_t *state = STATE;
-  char filename[MAX_BUFFER_LEN];
 
   if (state->wandio_fh) {
     /* Close file and generate .done if new information was printed */
     wandio_wdestroy(state->wandio_fh);
-
-    /* generate the .done file */
-    snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
-             state->output_folder, ts, state->current_window_size);
-    if ((state->wandio_fh =
-           wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-      return -1;
-    }
-    wandio_wdestroy(state->wandio_fh);
+    bvcu_create_donefile(state->output_filename);
   }
   state->wandio_fh = NULL;
   return 0;
@@ -682,18 +663,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* checking that output_folder is a valid folder */
-  struct stat st;
-  errno = 0;
-  if (stat(state->output_folder, &st) == -1) {
-    fprintf(stderr, "Error: %s does not exist\n", state->output_folder);
+  if (!bvcu_is_writable_folder(state->output_folder)) {
     usage(consumer);
     return -1;
-  } else {
-    if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "Error: %s is not a directory \n", state->output_folder);
-      usage(consumer);
-      return -1;
-    }
   }
 
   return 0;

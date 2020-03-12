@@ -23,13 +23,13 @@
 
 #include "bvc_subpfx.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_patricia.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <ctype.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -47,7 +47,6 @@
 #define PREV_SUBPFXS (STATE->subpfxs[(STATE->current_subpfxs_idx + 1) % 2])
 
 #define DEFAULT_OUTPUT_DIR "./"
-#define DEFAULT_COMPRESS_LEVEL 6
 #define OUTPUT_FILE_FORMAT "%s/" NAME "-%s.%" PRIu32 ".events.gz"
 #define BUFFER_LEN 4096
 
@@ -132,7 +131,7 @@ typedef struct bvc_subpfx_state {
   bgpstream_pfx_t v6_default_pfx;
 
   // current output file name
-  char outfile_name[BUFFER_LEN];
+  char outfile_name[BVCU_PATH_MAX];
 
   // current output file handle
   iow_t *outfile;
@@ -630,14 +629,8 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   uint64_t finished_cnt = 0;
 
   // open the output file
-  snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT, STATE->outdir,
-           mode_strs[STATE->mode], view_time);
-  if ((STATE->outfile =
-         wandio_wcreate(STATE->outfile_name,
-                        wandio_detect_compression_type(STATE->outfile_name),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            STATE->outfile_name);
+  if (!(STATE->outfile = bvcu_open_outfile(STATE->outfile_name,
+      OUTPUT_FILE_FORMAT, STATE->outdir, mode_strs[STATE->mode], view_time))) {
     goto err;
   }
 
@@ -745,18 +738,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   STATE->outfile = NULL;
 
   /* generate the .done file */
-  snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
-           STATE->outdir, mode_strs[STATE->mode], view_time);
-  if ((STATE->outfile =
-         wandio_wcreate(STATE->outfile_name,
-                        wandio_detect_compression_type(STATE->outfile_name),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            STATE->outfile_name);
-    return -1;
-  }
-  wandio_wdestroy(STATE->outfile);
-  STATE->outfile = NULL;
+  bvcu_create_donefile(STATE->outfile_name);
 
   // update and dump timeseries
   uint32_t now = epoch_sec();

@@ -23,17 +23,15 @@
 
 #include "bvc_edges.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "edges"
@@ -64,9 +62,6 @@
 
 /** Default output folder: current folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -130,7 +125,7 @@ typedef struct bvc_edges_state {
   edges_map_t *edges_map;
   // Khash holding triplets
   // Output files for edges and triplets
-  char filename_newedges[MAX_BUFFER_LEN];
+  char filename_newedges[BVCU_PATH_MAX];
   iow_t *file_newedges;
 
   /** blacklist prefixes */
@@ -286,18 +281,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* checking that output_folder is a valid folder */
-  struct stat st;
-  errno = 0;
-  if (stat(state->output_folder, &st) == -1) {
-    fprintf(stderr, "Error: %s does not exist\n", state->output_folder);
+  if (!bvcu_is_writable_folder(state->output_folder)) {
     usage(consumer);
     return -1;
-  } else {
-    if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "Error: %s is not a directory \n", state->output_folder);
-      usage(consumer);
-      return -1;
-    }
   }
 
   return 0;
@@ -846,16 +832,9 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   state->newrec_edges_count = 0;
   int count = 0;
   // Opening file for newedges
-  snprintf(state->filename_newedges, MAX_BUFFER_LEN,
-           OUTPUT_FILE_FORMAT_NEWEDGES, state->output_folder, time_now,
-           state->window_size);
-  /* open file for writing */
-  if ((state->file_newedges = wandio_wcreate(
-         state->filename_newedges,
-         wandio_detect_compression_type(state->filename_newedges),
-         DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            state->filename_newedges);
+  if (!(state->file_newedges = bvcu_open_outfile(state->filename_newedges,
+      OUTPUT_FILE_FORMAT_NEWEDGES, state->output_folder, time_now,
+      state->window_size))) {
     return -1;
   }
 
@@ -1036,8 +1015,6 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   bgpview_iter_destroy(it);
   // Close file I/O
   wandio_wdestroy(state->file_newedges);
-  char filename[MAX_BUFFER_LEN];
-  iow_t *done_newedge = NULL;
 
   // print_asps(as_paths);
   // clear_aspaths(as_paths);
@@ -1048,15 +1025,7 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   kh_destroy(newrec_edges, newrec_edges);
 
   /* generate separate .done files for both edges and triplets*/
-  snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_NEWEDGES ".done",
-           state->output_folder, time_now, state->window_size);
-  if ((done_newedge =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-    return -1;
-  }
-  wandio_wdestroy(done_newedge);
+  bvcu_create_donefile(state->filename_newedges);
 
   /* compute processed delay */
   state->processed_delay = epoch_sec() - bgpview_get_time(view);

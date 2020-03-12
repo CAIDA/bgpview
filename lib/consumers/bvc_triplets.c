@@ -23,17 +23,15 @@
 
 #include "bvc_triplets.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "triplets"
@@ -64,9 +62,6 @@
 
 /** Default output folder: current folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 #define NEW 1
 
@@ -113,7 +108,7 @@ typedef struct bvc_triplets_state {
   // Khash holding triplets
   triplets_map_t *triplets_map;
   // Output files for edges and triplets
-  char filename_triplets[MAX_BUFFER_LEN];
+  char filename_triplets[BVCU_PATH_MAX];
   iow_t *file_triplets;
 
   /** diff ts when the view arrived */
@@ -266,18 +261,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* checking that output_folder is a valid folder */
-  struct stat st;
-  errno = 0;
-  if (stat(state->output_folder, &st) == -1) {
-    fprintf(stderr, "Error: %s does not exist\n", state->output_folder);
+  if (!bvcu_is_writable_folder(state->output_folder)) {
     usage(consumer);
     return -1;
-  } else {
-    if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "Error: %s is not a directory \n", state->output_folder);
-      usage(consumer);
-      return -1;
-    }
   }
 
   return 0;
@@ -543,16 +529,10 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
   state->newrec_triplets_count = 0;
 
   // Opening file for triplets
-  snprintf(state->filename_triplets, MAX_BUFFER_LEN,
-           OUTPUT_FILE_FORMAT_TRIPLETS, state->output_folder, time_now,
-           state->window_size);
   /* open file for writing */
-  if ((state->file_triplets = wandio_wcreate(
-         state->filename_triplets,
-         wandio_detect_compression_type(state->filename_triplets),
-         DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            state->filename_triplets);
+  if (!(state->file_triplets = bvcu_open_outfile(state->filename_triplets,
+      OUTPUT_FILE_FORMAT_TRIPLETS, state->output_folder, time_now,
+      state->window_size))) {
     return -1;
   }
 
@@ -671,18 +651,7 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
   bgpview_iter_destroy(it);
   // Close file I/O
   wandio_wdestroy(state->file_triplets);
-  char filename[MAX_BUFFER_LEN];
-
-  iow_t *done_triplets = NULL;
-  snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_TRIPLETS ".done",
-           state->output_folder, time_now, state->window_size);
-  if ((done_triplets =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-    return -1;
-  }
-  wandio_wdestroy(done_triplets);
+  bvcu_create_donefile(state->filename_triplets);
 
   /* compute processed delay */
   state->processed_delay = epoch_sec() - bgpview_get_time(view);

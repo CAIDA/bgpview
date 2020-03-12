@@ -23,16 +23,14 @@
 
 #include "bvc_announcedpfxs.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "announced-pfxs"
@@ -51,8 +49,6 @@
 #define MIN_PFX4_LEN 7
 /** Default maximum netmask lenght of admissible prefix */
 #define MAX_PFX4_LEN 24
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -391,18 +387,14 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   iow_t *f = NULL;
-  char filename[BUFFER_LEN];
+  char filename[BVCU_PATH_MAX];
   char buffer_str[BUFFER_LEN];
 
   /* Check if  new information needs to be printed */
   if (state->next_output_time <= current_view_ts) {
-    sprintf(filename, "%s/" NAME ".%" PRIu32 ".w%" PRIu32 ".gz",
-            state->output_folder, current_view_ts, current_window_size);
-
     /* open file for writing */
-    if ((f = wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                            DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
+    if (!(f = bvcu_open_outfile(filename, "%s/" NAME ".%" PRIu32 ".w%" PRIu32 ".gz",
+              state->output_folder, current_view_ts, current_window_size))) {
       return -1;
     }
   }
@@ -435,14 +427,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
     wandio_wdestroy(f);
 
     /* generate the .done file */
-    sprintf(filename, "%s/" NAME ".%" PRIu32 ".w%" PRIu32 ".gz.done",
-            state->output_folder, current_view_ts, current_window_size);
-    if ((f = wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                            DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-      return -1;
-    }
-    wandio_wdestroy(f);
+    bvcu_create_donefile(filename);
     /* update next output time */
     state->next_output_time = state->next_output_time + state->out_interval;
   }
