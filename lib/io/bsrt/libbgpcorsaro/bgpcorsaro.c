@@ -118,8 +118,8 @@ static bgpcorsaro_t *bgpcorsaro_init(char *template, timeseries_t *timeseries)
 
   /* set a default monitorname for when im bad and directly retrieve it
      from the structure */
-  gethostname(e->monitorname, HOST_NAME_MAX);
-  e->monitorname[HOST_NAME_MAX] = '\0';
+  gethostname(e->monitorname, BGPCORSARO_HOST_NAME_MAX);
+  e->monitorname[BGPCORSARO_HOST_NAME_MAX] = '\0';
 
   /* template does, however */
   /* check that it is valid */
@@ -439,18 +439,18 @@ int bgpcorsaro_set_monitorname(bgpcorsaro_t *bc, const char *name)
     bgpcorsaro_log(__func__, bc, "setting monitor name to %s", name);
   }
 
-  strncpy(bc->monitorname, name, HOST_NAME_MAX);
-  bc->monitorname[HOST_NAME_MAX] = '\0';
+  strncpy(bc->monitorname, name, BGPCORSARO_HOST_NAME_MAX);
+  bc->monitorname[BGPCORSARO_HOST_NAME_MAX] = '\0';
   bgpcorsaro_log(__func__, bc, "%s", bc->monitorname);
   return 0;
 }
 
 const char *bgpcorsaro_get_monitorname(bgpcorsaro_t *bc)
 {
-  static char monitorname[HOST_NAME_MAX+1];
+  static char monitorname[BGPCORSARO_HOST_NAME_MAX+1];
   if (!bc || !*bc->monitorname) {
-    gethostname(monitorname, HOST_NAME_MAX);
-    monitorname[HOST_NAME_MAX] = '\0';
+    gethostname(monitorname, BGPCORSARO_HOST_NAME_MAX);
+    monitorname[BGPCORSARO_HOST_NAME_MAX] = '\0';
     return monitorname;
   }
   return bc->monitorname;
