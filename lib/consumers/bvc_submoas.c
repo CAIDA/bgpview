@@ -662,6 +662,28 @@ static void print_ongoing(bvc_t *consumer)
   }
 }
 
+static int print_pfx_peers(bvc_t *consumer, bvc_submoas_state_t *state,
+    bgpview_iter_t *it, const bgpstream_pfx_t *pfx)
+{
+  int ipv_idx = bgpstream_ipv2idx(pfx->address.version);
+
+  for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
+       bgpview_iter_pfx_has_more_peer(it);
+       bgpview_iter_pfx_next_peer(it)) {
+
+    // printing a path for each peer
+    bgpstream_peer_id_t peerid = bgpview_iter_peer_get_peer_id(it);
+    if (bgpstream_id_set_exists(
+          BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
+          peerid)) {
+
+      if (bvcu_print_pfx_peer_as_path(state->file, it, "|", " ") < 0)
+        return -1;
+    }
+  }
+  return 0;
+}
+
 /* Adds prefix or new asn for a existing prefix to patricia tree. Check if
  * updating patricia tree results in submoas or not */
 static void update_patricia(bvc_t *consumer,
@@ -669,10 +691,8 @@ static void update_patricia(bvc_t *consumer,
                             pref_info_t *pref_info, bgpview_iter_t *it,
                             uint32_t timenow)
 {
-  // void update_patricia(bvc_t *consumer, bgpstream_patricia_node_t*
-  // pfx_node,pref_info_t *pref_info, uint32_t timenow){
   khint_t k, j;
-  int ret, ipv_idx;
+  int ret;
   char prev_category[MAX_BUFFER_LEN];
   char asn_buffer[MAX_BUFFER_LEN];
   char pfx_str[INET6_ADDRSTRLEN + 3];
@@ -686,8 +706,6 @@ static void update_patricia(bvc_t *consumer,
   bgpstream_patricia_tree_get_less_specifics(state->pt, pfx_node, res_set);
   bgpstream_patricia_node_t *parent_node;
   parent_node = NULL;
-  bgpstream_peer_id_t peerid;
-  bgpstream_as_path_seg_t *seg;
 
   parent_node = bgpstream_patricia_tree_result_set_next(res_set);
   if (parent_node == NULL) {
@@ -765,26 +783,12 @@ static void update_patricia(bvc_t *consumer,
       fprintf(stderr, "ERROR: Could not write %s file\n", state->filename);
       return;
     }
-    ipv_idx = bgpstream_ipv2idx(pfx->address.version);
-
-    for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-         bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
-
-      // printing a path for each peer
-      peerid = bgpview_iter_peer_get_peer_id(it);
-      if (bgpstream_id_set_exists(
-            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-            peerid)) {
-
-        if (bvcu_print_pfx_peer_as_path(state->file, it, "|", " ") < 0)
-          return;
-      }
-    }
+    if (print_pfx_peers(consumer, state, it, pfx) < 0)
+      return;
     if (wandio_printf(state->file, "\n") == -1) {
       fprintf(stderr, "ERROR: Could not write data to file\n");
       return;
     }
-
   }
   // seen this subprefix before. ASN might be new or old
   else {
@@ -868,21 +872,8 @@ static void update_patricia(bvc_t *consumer,
       fprintf(stderr, "ERROR: Could not write %s file\n", state->filename);
       return;
     }
-    ipv_idx = bgpstream_ipv2idx(pfx->address.version);
-
-    for (bgpview_iter_pfx_first_peer(it, BGPVIEW_FIELD_ACTIVE);
-         bgpview_iter_pfx_has_more_peer(it); bgpview_iter_pfx_next_peer(it)) {
-
-      // printing a path for each peer
-      peerid = bgpview_iter_peer_get_peer_id(it);
-      if (bgpstream_id_set_exists(
-            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-            peerid)) {
-
-        if (bvcu_print_pfx_peer_as_path(state->file, it, "|", " ") < 0)
-          return;
-      }
-    }
+    if (print_pfx_peers(consumer, state, it, pfx) < 0)
+      return;
     if (wandio_printf(state->file, "\n") == -1) {
       fprintf(stderr, "ERROR: Could not write data to file\n");
       return;
@@ -929,9 +920,7 @@ static void check_remove_submoas_asn(bvc_t *consumer, const bgpstream_pfx_t *pfx
   strcpy(prev_category, "default");
   bgpstream_pfx_snprintf(pfx_str, INET6_ADDRSTRLEN + 3, pfx);
   uint32_t timenow = state->time_now;
-  bgpstream_peer_id_t peerid;
-  bgpstream_as_path_seg_t *seg;
-  int sub_as, ipv_idx;
+  int sub_as;
 
   /* Check whether preifx under consideration is a subprefix or not */
   p = kh_get(subprefix_map, state->subprefix_map, *pfx);
@@ -1051,22 +1040,8 @@ static void check_remove_submoas_asn(bvc_t *consumer, const bgpstream_pfx_t *pfx
       fprintf(stderr, "ERROR: Could not write %s file\n", state->filename);
       return;
     }
-    ipv_idx = bgpstream_ipv2idx(sub_pfx->address.version);
-
-    for (bgpview_iter_pfx_first_peer(state->iter, BGPVIEW_FIELD_ACTIVE);
-         bgpview_iter_pfx_has_more_peer(state->iter);
-         bgpview_iter_pfx_next_peer(state->iter)) {
-
-      // printing a path for each peer
-      peerid = bgpview_iter_peer_get_peer_id(state->iter);
-      if (bgpstream_id_set_exists(
-            BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-            peerid)) {
-
-        if (bvcu_print_pfx_peer_as_path(state->file, state->iter, "|", " ") < 0)
-          return;
-      }
-    }
+    if (print_pfx_peers(consumer, state, state->iter, sub_pfx) < 0)
+      return;
     if (wandio_printf(state->file, "\n") == -1) {
       fprintf(stderr, "ERROR: Could not write data to file\n");
       return;
@@ -1110,7 +1085,7 @@ static void check_remove_superprefix(bvc_t *consumer, const bgpstream_pfx_t *pfx
   bvc_submoas_state_t *state = STATE;
   khint_t k, j, n, m;
   khint_t p;
-  int ret, ipv_idx;
+  int ret;
   char prev_category[MAX_BUFFER_LEN];
   uint32_t timenow = state->time_now;
   bgpstream_patricia_tree_result_set_t *res =
@@ -1121,8 +1096,6 @@ static void check_remove_superprefix(bvc_t *consumer, const bgpstream_pfx_t *pfx
   char asn_buffer[MAX_BUFFER_LEN];
   char pfx2_str[INET6_ADDRSTRLEN + 3];
   k = kh_get(superprefix_map, state->superprefix_map, *pfx);
-  bgpstream_peer_id_t peerid;
-  bgpstream_as_path_seg_t *seg;
 
   /* This prefix is not superprefix of anyone. Return */
   if (k == kh_end(state->superprefix_map)) {
@@ -1223,22 +1196,8 @@ static void check_remove_superprefix(bvc_t *consumer, const bgpstream_pfx_t *pfx
           continue;
         }
 
-        ipv_idx = bgpstream_ipv2idx(sub_pfx->address.version);
-
-        for (bgpview_iter_pfx_first_peer(state->iter, BGPVIEW_FIELD_ACTIVE);
-             bgpview_iter_pfx_has_more_peer(state->iter);
-             bgpview_iter_pfx_next_peer(state->iter)) {
-
-          // printing a path for each peer
-          peerid = bgpview_iter_peer_get_peer_id(state->iter);
-          if (bgpstream_id_set_exists(
-                BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
-                peerid)) {
-
-            if (bvcu_print_pfx_peer_as_path(state->file, state->iter, "|", " ") < 0)
-              return;
-          }
-        }
+        if (print_pfx_peers(consumer, state, state->iter, sub_pfx) < 0)
+          return;
         if (wandio_printf(state->file, "\n") == -1) {
           fprintf(stderr, "ERROR: Could not write data to file\n");
           return;
