@@ -113,6 +113,9 @@ struct bgpcorsaro_interval {
 /** The interval after which we will end an interval */
 #define BGPCORSARO_INTERVAL_DEFAULT 60
 
+/** Length of buffer for gethostname() */
+#define BGPCORSARO_HOST_NAME_MAX 255
+
 /** Bgpcorsaro output state */
 struct bgpcorsaro {
   /** The local wall time that bgpcorsaro was started at */
@@ -122,7 +125,7 @@ struct bgpcorsaro {
   bgpstream_t *stream;
 
   /** The name of the monitor that bgpcorsaro is running on */
-  char monitorname[HOST_NAME_MAX+1];
+  char monitorname[BGPCORSARO_HOST_NAME_MAX+1];
 
   /** The template used to create bgpcorsaro output files */
   char *template;
