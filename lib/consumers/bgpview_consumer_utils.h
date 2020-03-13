@@ -67,3 +67,16 @@ int bvcu_create_donefile(const char *filename);
  * Any error messages are printed to stderr.
  */
 int bvcu_is_writable_folder(const char *path);
+
+/** Write a pfx-peer iterator's AS path to a wandio file.
+ *
+ * @param wf      the wandio file to write to
+ * @param it      the bgpview pfx-peer iterator with the AS path
+ * @param delim1  string to print before the first segment
+ * @param delim2  string to print before the 2nd-Nth segments
+ * @return        0 for succcess, -1 for error
+ *
+ * Any error messages are printed to stderr.
+ */
+int bvcu_print_pfx_peer_as_path(iow_t *wf, bgpview_iter_t *it,
+    const char *delim1, const char *delim2);

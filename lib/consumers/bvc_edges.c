@@ -507,34 +507,10 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
         if (bgpstream_id_set_exists(
               BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
               peerid)) {
-          bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
-          // first ASn
-          seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-          if (seg != NULL) {
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, "%s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
-          // from the second ASN to the last one (origin ASn)
-          while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-            // printing each segment
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, " %s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
+          if (bvcu_print_pfx_peer_as_path(state->file_newedges, it, "", " ") < 0)
+            return -1;
+
           if (wandio_printf(state->file_newedges, ":") == -1) {
           fprintf(stderr, "ERROR: Could not write data to file\n");
             return -1;
@@ -579,37 +555,13 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
         if (bgpstream_id_set_exists(
               BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
               peerid)) {
-          bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
-          // first ASn
-          seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-          if (seg != NULL) {
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, "%s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
-          // second -> origin ASn
-          while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-            // printing each segment
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, " %s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
-          if (wandio_printf(state->file_newedges, ":") == -1) {
-          fprintf(stderr, "ERROR: Could not write data to file\n");
+          if (bvcu_print_pfx_peer_as_path(state->file_newedges, it, "", " ") < 0)
             return -1;
+
+          if (wandio_printf(state->file_newedges, ":") == -1) {
+            fprintf(stderr, "ERROR: Could not write data to file\n");
+              return -1;
           }
         }
       }

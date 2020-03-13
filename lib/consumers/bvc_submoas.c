@@ -775,34 +775,9 @@ static void update_patricia(bvc_t *consumer,
       if (bgpstream_id_set_exists(
             BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
             peerid)) {
-        bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
-        // first ASn
-        seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-        if (seg != NULL) {
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return;
-          }
-          if (wandio_printf(state->file, "|%s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return;
-          }
-        }
-        // second -> origin ASn
-        while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-          // printing each segment
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return;
-          }
-          if (wandio_printf(state->file, " %s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return;
-          }
-        }
+        if (bvcu_print_pfx_peer_as_path(state->file, it, "|", " ") < 0)
+          return;
       }
     }
     if (wandio_printf(state->file, "\n") == -1) {
@@ -903,34 +878,9 @@ static void update_patricia(bvc_t *consumer,
       if (bgpstream_id_set_exists(
             BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
             peerid)) {
-        bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
-        // first ASn
-        seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-        if (seg != NULL) {
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return;
-          }
-          if (wandio_printf(state->file, "|%s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return;
-          }
-        }
-        // second -> origin ASn
-        while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-          // printing each segment
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return;
-          }
-          if (wandio_printf(state->file, " %s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return;
-          }
-        }
+        if (bvcu_print_pfx_peer_as_path(state->file, it, "|", " ") < 0)
+          return;
       }
     }
     if (wandio_printf(state->file, "\n") == -1) {
@@ -1112,35 +1062,9 @@ static void check_remove_submoas_asn(bvc_t *consumer, const bgpstream_pfx_t *pfx
       if (bgpstream_id_set_exists(
             BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
             peerid)) {
-        bgpview_iter_pfx_peer_as_path_seg_iter_reset(state->iter);
 
-        // first ASn
-        seg = bgpview_iter_pfx_peer_as_path_seg_next(state->iter);
-        if (seg != NULL) {
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return;
-          }
-          if (wandio_printf(state->file, "|%s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return;
-          }
-        }
-        // second -> origin ASn
-        while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(state->iter)) !=
-               NULL) {
-          // printing each segment
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return;
-          }
-          if (wandio_printf(state->file, " %s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return;
-          }
-        }
+        if (bvcu_print_pfx_peer_as_path(state->file, state->iter, "|", " ") < 0)
+          return;
       }
     }
     if (wandio_printf(state->file, "\n") == -1) {
@@ -1310,35 +1234,9 @@ static void check_remove_superprefix(bvc_t *consumer, const bgpstream_pfx_t *pfx
           if (bgpstream_id_set_exists(
                 BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
                 peerid)) {
-            bgpview_iter_pfx_peer_as_path_seg_iter_reset(state->iter);
 
-            // first ASn
-            seg = bgpview_iter_pfx_peer_as_path_seg_next(state->iter);
-            if (seg != NULL) {
-              if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                                 seg) >= MAX_BUFFER_LEN) {
-                fprintf(stderr, "ERROR: ASn print truncated output\n");
-                return;
-              }
-              if (wandio_printf(state->file, "|%s", asn_buffer) == -1) {
-                fprintf(stderr, "ERROR: Could not write data to file\n");
-                return;
-              }
-            }
-            // second -> origin ASn
-            while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(
-                      state->iter)) != NULL) {
-              // printing each segment
-              if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                                 seg) >= MAX_BUFFER_LEN) {
-                fprintf(stderr, "ERROR: ASn print truncated output\n");
-                return;
-              }
-              if (wandio_printf(state->file, " %s", asn_buffer) == -1) {
-                fprintf(stderr, "ERROR: Could not write data to file\n");
-                return;
-              }
-            }
+            if (bvcu_print_pfx_peer_as_path(state->file, state->iter, "|", " ") < 0)
+              return;
           }
         }
         if (wandio_printf(state->file, "\n") == -1) {

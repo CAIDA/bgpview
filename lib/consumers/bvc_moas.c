@@ -347,7 +347,7 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   if (wandio_printf(state->wandio_fh,
                     "%" PRIu32 "|%s|%s|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|",
                     ts, pfx_str, get_category_str(mc), mp->first_seen,
-                    mp->start, mp->end) == -1) {
+                    mp->start, mp->end) == -1)
   */
 
   if (wandio_printf(state->wandio_fh,
@@ -385,7 +385,6 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
       if (bgpstream_id_set_exists(
             BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
             peerid)) {
-        bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
         // if it's not the first path, print ":" at the beginning of the path
         if (first_path != 1 && wandio_printf(state->wandio_fh, ":") == -1) {
@@ -393,32 +392,8 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
           return -1;
         }
 
-        // first ASn
-        seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-        if (seg != NULL) {
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return -1;
-          }
-          if (wandio_printf(state->wandio_fh, "%s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return -1;
-          }
-        }
-        // from the second ASN to the last one (origin ASn)
-        while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-          // printing each segment
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return -1;
-          }
-          if (wandio_printf(state->wandio_fh, " %s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return -1;
-          }
-        }
+        if (bvcu_print_pfx_peer_as_path(state->wandio_fh, it, "", " ") < 0)
+          return -1;
 
         // not first path anymore, start printing ":" at the beginning of each path
         first_path = 0;

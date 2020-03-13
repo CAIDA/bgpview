@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 
 #include "utils.h"
+#include "bgpview.h"
 #include "bgpview_consumer_utils.h"
 
 iow_t* bvcu_open_outfile(char *namebuf, const char *fmt, ...)
@@ -88,3 +89,26 @@ int bvcu_is_writable_folder(const char *path)
   return 1;
 }
 
+int bvcu_print_pfx_peer_as_path(iow_t *wf, bgpview_iter_t *it,
+    const char *delim1, const char *delim2)
+{
+  char asn_buffer[1024];
+  const char *delim = delim1;
+  bgpstream_as_path_seg_t *seg;
+
+  bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
+
+  while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it))) {
+    if (bgpstream_as_path_seg_snprintf(asn_buffer, sizeof(asn_buffer), seg) >=
+        sizeof(asn_buffer)) {
+      fprintf(stderr, "ERROR: ASN print truncated output\n");
+      return -1;
+    }
+    if (wandio_printf(wf, "%s%s", delim, asn_buffer) == -1) {
+      fprintf(stderr, "ERROR: Could not write data to file\n");
+      return -1;
+    }
+    delim = delim2;
+  }
+  return 0;
+}
