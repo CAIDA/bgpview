@@ -23,6 +23,7 @@
 
 #include "bvc_pathchange.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "utils.h"
 #include <assert.h>
 #include <ctype.h>
@@ -38,8 +39,6 @@
 #define BUFFER_LEN 1024
 // bgp.meta.bgpview.consumer.path-change.{metric}
 #define META_METRIC_PREFIX_FORMAT "%s.meta.bgpview.consumer." NAME ".%s"
-
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* macro to access the current consumer state */
 #define STATE (BVC_GET_STATE(consumer, pathchange))
@@ -107,7 +106,7 @@ static void usage(bvc_t *consumer)
     "       -a            disable alignment of output file rotation to "
     "multiples of the rotation interval\n"
     "       -c <level>    output compression level to use (default: %d)\n",
-    consumer->name, DEFAULT_COMPRESS_LEVEL);
+    consumer->name, BVCU_DEFAULT_COMPRESS_LEVEL);
 }
 
 /* borrowed from bvc_archiver */
@@ -148,7 +147,7 @@ static char *generate_file_name(const char *template, uint32_t time)
   char *bufp = buf;
   char *buflim = buf + sizeof(buf);
 
-  char *tmpl = (char *)template;
+  const char *tmpl = template;
   char secs[11]; /* length of UINT32_MAX +1 */
   struct timeval tv;
   tv.tv_sec = 0;

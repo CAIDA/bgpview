@@ -28,10 +28,10 @@
 #include <stdio.h>
 #include <wandio.h>
 
-bgpview_t *view = NULL;
-iow_t *wstdout = NULL;
+static bgpview_t *view = NULL;
+static iow_t *wstdout = NULL;
 
-int cat_file(char *file)
+static int cat_file(const char *file)
 {
   io_t *infile = NULL;
   int ret;

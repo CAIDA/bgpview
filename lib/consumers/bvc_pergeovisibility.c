@@ -50,7 +50,7 @@
 #define MAX_IP_VERSION_ALLOWED                                                 \
   1 /* replace with BGPSTREAM_MAX_IP_VERSION_IDX, once we have ipv6 */
 
-const char *continent_strings[] = {
+static const char *continent_strings[] = {
   "??", // Unknown
   "AF", // Africa
   "AN", // Antarctica
@@ -62,7 +62,7 @@ const char *continent_strings[] = {
 };
 
 /* mapping from netacuity continent code to our string array */
-const int netacq_cont_map[] = {
+static const int netacq_cont_map[] = {
   0, // 0: '**' => '??'
   1, // 1: 'af' => 'AF'
   2, // 2: 'an' => 'AN'
@@ -96,7 +96,7 @@ KHASH_INIT(strstr, char *, char *, 1, kh_str_hash_func, kh_str_hash_equal)
 KHASH_INIT(slash24_id_set /* name */, uint32_t /* khkey_t */,
            char /* khval_t */, 0 /* kh_is_set */,
            kh_slash24_hash_func /*__hash_func */,
-           kh_slash24_hash_equal /* __hash_equal */);
+           kh_slash24_hash_equal /* __hash_equal */)
 
 /* We define our own set data structure because we need a different hash
  * function for dealing with our /24s.
@@ -173,7 +173,7 @@ static double threshold_vals[] = {
 
 #define VIS_THRESHOLDS_CNT ARR_CNT(threshold_vals)
 
-static char *threshold_strings[] = {
+static const char *threshold_strings[] = {
   "min_1_ff_peer_asn",     // VIS_1_FF_ASN
   "min_25%_ff_peer_asns",  // VIS_25_PERCENT
   "min_50%_ff_peer_asns",  // VIS_50_PERCENT
@@ -401,7 +401,7 @@ static int slash24_id_set_insert(slash24_id_set_t *set, uint32_t id)
   return khret;
 }
 
-static slash24_id_set_t *slash24_id_set_create()
+static slash24_id_set_t *slash24_id_set_create(void)
 {
   slash24_id_set_t *set;
 
@@ -583,7 +583,7 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
   int pfx_ff_cnt = bgpstream_id_set_size(STATE->ff_asns);
   assert(pfx_ff_cnt > 0);
 
-  float ratio = (float)pfx_ff_cnt / (float)totalfullfeed;
+  double ratio = (double)pfx_ff_cnt / (double)totalfullfeed;
 
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
@@ -1363,6 +1363,14 @@ int bvc_pergeovisibility_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  /* get full feed peer ids from Visibility */
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr,
+            "ERROR: The Per-Geo Visibility requires the Visibility consumer "
+            "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -1453,14 +1461,6 @@ int bvc_pergeovisibility_process_view(bvc_t *consumer, bgpview_t *view)
 
   /* compute arrival delay */
   arrival_delay = epoch_sec() - bgpview_get_time(view);
-
-  /* get full feed peer ids from Visibility */
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr,
-            "ERROR: The Per-Geo Visibility requires the Visibility consumer "
-            "to be run first\n");
-    return -1;
-  }
 
   /* create a new iterator */
   bgpview_iter_t *it;

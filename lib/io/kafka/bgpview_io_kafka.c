@@ -127,7 +127,7 @@ static int kafka_topic_connect(bgpview_io_kafka_t *client)
   return 0;
 }
 
-static void usage()
+static void usage(void)
 {
   fprintf(
     stderr,
@@ -222,7 +222,7 @@ int bgpview_io_kafka_single_topic_connect(bgpview_io_kafka_t *client,
                                           bgpview_io_kafka_topic_id_t id,
                                           bgpview_io_kafka_topic_t *topic)
 {
-  static char *names[] = {
+  static const char *names[] = {
     "pfxs", "peers", "meta", "members", "globalmeta",
   };
 

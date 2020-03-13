@@ -48,7 +48,6 @@ int bgpview_io_serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip)
     assert((len - written) >= sizeof(uint32_t));
     memcpy(buf, &ip->bs_ipv4.addr.s_addr, sizeof(uint32_t));
     return written + sizeof(uint32_t);
-    break;
 
   case BGPSTREAM_ADDR_VERSION_IPV6:
     /* serialize the version */
@@ -60,7 +59,6 @@ int bgpview_io_serialize_ip(uint8_t *buf, size_t len, bgpstream_ip_addr_t *ip)
     assert((len - written) >= (sizeof(uint8_t) * 16));
     memcpy(buf, &ip->bs_ipv6.addr.s6_addr, sizeof(uint8_t) * 16);
     return written + sizeof(uint8_t) * 16;
-    break;
 
   case BGPSTREAM_ADDR_VERSION_UNKNOWN:
     return -1;
@@ -86,7 +84,6 @@ int bgpview_io_deserialize_ip(uint8_t *buf, size_t len,
     assert((len - read) >= sizeof(uint32_t));
     memcpy(&ip->bs_ipv4.addr.s_addr, buf, sizeof(uint32_t));
     return read + sizeof(uint32_t);
-    break;
 
   case BW_INTERNAL_AF_INET6:
     ip->version = BGPSTREAM_ADDR_VERSION_IPV6;
@@ -96,7 +93,6 @@ int bgpview_io_deserialize_ip(uint8_t *buf, size_t len,
     assert((len - read) >= (sizeof(uint8_t) * 16));
     memcpy(&ip->bs_ipv6.addr.s6_addr, buf, sizeof(uint8_t) * 16);
     return read + (sizeof(uint8_t) * 16);
-    break;
 
   case BGPSTREAM_ADDR_VERSION_UNKNOWN:
     return -1;

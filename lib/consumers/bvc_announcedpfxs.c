@@ -23,16 +23,14 @@
 
 #include "bvc_announcedpfxs.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "announced-pfxs"
@@ -51,8 +49,6 @@
 #define MIN_PFX4_LEN 7
 /** Default maximum netmask lenght of admissible prefix */
 #define MAX_PFX4_LEN 24
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -71,7 +67,7 @@ static bvc_t bvc_announcedpfxs = {BVC_ID_ANNOUNCEDPFXS, NAME,
 /** Map <ipv4-prefix,last_ts>
  */
 KHASH_INIT(bwv_v4pfx_timestamp, bgpstream_ipv4_pfx_t, uint32_t, 1,
-           bgpstream_ipv4_pfx_hash_val, bgpstream_ipv4_pfx_equal_val);
+           bgpstream_ipv4_pfx_hash_val, bgpstream_ipv4_pfx_equal_val)
 typedef khash_t(bwv_v4pfx_timestamp) bwv_v4pfx_timestamp_t;
 
 /* our 'instance' */
@@ -280,6 +276,12 @@ int bvc_announcedpfxs_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: Announced-pfxs requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -322,12 +324,6 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   int ipv4_idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
 
   if ((it = bgpview_iter_create(view)) == NULL) {
-    return -1;
-  }
-
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: Announced-pfxs requires the Visibility consumer "
-                    "to be run first\n");
     return -1;
   }
 
@@ -391,24 +387,20 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   iow_t *f = NULL;
-  char filename[BUFFER_LEN];
+  char filename[BVCU_PATH_MAX];
   char buffer_str[BUFFER_LEN];
 
   /* Check if  new information needs to be printed */
   if (state->next_output_time <= current_view_ts) {
-    sprintf(filename, "%s/" NAME ".%" PRIu32 ".w%" PRIu32 ".gz",
-            state->output_folder, current_view_ts, current_window_size);
-
     /* open file for writing */
-    if ((f = wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                            DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
+    if (!(f = bvcu_open_outfile(filename, "%s/" NAME ".%" PRIu32 ".w%" PRIu32 ".gz",
+              state->output_folder, current_view_ts, current_window_size))) {
       return -1;
     }
   }
 
   /* prefix map iteration and update*/
-  for (k = kh_begin(state->v4pfx_ts); k < kh_end(state->v4pfx_ts); ++k) {
+  for (k = kh_begin(state->v4pfx_ts); k != kh_end(state->v4pfx_ts); ++k) {
     if (kh_exist(state->v4pfx_ts, k)) {
       /* print prefix if within the window */
       if (kh_value(state->v4pfx_ts, k) >= last_valid_timestamp) {
@@ -435,14 +427,7 @@ int bvc_announcedpfxs_process_view(bvc_t *consumer, bgpview_t *view)
     wandio_wdestroy(f);
 
     /* generate the .done file */
-    sprintf(filename, "%s/" NAME ".%" PRIu32 ".w%" PRIu32 ".gz.done",
-            state->output_folder, current_view_ts, current_window_size);
-    if ((f = wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                            DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-      return -1;
-    }
-    wandio_wdestroy(f);
+    bvcu_create_donefile(filename);
     /* update next output time */
     state->next_output_time = state->next_output_time + state->out_interval;
   }

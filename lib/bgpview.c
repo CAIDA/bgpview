@@ -132,15 +132,15 @@ typedef struct bwv_peerid_pfxinfo {
 #define BWV_PFX_GET_PEER_STATE(pfxinfo, peerid)                                \
   ((_BWV_PFX_PEER_STATE_BYTE(pfxinfo, peerid) >>                               \
     _BWV_PFX_PEER_STATE_SHIFT(peerid)) &                                       \
-   0b11)
+   0x3)
 
 /** Set the given state for the given peerid in the given pfxinfo */
 #define BWV_PFX_SET_PEER_STATE(pfxinfo, peerid, state)                         \
   do {                                                                         \
     _BWV_PFX_PEER_STATE_BYTE(pfxinfo, peerid) =                                \
       (_BWV_PFX_PEER_STATE_BYTE(pfxinfo, peerid) &                             \
-       ~(0b11 << _BWV_PFX_PEER_STATE_SHIFT(peerid))) |                         \
-      ((state & 0b11) << _BWV_PFX_PEER_STATE_SHIFT(peerid));                   \
+       ~(0x3 << _BWV_PFX_PEER_STATE_SHIFT(peerid))) |                          \
+      ((state & 0x3) << _BWV_PFX_PEER_STATE_SHIFT(peerid));                    \
   } while (0)
 
 /** @todo: add documentation ? */
@@ -247,6 +247,10 @@ struct bgpview {
    * I.e. is it possible to add a user pointer to a pfx-peer?
    */
   int disable_extended;
+
+  uint8_t need_gc_v4pfxs;
+  uint8_t need_gc_v6pfxs;
+  uint8_t need_gc_peerinfo;
 };
 
 struct bgpview_iter {
@@ -262,7 +266,7 @@ struct bgpview_iter {
    *  BGPSTREAM_ADDR_VERSION_IPV6 if only IPv6 are iterated */
   int version_filter;
 
-  /** Current pfx (the pfx it is valid if < kh_end of the appropriate version
+  /** Current pfx (the pfx it is valid if != kh_end of the appropriate version
       table */
   khiter_t pfx_it;
   /** State mask used for prefix iteration */
@@ -300,7 +304,7 @@ static void peerinfo_destroy_user(bgpview_t *view)
   if (view->peer_user_destructor == NULL) {
     return;
   }
-  for (k = kh_begin(view->peerinfo); k < kh_end(view->peerinfo); ++k) {
+  for (k = kh_begin(view->peerinfo); k != kh_end(view->peerinfo); ++k) {
     if (!kh_exist(view->peerinfo, k) ||
         (kh_value(view->peerinfo, k).user == NULL)) {
       continue;
@@ -310,7 +314,7 @@ static void peerinfo_destroy_user(bgpview_t *view)
   }
 }
 
-static bwv_peerid_pfxinfo_t *peerid_pfxinfo_create()
+static bwv_peerid_pfxinfo_t *peerid_pfxinfo_create(void)
 {
   bwv_peerid_pfxinfo_t *v;
 
@@ -364,7 +368,7 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
 
   /* it was already here and active... */
   if (BWV_PFX_GET_PEER_STATE(v, peerid) != BGPVIEW_FIELD_INVALID) {
-    return 0;
+    return 0; // already exists
   }
 
   BWV_PFX_SET_PEER_STATE(v, peerid, BGPVIEW_FIELD_INACTIVE);
@@ -388,16 +392,16 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
     return -1;
   }
 
-  return 0;
+  return 1; // inserted
 }
 
-static void pfx_peer_info_destroy(bgpview_t *view, bwv_pfx_peerinfo_t *v)
+static inline void pfx_peer_info_destroy(bgpview_t *view, bwv_pfx_peerinfo_t *v)
 {
   return;
 }
 
-static void pfx_peer_info_ext_destroy(bgpview_t *view,
-                                      bwv_pfx_peerinfo_ext_t *v)
+static inline void pfx_peer_info_ext_destroy(bgpview_t *view,
+                                             bwv_pfx_peerinfo_ext_t *v)
 {
   ASSERT_BWV_PFX_PEERINFO_EXT(view);
   if (v->user != NULL && view->pfx_peer_user_destructor != NULL) {
@@ -414,10 +418,13 @@ static void peerid_pfxinfo_destroy(bgpview_t *view, bwv_peerid_pfxinfo_t *v)
   int i = 0;
   if (v->peers != NULL) {
     /* our macros expect peerids, so we go from 1 to alloc_cnt */
-    for (i = 1; i <= v->peers_alloc_cnt; i++) {
-      if (view->disable_extended == 0) {
+    if (view->disable_extended == 0) {
+      for (i = 1; i <= v->peers_alloc_cnt; i++) {
         pfx_peer_info_ext_destroy(view, &BWV_PFX_GET_PEER_EXT(v, i));
-      } else {
+      }
+    } else {
+      // loop calling empty inline function can be optimized away
+      for (i = 1; i <= v->peers_alloc_cnt; i++) {
         pfx_peer_info_destroy(view, &BWV_PFX_GET_PEER(v, i));
       }
     }
@@ -447,13 +454,12 @@ static int add_v4pfx(bgpview_iter_t *iter, bgpstream_ipv4_pfx_t *pfx)
   khiter_t k;
   int khret;
 
-  if ((k = kh_get(bwv_v4pfx_peerid_pfxinfo, iter->view->v4pfxs, *pfx)) ==
-      kh_end(iter->view->v4pfxs)) {
-    /* pfx doesn't exist yet */
+  k = kh_put(bwv_v4pfx_peerid_pfxinfo, iter->view->v4pfxs, *pfx, &khret);
+  if (khret > 0) {
+    /* pfx didn't exist */
     if ((new_pfxpeerinfo = peerid_pfxinfo_create()) == NULL) {
       return -1;
     }
-    k = kh_put(bwv_v4pfx_peerid_pfxinfo, iter->view->v4pfxs, *pfx, &khret);
     kh_value(iter->view->v4pfxs, k) = new_pfxpeerinfo;
 
     /* pfx is invalid at this point */
@@ -480,13 +486,12 @@ static int add_v6pfx(bgpview_iter_t *iter, bgpstream_ipv6_pfx_t *pfx)
   khiter_t k;
   int khret;
 
-  if ((k = kh_get(bwv_v6pfx_peerid_pfxinfo, iter->view->v6pfxs, *pfx)) ==
-      kh_end(iter->view->v6pfxs)) {
-    /* pfx doesn't exist yet */
+  k = kh_put(bwv_v6pfx_peerid_pfxinfo, iter->view->v6pfxs, *pfx, &khret);
+  if (khret > 0) {
+    /* pfx didn't exist */
     if ((new_pfxpeerinfo = peerid_pfxinfo_create()) == NULL) {
       return -1;
     }
-    k = kh_put(bwv_v6pfx_peerid_pfxinfo, iter->view->v6pfxs, *pfx, &khret);
     kh_value(iter->view->v6pfxs, k) = new_pfxpeerinfo;
 
     /* pfx is invalid at this point */
@@ -510,9 +515,9 @@ static int add_v6pfx(bgpview_iter_t *iter, bgpstream_ipv6_pfx_t *pfx)
 static int add_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx)
 {
   if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
-    return add_v4pfx(iter, (bgpstream_ipv4_pfx_t *)(pfx));
+    return add_v4pfx(iter, &pfx->bs_ipv4);
   } else if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV6) {
-    return add_v6pfx(iter, (bgpstream_ipv6_pfx_t *)(pfx));
+    return add_v6pfx(iter, &pfx->bs_ipv6);
   }
 
   return -1;
@@ -818,7 +823,7 @@ int bgpview_iter_pfx_peer_set_user(bgpview_iter_t *iter, void *user)
 /* internal macros, optimized for performance */
 
 #define WHILE_NOT_MATCHED_PEER(iter)                                           \
-  while (iter->peer_it < kh_end(iter->view->peerinfo) &&                       \
+  while (iter->peer_it != kh_end(iter->view->peerinfo) &&                      \
          (!kh_exist(iter->view->peerinfo, iter->peer_it) ||                    \
           !(iter->peer_state_mask &                                            \
             kh_val(iter->view->peerinfo, iter->peer_it).state)))
@@ -843,7 +848,7 @@ int bgpview_iter_pfx_peer_set_user(bgpview_iter_t *iter, void *user)
   } while (0)
 
 #define __iter_has_more_peer(iter)                                             \
-  (iter->peer_it < kh_end(iter->view->peerinfo))
+  (iter->peer_it != kh_end(iter->view->peerinfo))
 
 #define __iter_seek_peer(iter, peerid, state_mask)                             \
   do {                                                                         \
@@ -874,8 +879,7 @@ int bgpview_iter_seek_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peerid,
                            uint8_t state_mask)
 {
   __iter_seek_peer(iter, peerid, state_mask);
-  if (iter->peer_it == kh_end(iter->view->peerinfo) ||
-      !kh_exist(iter->view->peerinfo, iter->peer_it)) {
+  if (iter->peer_it == kh_end(iter->view->peerinfo)) {
     return 0;
   }
   if (iter->peer_state_mask &
@@ -889,12 +893,12 @@ int bgpview_iter_seek_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peerid,
 /* ==================== PFX ITERATORS ==================== */
 
 #define WHILE_NOT_MATCHED_PFX(iter, table)                                     \
-  while ((iter)->pfx_it < kh_end((table)) &&    /* each hash item */           \
+  while ((iter)->pfx_it != kh_end((table)) &&   /* each hash item */           \
          (!kh_exist((table), (iter)->pfx_it) || /* in hash? */                 \
           !((iter)->pfx_state_mask &            /* correct state? */           \
             kh_val((table), (iter)->pfx_it)->state)))
 
-#define __pfx_valid(iter, table) ((iter)->pfx_it < kh_end((table)))
+#define __pfx_valid(iter, table) ((iter)->pfx_it != kh_end((table)))
 
 #define RETURN_IF_PFX_VALID(iter, table)                                       \
   do {                                                                         \
@@ -988,7 +992,7 @@ int bgpview_iter_first_pfx(bgpview_iter_t *iter, int version,
     }                                                                          \
   } while (0)
 
-#define __iter_has_more_pfx_v(iter, table) ((iter)->pfx_it < kh_end((table)))
+#define __iter_has_more_pfx_v(iter, table) ((iter)->pfx_it != kh_end((table)))
 
 #define __iter_has_more_pfx(iter)                                              \
   (((iter)->version_ptr == BGPSTREAM_ADDR_VERSION_IPV4)                        \
@@ -1206,13 +1210,6 @@ int bgpview_iter_seek_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
                                bgpstream_peer_id_t peerid, uint8_t pfx_mask,
                                uint8_t peer_mask)
 {
-  // all these filters are reset to default, and then
-  // set by the single seek fuctions
-  iter->version_filter = 0;
-  iter->version_ptr = BGPSTREAM_ADDR_VERSION_IPV4;
-  iter->pfx_state_mask = 0;
-  iter->pfx_peer_state_mask = 0;
-
   if (bgpview_iter_seek_pfx(iter, pfx, pfx_mask) &&
       bgpview_iter_pfx_seek_peer(iter, peerid, peer_mask)) {
     return 1;
@@ -1230,7 +1227,7 @@ int bgpview_iter_seek_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
 /* ==================== CREATION FUNCS ==================== */
 
 bgpstream_peer_id_t bgpview_iter_add_peer(bgpview_iter_t *iter,
-                                          char *collector_str,
+                                          const char *collector_str,
                                           bgpstream_ip_addr_t *peer_address,
                                           uint32_t peer_asnumber)
 {
@@ -1308,20 +1305,35 @@ int bgpview_iter_remove_peer(bgpview_iter_t *iter)
 
   /* set the state to invalid and reset the counters */
   peerinfo_reset(&kh_value(iter->view->peerinfo, iter->peer_it));
+  iter->view->need_gc_peerinfo = 1;
   iter->view->peerinfo_cnt[BGPVIEW_FIELD_INACTIVE]--;
 
   return 0;
 }
 
-int bgpview_iter_add_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
-                              bgpstream_peer_id_t peer_id,
-                              bgpstream_as_path_t *as_path)
+int bgpview_iter_seek_add_pfx_peer(bgpview_iter_t *iter,
+                                   bgpstream_pfx_t *pfx,
+                                   bgpstream_peer_id_t peer_id,
+                                   bgpstream_as_path_t *as_path)
 {
   bgpstream_as_path_store_path_id_t path_id;
   bgpstream_peer_sig_t *ps;
 
+  if (bgpview_iter_seek_pfx(iter, pfx, BGPVIEW_FIELD_ALL_VALID)) {
+    if (bgpview_iter_pfx_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID)) {
+      return 0; // already exists
+    }
+  } else {
+    /* we have to first create (or un-invalid) the prefix */
+    if (add_pfx(iter, pfx) != 0) {
+      return -1;
+    }
+  }
+  /* iter is now positioned at the prefix */
+
   /* the peer must already exist */
-  if (bgpview_iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID) == 0) {
+  __iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
+  if (iter->peer_it == kh_end(iter->view->peerinfo)) {
     return -1;
   }
   /* get the peer ASN */
@@ -1333,16 +1345,8 @@ int bgpview_iter_add_pfx_peer(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
     return -1;
   }
 
-  /* now seek to the prefix */
-  if (bgpview_iter_seek_pfx(iter, pfx, BGPVIEW_FIELD_ALL_VALID) == 0) {
-    /* we have to first create (or un-invalid) the prefix */
-    if (add_pfx(iter, pfx) != 0) {
-      return -1;
-    }
-  }
-
   /* now insert the prefix-peer info */
-  return bgpview_iter_pfx_add_peer_by_id(iter, peer_id, path_id);
+  return bgpview_iter_pfx_seek_add_peer_by_id(iter, peer_id, path_id);
 }
 
 int bgpview_iter_add_pfx_peer_by_id(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
@@ -1399,10 +1403,12 @@ int bgpview_iter_remove_pfx(bgpview_iter_t *iter)
   switch (iter->version_ptr) {
   case BGPSTREAM_ADDR_VERSION_IPV4:
     iter->view->v4pfxs_cnt[BGPVIEW_FIELD_INACTIVE]--;
+    iter->view->need_gc_v4pfxs = 1;
     break;
 
   case BGPSTREAM_ADDR_VERSION_IPV6:
     iter->view->v6pfxs_cnt[BGPVIEW_FIELD_INACTIVE]--;
+    iter->view->need_gc_v6pfxs = 1;
     break;
 
   default:
@@ -1412,7 +1418,7 @@ int bgpview_iter_remove_pfx(bgpview_iter_t *iter)
   return 0;
 }
 
-int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
+int bgpview_iter_pfx_seek_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
                               bgpstream_as_path_t *as_path)
 {
   bgpstream_as_path_store_path_id_t path_id;
@@ -1427,8 +1433,9 @@ int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
     return -1;
   }
 
-  if (peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
-                            __pfx_peerinfos(iter), peer_id, path_id) != 0) {
+  int rc = peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
+    __pfx_peerinfos(iter), peer_id, path_id);
+  if (rc < 0) {
     return -1;
   }
 
@@ -1436,18 +1443,19 @@ int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
   iter->pfx_peer_it = peer_id;
   iter->pfx_peer_it_valid = 1;
   iter->pfx_peer_state_mask = BGPVIEW_FIELD_ALL_VALID;
-  return 0;
+  return rc;
 }
 
-int bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
+int bgpview_iter_pfx_seek_add_peer_by_id(bgpview_iter_t *iter,
                                     bgpstream_peer_id_t peer_id,
                                     bgpstream_as_path_store_path_id_t path_id)
 {
   /* this code is mostly a duplicate of the above func, for efficiency */
   __iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
 
-  if (peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
-                            __pfx_peerinfos(iter), peer_id, path_id) != 0) {
+  int rc = peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
+    __pfx_peerinfos(iter), peer_id, path_id);
+  if (rc < 0) {
     return -1;
   }
 
@@ -1455,7 +1463,7 @@ int bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
   iter->pfx_peer_it = peer_id;
   iter->pfx_peer_it_valid = 1;
   iter->pfx_peer_state_mask = BGPVIEW_FIELD_ALL_VALID;
-  return 0;
+  return rc;
 }
 
 int bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter)
@@ -1801,7 +1809,7 @@ void bgpview_destroy(bgpview_t *view)
   khiter_t k;
 
   if (view->v4pfxs != NULL) {
-    for (k = kh_begin(view->v4pfxs); k < kh_end(view->v4pfxs); ++k) {
+    for (k = kh_begin(view->v4pfxs); k != kh_end(view->v4pfxs); ++k) {
       if (kh_exist(view->v4pfxs, k)) {
         peerid_pfxinfo_destroy(view, kh_value(view->v4pfxs, k));
       }
@@ -1811,7 +1819,7 @@ void bgpview_destroy(bgpview_t *view)
   }
 
   if (view->v6pfxs != NULL) {
-    for (k = kh_begin(view->v6pfxs); k < kh_end(view->v6pfxs); ++k) {
+    for (k = kh_begin(view->v6pfxs); k != kh_end(view->v6pfxs); ++k) {
       if (kh_exist(view->v6pfxs, k)) {
         peerid_pfxinfo_destroy(view, kh_value(view->v6pfxs, k));
       }
@@ -1871,6 +1879,8 @@ void bgpview_clear(bgpview_t *view)
     }
     __iter_next_pfx(lit);
   }
+  view->need_gc_v4pfxs = (kh_size(view->v4pfxs) > 0);
+  view->need_gc_v6pfxs = (kh_size(view->v6pfxs) > 0);
   view->v4pfxs_cnt[BGPVIEW_FIELD_INACTIVE] = 0;
   view->v4pfxs_cnt[BGPVIEW_FIELD_ACTIVE] = 0;
   view->v6pfxs_cnt[BGPVIEW_FIELD_INACTIVE] = 0;
@@ -1882,6 +1892,7 @@ void bgpview_clear(bgpview_t *view)
     peerinfo_reset(&kh_value(view->peerinfo, lit->peer_it));
     __iter_next_peer(lit);
   }
+  view->need_gc_peerinfo = (kh_size(view->peerinfo) > 0);
   view->peerinfo_cnt[BGPVIEW_FIELD_INACTIVE] = 0;
   view->peerinfo_cnt[BGPVIEW_FIELD_ACTIVE] = 0;
 
@@ -1890,36 +1901,45 @@ void bgpview_clear(bgpview_t *view)
 
 void bgpview_gc(bgpview_t *view)
 {
-  int k;
+  khiter_t k;
 
   /* note: in the current implementation we cant free pfx-peers for pfxs that
      are not invalid as this is just an array of peers. */
 
-  for (k = kh_begin(view->v4pfxs); k < kh_end(view->v4pfxs); ++k) {
-    if (kh_exist(view->v4pfxs, k) &&
-        kh_value(view->v4pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
-      peerid_pfxinfo_destroy(view, kh_value(view->v4pfxs, k));
-      kh_del(bwv_v4pfx_peerid_pfxinfo, view->v4pfxs, k);
-    }
-  }
-
-  for (k = kh_begin(view->v6pfxs); k < kh_end(view->v6pfxs); ++k) {
-    if (kh_exist(view->v6pfxs, k) &&
-        kh_value(view->v6pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
-      peerid_pfxinfo_destroy(view, kh_value(view->v6pfxs, k));
-      kh_del(bwv_v6pfx_peerid_pfxinfo, view->v6pfxs, k);
-    }
-  }
-
-  for (k = kh_begin(view->peerinfo); k < kh_end(view->peerinfo); ++k) {
-    if (kh_exist(view->peerinfo, k) &&
-        kh_value(view->peerinfo, k).state == BGPVIEW_FIELD_INVALID) {
-      if (view->peer_user_destructor != NULL &&
-          kh_value(view->peerinfo, k).user != NULL) {
-        view->peer_user_destructor(kh_value(view->peerinfo, k).user);
+  if (view->need_gc_v4pfxs) {
+    for (k = kh_begin(view->v4pfxs); k != kh_end(view->v4pfxs); ++k) {
+      if (kh_exist(view->v4pfxs, k) &&
+          kh_value(view->v4pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
+        peerid_pfxinfo_destroy(view, kh_value(view->v4pfxs, k));
+        kh_del(bwv_v4pfx_peerid_pfxinfo, view->v4pfxs, k);
       }
-      kh_del(bwv_peerid_peerinfo, view->peerinfo, k);
     }
+    view->need_gc_v4pfxs = 0;
+  }
+
+  if (view->need_gc_v6pfxs) {
+    for (k = kh_begin(view->v6pfxs); k != kh_end(view->v6pfxs); ++k) {
+      if (kh_exist(view->v6pfxs, k) &&
+          kh_value(view->v6pfxs, k)->state == BGPVIEW_FIELD_INVALID) {
+        peerid_pfxinfo_destroy(view, kh_value(view->v6pfxs, k));
+        kh_del(bwv_v6pfx_peerid_pfxinfo, view->v6pfxs, k);
+      }
+    }
+    view->need_gc_v6pfxs = 0;
+  }
+
+  if (view->need_gc_peerinfo) {
+    for (k = kh_begin(view->peerinfo); k != kh_end(view->peerinfo); ++k) {
+      if (kh_exist(view->peerinfo, k) &&
+          kh_value(view->peerinfo, k).state == BGPVIEW_FIELD_INVALID) {
+        if (view->peer_user_destructor != NULL &&
+            kh_value(view->peerinfo, k).user != NULL) {
+          view->peer_user_destructor(kh_value(view->peerinfo, k).user);
+        }
+        kh_del(bwv_peerid_peerinfo, view->peerinfo, k);
+      }
+    }
+    view->need_gc_peerinfo = 0;
   }
 }
 

@@ -5,7 +5,7 @@
  * bgpstream-info@caida.org
  *
  * Copyright (C) 2012 The Regents of the University of California.
- * Authors: Alistair King, Chiara Orsini
+ * Authors: Alistair King, Chiara Orsini, Ken Keys
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -58,11 +58,7 @@ typedef struct bgpcorsaro_interval bgpcorsaro_interval_t;
  * @{ */
 
 /** Settings for interval alignment */
-typedef enum bgpcorsaro_interval_align {
-  BGPCORSARO_INTERVAL_ALIGN_NO = 0,
-  BGPCORSARO_INTERVAL_ALIGN_YES = 1,
-  BGPCORSARO_INTERVAL_ALIGN_DEFAULT = BGPCORSARO_INTERVAL_ALIGN_NO,
-} bgpcorsaro_interval_align_t;
+#define BGPCORSARO_INTERVAL_ALIGN_DEFAULT 0
 
 /** @} */
 
@@ -110,27 +106,23 @@ bgpcorsaro_t *bgpcorsaro_alloc_output(char *template, timeseries_t *timeseries);
  * @param bgpcorsaro       The bgpcorsaro object to start
  * @return 0 if bgpcorsaro is started successfully, -1 if an error occurs
  *
- * It is only when this function is called that the plugins will parse their
- * arguments and initialize any state (open files etc).
- *
- * @warning Plugins may use getopt to parse their arguments, please be sure
- * that you are not using the getopt global variables (optarg, optind etc) when
- * calling this function.
+ * It is only when this function is called that the plugins will
+ * initialize any state (open files etc).
  */
 int bgpcorsaro_start_output(bgpcorsaro_t *bgpcorsaro);
 
 /** Accessor function to enable/disable the alignment of the initial interval
  *
  * @param bgpcorsaro      The bgpcorsaro object to set the interval for
- * @param interval_align  Enable or disable the alignment of interval end times
+ * @param flag            Enable or disable the alignment of interval end times
  *
  * The end time of the first interval will be rounded down to the nearest
  * integer multiple of the interval length. Interval rounding makes the most
  * sense when the interval length is evenly divisible into 1 hour.
  * The default is no interval alignment.
  */
-void bgpcorsaro_set_interval_alignment(
-  bgpcorsaro_t *bgpcorsaro, bgpcorsaro_interval_align_t interval_align);
+void bgpcorsaro_set_interval_alignment_flag(
+  bgpcorsaro_t *bgpcorsaro, int flag);
 
 /** Accessor function to set the interval length
  *
@@ -193,31 +185,15 @@ int bgpcorsaro_set_stream(bgpcorsaro_t *bgpcorsaro, bgpstream_t *stream);
  */
 void bgpcorsaro_disable_logfile(bgpcorsaro_t *bgpcorsaro);
 
-/** Attempt to enable a plugin using the given plugin name
- *
- * @param bgpcorsaro    The bgpcorsaro object to enable the plugin for
- * @param plugin_name   The string name of the plugin to enable
- * @param plugin_args   The string of arguments to pass to the plugin
- * @return 0 if the plugin was successfully enabled, -1 if an error occurs
- *
- * Until this function is called successfully, all compiled plugins are
- * considered enabled. Once it has been called, only the plugins explicitly
- * enabled using this function will be used
- */
-int bgpcorsaro_enable_plugin(bgpcorsaro_t *bgpcorsaro, const char *plugin_name,
-                             const char *plugin_args);
-
 /** Accessor function to set the monitor name
  *
  * @param bgpcorsaro    The bgpcorsaro object to set the monitor name for
  * @param name          The string to set as the monitor name
  * @return 0 if the name was successfully set, -1 if an error occurs
  *
- * If it is not set, the value defined at compile time is used. This
- * is either the hostname of the machine it was compiled on, or a value
- * passed to configure using --with-monitorname
+ * If it is not set, the value of gethostname() is used.
  */
-int bgpcorsaro_set_monitorname(bgpcorsaro_t *bgpcorsaro, char *name);
+int bgpcorsaro_set_monitorname(bgpcorsaro_t *bgpcorsaro, const char *name);
 
 /** Accessor function to get the monitor name string
  *

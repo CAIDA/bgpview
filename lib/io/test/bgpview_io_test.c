@@ -46,7 +46,7 @@
 
 struct bgpview_io_test {
   /* pfx table */
-  char *test_collector_name;
+  const char *test_collector_name;
   uint32_t test_time;
   uint32_t test_peer_first_ip;
   bgpstream_ip_addr_t test_peer_ip;
@@ -135,7 +135,7 @@ static void build_as_path(bgpview_io_test_t *generator, uint32_t peer_asn)
     sizeof(bgpstream_as_path_seg_asn_t) * seg_cnt);
 }
 
-static void usage()
+static void usage(void)
 {
   fprintf(
     stderr,
@@ -169,7 +169,6 @@ static int parse_args(bgpview_io_test_t *generator, int argc, char **argv)
       fprintf(stderr, "ERROR: Missing option argument for -%c\n", optopt);
       usage();
       return -1;
-      break;
 
     case 'c':
       generator->use_random_peers = 1;
@@ -200,7 +199,6 @@ static int parse_args(bgpview_io_test_t *generator, int argc, char **argv)
     default:
       usage();
       return -1;
-      break;
     }
   }
 

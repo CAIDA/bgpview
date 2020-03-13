@@ -5,7 +5,7 @@
  * bgpstream-info@caida.org
  *
  * Copyright (C) 2012 The Regents of the University of California.
- * Authors: Alistair King, Chiara Orsini
+ * Authors: Alistair King, Chiara Orsini, Ken Keys
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -32,55 +32,59 @@
 #include <stdint.h>
 
 /** Default metric prefix */
-#define ROUTINGTABLES_DEFAULT_METRIC_PFX "bgp"
+#define RT_DEFAULT_METRIC_PFX "bgp"
 
 /** Maximum string length for the metric prefix */
-#define ROUTINGTABLES_METRIC_PFX_LEN 256
+#define RT_METRIC_PFX_LEN 256
 
+#if __STDC_VERSION__ >= 201100L
+_Static_assert(sizeof(RT_DEFAULT_METRIC_PFX) <= RT_METRIC_PFX_LEN,
+    "RT_DEFAULT_METRIC_PFX too long");
+#endif
+
+#if 0
 /** The time granularity that is used to update the
  *  last wall time for a collector */
-#define ROUTINGTABLES_COLLECTOR_WALL_UPDATE_FR 10000
+#define RT_COLLECTOR_WALL_UPDATE_FR 10000
+#endif
 
 /** If an information is inactive and not been seen in the
  *  last X hours, it definetely means that it has not been
  *  seen by any RIB in the last X hours, therefore, if inactive
  *  it can be removed from the view.  */
-#define ROUTINGTABLES_DEPRECATED_INFO_INTERVAL 24 * 3600
+#define RT_DEPRECATED_INFO_INTERVAL (24 * 3600)
 
-/* the prefix is not announced in the state nor in the
+/* the prefix is not announced in the active state nor in the
  * under construction state */
-#define ROUTINGTABLES_INITIAL_PFXSTATUS_MASK 0b00000000
-#define ROUTINGTABLES_ANNOUNCED_PFXSTATUS_MASK 0b00000001
-#define ROUTINGTABLES_UC_ANNOUNCED_PFXSTATUS_MASK 0b00010000
+#define RT_INITIAL_PFXSTATUS      0x00
+#define RT_ANNOUNCED_PFXSTATUS    0x01
+#define RT_UC_ANNOUNCED_PFXSTATUS 0x10
 
 typedef enum {
 
   /** It is not possible to infer the state of
    *  the collector (e.g. initialization time,
    *  or corrupted data) */
-  ROUTINGTABLES_COLLECTOR_STATE_UNKNOWN = 0b000,
+  RT_COLLECTOR_STATE_UNKNOWN = 0,
 
   /** The collector is active */
-  ROUTINGTABLES_COLLECTOR_STATE_UP = 0b001,
+  RT_COLLECTOR_STATE_UP = 1,
 
   /** The collector is inactive */
-  ROUTINGTABLES_COLLECTOR_STATE_DOWN = 0b010,
+  RT_COLLECTOR_STATE_DOWN = 2,
 
 } collector_state_t;
 
 /** Information about the current status
  *  of a pfx-peer info */
 typedef struct struct_perpfx_perpeer_info_t {
+  // Note: the order of fields is designed to place fields at their natural
+  // alignment even when the struct is packed.  (Misaligned fields may incur a
+  // performance penalty and even cause memory errors on some architectures.)
 
-  /** Mask that informs the user whether the
-   *  prefix is currently announced by this peer
-   *  in the state and/or in the uc state */
-  uint8_t pfx_status;
-
-  /** Last bgp time associated with the most
-   *  recent operation involving the current
-   *  prefix and the current peer  */
-  uint32_t bgp_time_last_ts;
+  /** ID of the AS path observed in the current
+   *  under construction RIB. */
+  bgpstream_as_path_store_path_id_t uc_as_path_id;
 
   /** Difference between the current under
    *  construction RIB start time for the
@@ -88,9 +92,15 @@ typedef struct struct_perpfx_perpeer_info_t {
    *  received for the prefix  */
   uint16_t bgp_time_uc_delta_ts;
 
-  /** ID of the AS path observed in the current
-   *  under construction RIB. */
-  bgpstream_as_path_store_path_id_t uc_as_path_id;
+  /** Last bgp time associated with the most
+   *  recent operation involving the current
+   *  prefix and the current peer  */
+  uint32_t bgp_time_last_ts;
+
+  /** Bitfield that indicates whether the
+   *  prefix is currently announced by this peer
+   *  in the active state and/or in the uc state */
+  uint8_t pfx_status;
 
 } __attribute__((packed)) perpfx_perpeer_info_t;
 
@@ -121,7 +131,7 @@ typedef struct peer_metric_idx {
 
 /** A set that contains a unique set of origin segments */
 KHASH_INIT(origin_segments, bgpstream_as_path_seg_t *, char, 0,
-           bgpstream_as_path_seg_hash, bgpstream_as_path_seg_equal);
+           bgpstream_as_path_seg_hash, bgpstream_as_path_seg_equal)
 typedef khash_t(origin_segments) origin_segments_t;
 
 /** Information about the current status
@@ -194,21 +204,13 @@ typedef struct struct_perpeer_info_t {
    *  in the current interval */
   origin_segments_t *announcing_ases;
 
-  /** Set of ipv4 prefixes that have been announced at
+  /** Set of prefixes that have been announced at
    *  least once in the current interval */
-  bgpstream_ipv4_pfx_set_t *announced_v4_pfxs;
+  bgpstream_pfx_set_t *announced_pfxs;
 
-  /** Set of ipv4  prefixes that have been withdrawn at
+  /** Set of prefixes that have been withdrawn at
    *  least once in the current interval */
-  bgpstream_ipv4_pfx_set_t *withdrawn_v4_pfxs;
-
-  /** Set of ipv6 prefixes that have been announced at
-   *  least once in the current interval */
-  bgpstream_ipv6_pfx_set_t *announced_v6_pfxs;
-
-  /** Set of ipv6  prefixes that have been withdrawn at
-   *  least once in the current interval */
-  bgpstream_ipv6_pfx_set_t *withdrawn_v6_pfxs;
+  bgpstream_pfx_set_t *withdrawn_pfxs;
 
   /** number of positive mismatches at rib end time
    *  i.e. number of active prefixes that are not
@@ -240,7 +242,7 @@ typedef struct collector_metric_idx {
 } __attribute__((packed)) collector_metric_idx_t;
 
 /** A set that contains a unique set of peer ids */
-KHASH_INIT(peer_id_set, uint32_t, char, 0, kh_int_hash_func, kh_int_hash_equal);
+KHASH_INIT(peer_id_set, uint32_t, char, 0, kh_int_hash_func, kh_int_hash_equal)
 typedef khash_t(peer_id_set) peer_id_set_t;
 
 /** Information about the current status
@@ -258,9 +260,11 @@ typedef struct struct_collector_t {
    *  in bgp operations (bgp time) */
   uint32_t bgp_time_last;
 
+#if 0 // not used
   /** last time this collector was involved
    *  in valid bgp operations (wall time) */
   uint32_t wall_time_last;
+#endif
 
   /** dump time of the current reference RIB */
   uint32_t bgp_time_ref_rib_dump_time;
@@ -268,9 +272,8 @@ typedef struct struct_collector_t {
   /** start time of the current reference RIB */
   uint32_t bgp_time_ref_rib_start_time;
 
-  /** dump time of the current under construction
-   *  RIB, if 0 the under construction process is
-   *  off, is on otherwise */
+  /** dump time of the current under construction RIB,
+   * or 0 if the under construction process is off */
   uint32_t bgp_time_uc_rib_dump_time;
 
   /** start time of the current under construction RIB */
@@ -291,9 +294,6 @@ typedef struct struct_collector_t {
   /** number of active peers at the end of the interval */
   uint32_t active_peers_cnt;
 
-  /** unique set of active ASes at the end of the interval */
-  bgpstream_id_set_t *active_ases;
-
   /** number of valid records received in the interval */
   uint32_t valid_record_cnt;
 
@@ -307,13 +307,12 @@ typedef struct struct_collector_t {
 
 /** A map that associates peer id to collectors*/
 KHASH_INIT(peer_id_collector, uint32_t, collector_t *, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 typedef khash_t(peer_id_collector) peer_id_collector_t;
 
-/** A map that associates an a collector_t
- *  structure with each collector */
-KHASH_INIT(collector_data, char *, collector_t, 1, kh_str_hash_func,
-           kh_str_hash_equal);
+/** A map that associates a collector_t with each collector name */
+KHASH_INIT(collector_data, char *, collector_t *, 1, kh_str_hash_func,
+           kh_str_hash_equal)
 typedef khash_t(collector_data) collector_data_t;
 
 /** Structure that manages all the routing
@@ -322,7 +321,7 @@ typedef khash_t(collector_data) collector_data_t;
 struct struct_routingtables_t {
 
   /** Plugin name */
-  char plugin_name[ROUTINGTABLES_METRIC_PFX_LEN];
+  char plugin_name[RT_METRIC_PFX_LEN];
 
   /** Table of peer id <-> peer signature
    * (shared with the view) */
@@ -349,13 +348,19 @@ struct struct_routingtables_t {
    *  current state */
   collector_data_t *collectors;
 
-  /* set of peers for which we have to
-   * perform the end of valid rib operations at
-   * the end of the interval */
+  /* set of peers (and their collectors) for which we have to perform the end
+   * of valid rib operations at the end of the interval (used only during
+   * apply_end_of_valid_rib_operations(); stored here so its allocated memory
+   * can be reused) */
   peer_id_collector_t *eorib_peers;
 
+  /** unique set of active ASes per collector at the end of the interval
+   * (used only during routingtables_dump_metrics(); stored here so its
+   * allocated memory can be reused) */
+  bgpstream_id_set_t *c_active_ases;
+
   /** Metric prefix */
-  char metric_prefix[ROUTINGTABLES_METRIC_PFX_LEN];
+  char metric_prefix[RT_METRIC_PFX_LEN];
 
   /** a borrowed pointer for timeseries */
   timeseries_t *timeseries;

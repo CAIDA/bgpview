@@ -23,13 +23,13 @@
 
 #include "bvc_subpfx.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_patricia.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <ctype.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -47,7 +47,6 @@
 #define PREV_SUBPFXS (STATE->subpfxs[(STATE->current_subpfxs_idx + 1) % 2])
 
 #define DEFAULT_OUTPUT_DIR "./"
-#define DEFAULT_COMPRESS_LEVEL 6
 #define OUTPUT_FILE_FORMAT "%s/" NAME "-%s.%" PRIu32 ".events.gz"
 #define BUFFER_LEN 4096
 
@@ -74,14 +73,14 @@ typedef struct pt_user {
 
 /* Maps sub-prefixes to super prefixes */
 KHASH_INIT(pfx2pfx, bgpstream_pfx_t, bgpstream_pfx_t, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 
 enum {
   NEW = 0,
   FINISHED = 1,
 };
 
-static char *diff_type_strs[] = {
+static const char *diff_type_strs[] = {
   "NEW",      //
   "FINISHED", //
 };
@@ -92,7 +91,7 @@ enum {
   DEFCON = 2,
 };
 
-static char *mode_strs[] = {
+static const char *mode_strs[] = {
   "invalid-mode", //
   "submoas",      //
   "defcon",       //
@@ -132,7 +131,7 @@ typedef struct bvc_subpfx_state {
   bgpstream_pfx_t v6_default_pfx;
 
   // current output file name
-  char outfile_name[BUFFER_LEN];
+  char outfile_name[BVCU_PATH_MAX];
 
   // current output file handle
   iow_t *outfile;
@@ -223,7 +222,7 @@ static void pt_user_destroy(void *user)
   free(user);
 }
 
-static pt_user_t *pt_user_create()
+static pt_user_t *pt_user_create(void)
 {
   pt_user_t *ptu;
 
@@ -268,7 +267,7 @@ find_subpfxs(const bgpstream_patricia_tree_t *const_pt,
 {
   int i;
   bvc_t *consumer = (bvc_t *)data;
-  bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(const_node);
+  const bgpstream_pfx_t *pfx = bgpstream_patricia_tree_get_pfx(const_node);
 
   // hack around the fact that bgpstream_patricia_tree_get_mincovering_prefix()
   // takes non-const parameters
@@ -287,7 +286,7 @@ find_subpfxs(const bgpstream_patricia_tree_t *const_pt,
     // there is no way this can be a sub-prefix
     return BGPSTREAM_PATRICIA_WALK_CONTINUE;
   }
-  bgpstream_pfx_t *super_pfx = bgpstream_patricia_tree_get_pfx(super_node);
+  const bgpstream_pfx_t *super_pfx = bgpstream_patricia_tree_get_pfx(super_node);
 
   // so, there is an overlapping prefix, but is it of the type we're interested
   // in?
@@ -456,7 +455,7 @@ static uint64_t subpfxs_diff(bvc_t *consumer, bgpview_t *view,
 {
   khiter_t k, j;
   uint64_t cnt = 0;
-  for (k = kh_begin(a); k < kh_end(a); k++) {
+  for (k = kh_begin(a); k != kh_end(a); k++) {
     if (kh_exist(a, k) == 0) {
       continue;
     }
@@ -630,14 +629,8 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   uint64_t finished_cnt = 0;
 
   // open the output file
-  snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT, STATE->outdir,
-           mode_strs[STATE->mode], view_time);
-  if ((STATE->outfile =
-         wandio_wcreate(STATE->outfile_name,
-                        wandio_detect_compression_type(STATE->outfile_name),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            STATE->outfile_name);
+  if (!(STATE->outfile = bvcu_open_outfile(STATE->outfile_name,
+      OUTPUT_FILE_FORMAT, STATE->outdir, mode_strs[STATE->mode], view_time))) {
     goto err;
   }
 
@@ -745,18 +738,7 @@ int bvc_subpfx_process_view(bvc_t *consumer, bgpview_t *view)
   STATE->outfile = NULL;
 
   /* generate the .done file */
-  snprintf(STATE->outfile_name, BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
-           STATE->outdir, mode_strs[STATE->mode], view_time);
-  if ((STATE->outfile =
-         wandio_wcreate(STATE->outfile_name,
-                        wandio_detect_compression_type(STATE->outfile_name),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            STATE->outfile_name);
-    return -1;
-  }
-  wandio_wdestroy(STATE->outfile);
-  STATE->outfile = NULL;
+  bvcu_create_donefile(STATE->outfile_name);
 
   // update and dump timeseries
   uint32_t now = epoch_sec();

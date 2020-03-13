@@ -23,17 +23,15 @@
 
 #include "bvc_triplets.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "triplets"
@@ -65,9 +63,6 @@
 /** Default output folder: current folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
 
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
-
 #define NEW 1
 
 #define NEWREC 2
@@ -98,7 +93,7 @@ typedef struct triplet_info {
 } triplet_info_t;
 
 KHASH_INIT(triplets_map, char *, triplet_info_t, 1, kh_str_hash_func,
-           kh_str_hash_equal);
+           kh_str_hash_equal)
 typedef khash_t(triplets_map) triplets_map_t;
 
 /* our 'instance' */
@@ -113,7 +108,7 @@ typedef struct bvc_triplets_state {
   // Khash holding triplets
   triplets_map_t *triplets_map;
   // Output files for edges and triplets
-  char filename_triplets[MAX_BUFFER_LEN];
+  char filename_triplets[BVCU_PATH_MAX];
   iow_t *file_triplets;
 
   /** diff ts when the view arrived */
@@ -131,8 +126,8 @@ typedef struct bvc_triplets_state {
   int arrival_delay_idx;
   int processed_delay_idx;
   int processing_time_idx;
-  int new_triplets_count;
-  uint32_t new_triplets_count_idx;
+  int new_triplets_count_idx;
+  uint32_t new_triplets_count;
   int ongoing_triplets_count_idx;
   uint32_t ongoing_triplets_count;
   int finished_triplets_count_idx;
@@ -266,18 +261,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* checking that output_folder is a valid folder */
-  struct stat st;
-  errno = 0;
-  if (stat(state->output_folder, &st) == -1) {
-    fprintf(stderr, "Error: %s does not exist\n", state->output_folder);
+  if (!bvcu_is_writable_folder(state->output_folder)) {
     usage(consumer);
     return -1;
-  } else {
-    if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "Error: %s is not a directory \n", state->output_folder);
-      usage(consumer);
-      return -1;
-    }
   }
 
   return 0;
@@ -326,6 +312,13 @@ int bvc_triplets_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  /* check visibility has been computed */
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: edges requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   /* init */
   return 0;
 
@@ -338,7 +331,6 @@ void bvc_triplets_destroy(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   if (state != NULL) {
-    bvc_triplets_state_t *state = STATE;
     khint_t k;
     for (k = kh_begin(state->triplets_map); k != kh_end(state->triplets_map);
          k++) {
@@ -356,7 +348,7 @@ void bvc_triplets_destroy(bvc_t *consumer)
 }
 
 // Diagnostic function. Prints all triplets
-void print_triplets(bvc_t *consumer)
+static void print_triplets(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k;
@@ -373,8 +365,8 @@ void print_triplets(bvc_t *consumer)
 }
 
 // Writes in output file for triplets
-void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
-                            triplet_info_t triplet_info, bgpstream_pfx_t *pfx)
+static void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
+  triplet_info_t triplet_info, bgpstream_pfx_t *pfx)
 {
   bvc_triplets_state_t *state = STATE;
   char pfx_str[MAX_BUFFER_LEN];
@@ -418,7 +410,7 @@ void print_to_file_triplets(bvc_t *consumer, int status, char *triplet,
   }
 }
 
-void print_ongoing_triplets(bvc_t *consumer)
+static void print_ongoing_triplets(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k;
@@ -444,7 +436,7 @@ void print_ongoing_triplets(bvc_t *consumer)
 }
 
 // Scans all ongoing triples and remove stale ones
-void remove_stale_triplet(bvc_t *consumer)
+static void remove_stale_triplet(bvc_t *consumer)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k;
@@ -468,7 +460,8 @@ void remove_stale_triplet(bvc_t *consumer)
 }
 
 // Updates khash and stores new and newrec triplets
-void insert_update_triplet(bvc_t *consumer, char *triplet, bgpstream_pfx_t *pfx)
+static void insert_update_triplet(bvc_t *consumer, char *triplet,
+    bgpstream_pfx_t *pfx)
 {
   bvc_triplets_state_t *state = STATE;
   khint_t k, j;
@@ -536,16 +529,10 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
   state->newrec_triplets_count = 0;
 
   // Opening file for triplets
-  snprintf(state->filename_triplets, MAX_BUFFER_LEN,
-           OUTPUT_FILE_FORMAT_TRIPLETS, state->output_folder, time_now,
-           state->window_size);
   /* open file for writing */
-  if ((state->file_triplets = wandio_wcreate(
-         state->filename_triplets,
-         wandio_detect_compression_type(state->filename_triplets),
-         DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            state->filename_triplets);
+  if (!(state->file_triplets = bvcu_open_outfile(state->filename_triplets,
+      OUTPUT_FILE_FORMAT_TRIPLETS, state->output_folder, time_now,
+      state->window_size))) {
     return -1;
   }
 
@@ -561,13 +548,6 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
   uint32_t prev_prev_asn;
   // print ongoing triplets
   print_ongoing_triplets(consumer);
-
-  /* check visibility has been computed */
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: edges requires the Visibility consumer "
-                    "to be run first\n");
-    return -1;
-  }
 
   /* create view iterator */
   if ((it = bgpview_iter_create(view)) == NULL) {
@@ -636,18 +616,17 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
             }
             // Reading atleast three different ASNs to create first triplet
             if (prev_prev_asn != 0) {
-              int buffer_len = 25;
-              char triplet[buffer_len];
+              char triplet[25];
               triplet[0] = '\0';
               int written = 0;
               // Making a char array from three ASNs
 
-              ret = snprintf(triplet, buffer_len - 1,
+              ret = snprintf(triplet, sizeof(triplet) - 1,
                              "%" PRIu32 "-%" PRIu32 "-%" PRIu32 " ",
                              prev_prev_asn, prev_asn, asn);
-              // ret =snprintf(triplet, buffer_len - 1, "%"PRIu32"-%"PRIu32"",
+              // ret =snprintf(triplet, sizeof(triplet) - 1, "%"PRIu32"-%"PRIu32"",
               // prev_asn, asn);
-              if (ret < 0 || ret >= buffer_len - written - 1) {
+              if (ret < 0 || ret >= sizeof(triplet) - written - 1) {
                 fprintf(stderr, "ERROR: cannot write ASN tiplet.\n");
                 return -1;
               }
@@ -672,18 +651,7 @@ int bvc_triplets_process_view(bvc_t *consumer, bgpview_t *view)
   bgpview_iter_destroy(it);
   // Close file I/O
   wandio_wdestroy(state->file_triplets);
-  char filename[MAX_BUFFER_LEN];
-
-  iow_t *done_triplets = NULL;
-  snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_TRIPLETS ".done",
-           state->output_folder, time_now, state->window_size);
-  if ((done_triplets =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-    return -1;
-  }
-  wandio_wdestroy(done_triplets);
+  bvcu_create_donefile(state->filename_triplets);
 
   /* compute processed delay */
   state->processed_delay = epoch_sec() - bgpview_get_time(view);

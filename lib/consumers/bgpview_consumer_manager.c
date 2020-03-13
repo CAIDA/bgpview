@@ -110,7 +110,7 @@ struct bgpview_consumer_manager {
 };
 
 /** Convenience typedef for the backend alloc function type */
-typedef bvc_t *(*consumer_alloc_func_t)();
+typedef bvc_t *(*consumer_alloc_func_t)(void);
 
 /** Array of backend allocation functions. */
 static const consumer_alloc_func_t consumer_alloc_functions[] = {

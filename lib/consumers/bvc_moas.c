@@ -23,18 +23,16 @@
 
 #include "bvc_moas.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "moas"
@@ -59,9 +57,6 @@
 
 /** Default output folder: current folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -116,8 +111,8 @@ moasinfo_map_hash(moas_signature_t ms)
 /** uint32 comparison function for qsort */
 static int uint32_cmp(const void *a, const void *b)
 {
-  uint32_t *x = (uint32_t *)a;
-  uint32_t *y = (uint32_t *)b;
+  const uint32_t *x = (const uint32_t *)a;
+  const uint32_t *y = (const uint32_t *)b;
   if (*x < *y) {
     return -1;
   }
@@ -147,13 +142,13 @@ static int moasinfo_map_equal(moas_signature_t ms1, moas_signature_t ms2)
 /** Map <moas_sig,moas_properties>: store the timestamps
  *  for each MOAS in the current window */
 KHASH_INIT(moasinfo_map, moas_signature_t, moas_properties_t, 1,
-           moasinfo_map_hash, moasinfo_map_equal);
+           moasinfo_map_hash, moasinfo_map_equal)
 typedef khash_t(moasinfo_map) moasinfo_map_t;
 
 /** Map <pfx,moas_info>: store information for each
  *  MOAS prefix in the current window */
 KHASH_INIT(pfx_moasinfo_map, bgpstream_pfx_t, moasinfo_map_t *, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 typedef khash_t(pfx_moasinfo_map) pfx_moasinfo_map_t;
 
 /* our 'instance' */
@@ -173,6 +168,9 @@ typedef struct bvc_moas_state {
 
   /** wandio file handler */
   iow_t *wandio_fh;
+
+  /** output filename */
+  char output_filename[BVCU_PATH_MAX];
 
   /** output folder */
   char output_folder[MAX_BUFFER_LEN];
@@ -243,18 +241,12 @@ static int init_output_log(bvc_t *consumer, uint32_t ts)
 {
 
   bvc_moas_state_t *state = STATE;
-  char filename[MAX_BUFFER_LEN];
   state->wandio_fh = NULL;
 
-  /* OUTPUT_FILE_FORMAT "%s/"NAME".%"PRIu32".%"PRIu32"s-window.events.gz" */
-  snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT, state->output_folder,
-           ts, state->current_window_size);
-
   /* open file for writing */
-  if ((state->wandio_fh =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
+  if (!(state->wandio_fh = bvcu_open_outfile(state->output_filename,
+      OUTPUT_FILE_FORMAT, state->output_folder, ts,
+      state->current_window_size))) {
     return -1;
   }
 
@@ -270,28 +262,17 @@ static int init_output_log(bvc_t *consumer, uint32_t ts)
 static int close_output_log(bvc_t *consumer, uint32_t ts)
 {
   bvc_moas_state_t *state = STATE;
-  char filename[MAX_BUFFER_LEN];
 
   if (state->wandio_fh) {
     /* Close file and generate .done if new information was printed */
     wandio_wdestroy(state->wandio_fh);
-
-    /* generate the .done file */
-    snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT ".done",
-             state->output_folder, ts, state->current_window_size);
-    if ((state->wandio_fh =
-           wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-      fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-      return -1;
-    }
-    wandio_wdestroy(state->wandio_fh);
+    bvcu_create_donefile(state->output_filename);
   }
   state->wandio_fh = NULL;
   return 0;
 }
 
-static char *get_category_str(moas_category_t mc)
+static const char *get_category_str(moas_category_t mc)
 {
   switch (mc) {
   case NEW:
@@ -366,7 +347,7 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
   if (wandio_printf(state->wandio_fh,
                     "%" PRIu32 "|%s|%s|%" PRIu32 "|%" PRIu32 "|%" PRIu32 "|",
                     ts, pfx_str, get_category_str(mc), mp->first_seen,
-                    mp->start, mp->end) == -1) {
+                    mp->start, mp->end) == -1)
   */
 
   if (wandio_printf(state->wandio_fh,
@@ -404,7 +385,6 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
       if (bgpstream_id_set_exists(
             BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
             peerid)) {
-        bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
         // if it's not the first path, print ":" at the beginning of the path
         if (first_path != 1 && wandio_printf(state->wandio_fh, ":") == -1) {
@@ -412,32 +392,8 @@ static int log_moas(bvc_t *consumer, bgpview_t *view, bgpview_iter_t *it,
           return -1;
         }
 
-        // first ASn
-        seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-        if (seg != NULL) {
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return -1;
-          }
-          if (wandio_printf(state->wandio_fh, "%s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return -1;
-          }
-        }
-        // from the second ASN to the last one (origin ASn)
-        while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-          // printing each segment
-          if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN, seg) >=
-              MAX_BUFFER_LEN) {
-            fprintf(stderr, "ERROR: ASn print truncated output\n");
-            return -1;
-          }
-          if (wandio_printf(state->wandio_fh, " %s", asn_buffer) == -1) {
-            fprintf(stderr, "ERROR: Could not write data to file\n");
-            return -1;
-          }
-        }
+        if (bvcu_print_pfx_peer_as_path(state->wandio_fh, it, "", " ") < 0)
+          return -1;
 
         // not first path anymore, start printing ":" at the beginning of each path
         first_path = 0;
@@ -682,18 +638,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* checking that output_folder is a valid folder */
-  struct stat st;
-  errno = 0;
-  if (stat(state->output_folder, &st) == -1) {
-    fprintf(stderr, "Error: %s does not exist\n", state->output_folder);
+  if (!bvcu_is_writable_folder(state->output_folder)) {
     usage(consumer);
     return -1;
-  } else {
-    if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "Error: %s is not a directory \n", state->output_folder);
-      usage(consumer);
-      return -1;
-    }
   }
 
   return 0;
@@ -765,6 +712,13 @@ int bvc_moas_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  /* check visibility has been computed */
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: moas requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -815,13 +769,6 @@ int bvc_moas_process_view(bvc_t *consumer, bgpview_t *view)
   int i;
   uint32_t origin_asn;
   uint32_t last_valid_ts = bgpview_get_time(view) - state->window_size;
-
-  /* check visibility has been computed */
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: moas requires the Visibility consumer "
-                    "to be run first\n");
-    return -1;
-  }
 
   /* compute arrival delay */
   state->arrival_delay = epoch_sec() - bgpview_get_time(view);

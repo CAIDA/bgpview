@@ -54,7 +54,7 @@ static char *stradd(const char *str, char *bufp, char *buflim)
   return bufp;
 }
 
-static char *generate_file_name(bgpcorsaro_t *bgpcorsaro, const char *plugin,
+static char *generate_file_name(bgpcorsaro_t *bc, const char *plugin,
                                 bgpcorsaro_interval_t *interval,
                                 int compress_type)
 {
@@ -69,19 +69,20 @@ static char *generate_file_name(bgpcorsaro_t *bgpcorsaro, const char *plugin,
   char *bufp = buf;
   char *buflim = buf + sizeof(buf);
 
-  char *tmpl = bgpcorsaro->template;
+  const char *tmpl, *end = NULL;
   char secs[11]; /* length of UINT32_MAX +1 */
-  struct timeval tv;
+  time_t t;
 
-  for (; *tmpl; ++tmpl) {
-    if (*tmpl == '.' && compress_type == WANDIO_COMPRESS_NONE) {
-      if (strncmp(tmpl, BGPCORSARO_IO_ZLIB_SUFFIX,
-                  strlen(BGPCORSARO_IO_ZLIB_SUFFIX)) == 0 ||
-          strncmp(tmpl, BGPCORSARO_IO_BZ2_SUFFIX,
-                  strlen(BGPCORSARO_IO_BZ2_SUFFIX)) == 0) {
-        break;
-      }
-    } else if (*tmpl == '%') {
+  if (bc->compress != WANDIO_COMPRESS_NONE && bc->compress != compress_type) {
+    // suffix on template doesn't correspond to desired compress_type
+    end = strrchr(bc->template, '.');
+  }
+  if (!end) {
+    end = strchr(bc->template, '\0');
+  }
+
+  for (tmpl = bc->template; tmpl != end; ++tmpl) {
+    if (*tmpl == '%') {
       switch (*++tmpl) {
       case '\0':
         --tmpl;
@@ -91,7 +92,7 @@ static char *generate_file_name(bgpcorsaro_t *bgpcorsaro, const char *plugin,
        * bgpcorsaro_io_template_has_timestamp */
 
       case BGPCORSARO_IO_MONITOR_PATTERN:
-        bufp = stradd(bgpcorsaro->monitorname, bufp, buflim);
+        bufp = stradd(bc->monitorname, bufp, buflim);
         continue;
 
       case BGPCORSARO_IO_PLUGIN_PATTERN:
@@ -120,8 +121,8 @@ static char *generate_file_name(bgpcorsaro_t *bgpcorsaro, const char *plugin,
 
   /* now let strftime have a go */
   if (interval != NULL) {
-    tv.tv_sec = interval->time;
-    strftime(tbuf, sizeof(tbuf), buf, gmtime(&tv.tv_sec));
+    t = interval->time;
+    strftime(tbuf, sizeof(tbuf), buf, gmtime(&t));
     return strdup(tbuf);
   }
 
@@ -130,16 +131,16 @@ static char *generate_file_name(bgpcorsaro_t *bgpcorsaro, const char *plugin,
 
 /* == EXPORTED FUNCTIONS BELOW THIS POINT == */
 
-iow_t *bgpcorsaro_io_prepare_file(bgpcorsaro_t *bgpcorsaro,
+iow_t *bgpcorsaro_io_prepare_file(bgpcorsaro_t *bc,
                                   const char *plugin_name,
                                   bgpcorsaro_interval_t *interval)
 {
-  return bgpcorsaro_io_prepare_file_full(bgpcorsaro, plugin_name, interval,
-                                         bgpcorsaro->compress,
-                                         bgpcorsaro->compress_level, O_CREAT);
+  return bgpcorsaro_io_prepare_file_full(bc, plugin_name, interval,
+                                         bc->compress,
+                                         bc->compress_level, O_CREAT);
 }
 
-iow_t *bgpcorsaro_io_prepare_file_full(bgpcorsaro_t *bgpcorsaro,
+iow_t *bgpcorsaro_io_prepare_file_full(bgpcorsaro_t *bc,
                                        const char *plugin_name,
                                        bgpcorsaro_interval_t *interval,
                                        int compress_type, int compress_level,
@@ -149,17 +150,16 @@ iow_t *bgpcorsaro_io_prepare_file_full(bgpcorsaro_t *bgpcorsaro,
   char *outfileuri;
 
   /* generate a file name based on the plugin name */
-  if ((outfileuri = generate_file_name(bgpcorsaro, plugin_name, interval,
+  if ((outfileuri = generate_file_name(bc, plugin_name, interval,
                                        compress_type)) == NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "could not generate file name for %s",
+    bgpcorsaro_log(__func__, bc, "could not generate file name for %s",
                    plugin_name);
     return NULL;
   }
 
   if ((f = wandio_wcreate(outfileuri, compress_type, compress_level, flags)) ==
       NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "could not open %s for writing",
-                   outfileuri);
+    bgpcorsaro_log(__func__, bc, "could not open %s for writing", outfileuri);
     return NULL;
   }
 
@@ -167,19 +167,19 @@ iow_t *bgpcorsaro_io_prepare_file_full(bgpcorsaro_t *bgpcorsaro,
   return f;
 }
 
-int bgpcorsaro_io_validate_template(bgpcorsaro_t *bgpcorsaro, char *template)
+int bgpcorsaro_io_validate_template(bgpcorsaro_t *bc, char *template)
 {
   /* be careful using bgpcorsaro here, it is likely not initialized fully */
 
   /* check for length first */
   if (template == NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "output template must be set");
+    bgpcorsaro_log(__func__, bc, "output template must be set");
     return 0;
   }
 
   /* check that the plugin pattern is in the template */
   if (strstr(template, BGPCORSARO_IO_PLUGIN_PATTERN_STR) == NULL) {
-    bgpcorsaro_log(__func__, bgpcorsaro, "template string must contain %s",
+    bgpcorsaro_log(__func__, bc, "template string must contain %s",
                    BGPCORSARO_IO_PLUGIN_PATTERN_STR);
     return 0;
   }
@@ -188,20 +188,18 @@ int bgpcorsaro_io_validate_template(bgpcorsaro_t *bgpcorsaro, char *template)
   return 1;
 }
 
-int bgpcorsaro_io_template_has_timestamp(bgpcorsaro_t *bgpcorsaro)
+int bgpcorsaro_io_template_has_timestamp(bgpcorsaro_t *bc)
 {
-  char *p = bgpcorsaro->template;
-  assert(bgpcorsaro->template);
+  assert(bc->template);
   /* be careful using bgpcorsaro here, this is called pre-start */
 
   /* the easiest (but not easiest to maintain) way to do this is to step through
    * each '%' character in the string and check what is after it. if it is
    * anything other than P (for plugin) or N (for monitor name), then it is a
    * timestamp. HOWEVER. If new bgpcorsaro-specific patterns are added, they
-   * must
-   * also be added here. gross */
+   * must also be added here. gross */
 
-  for (; *p; ++p) {
+  for (char *p = bc->template; *p; ++p) {
     if (*p == '%') {
       /* BEWARE: if you add a new pattern here, you must also add it to
        * generate_file_name */
@@ -214,55 +212,33 @@ int bgpcorsaro_io_template_has_timestamp(bgpcorsaro_t *bgpcorsaro)
   return 0;
 }
 
-off_t bgpcorsaro_io_write_interval_start(bgpcorsaro_t *bgpcorsaro, iow_t *file,
+off_t bgpcorsaro_io_write_interval_start(bgpcorsaro_t *bc, iow_t *file,
                                          bgpcorsaro_interval_t *int_start)
 {
   return wandio_printf(file, "# BGPCORSARO_INTERVAL_START %d %ld\n",
                        int_start->number, int_start->time);
 }
 
-void bgpcorsaro_io_print_interval_start(bgpcorsaro_interval_t *int_start)
-{
-  fprintf(stdout, "# BGPCORSARO_INTERVAL_START %d %" PRIu32 "\n",
-          int_start->number, int_start->time);
-}
-
-off_t bgpcorsaro_io_write_interval_end(bgpcorsaro_t *bgpcorsaro, iow_t *file,
+off_t bgpcorsaro_io_write_interval_end(bgpcorsaro_t *bc, iow_t *file,
                                        bgpcorsaro_interval_t *int_end)
 {
   return wandio_printf(file, "# BGPCORSARO_INTERVAL_END %d %ld\n",
                        int_end->number, int_end->time);
 }
 
-void bgpcorsaro_io_print_interval_end(bgpcorsaro_interval_t *int_end)
-{
-  fprintf(stdout, "# BGPCORSARO_INTERVAL_END %d %" PRIu32 "\n", int_end->number,
-          int_end->time);
-}
-
-off_t bgpcorsaro_io_write_plugin_start(bgpcorsaro_t *bgpcorsaro, iow_t *file,
+off_t bgpcorsaro_io_write_plugin_start(bgpcorsaro_t *bc, iow_t *file,
                                        bgpcorsaro_plugin_t *plugin)
 {
   assert(plugin != NULL);
 
   return wandio_printf(file, "# BGPCORSARO_PLUGIN_DATA_START %s\n",
-                       plugin->name);
+                       PLUGIN_NAME);
 }
 
-void bgpcorsaro_io_print_plugin_start(bgpcorsaro_plugin_t *plugin)
-{
-  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_START %s\n", plugin->name);
-}
-
-off_t bgpcorsaro_io_write_plugin_end(bgpcorsaro_t *bgpcorsaro, iow_t *file,
+off_t bgpcorsaro_io_write_plugin_end(bgpcorsaro_t *bc, iow_t *file,
                                      bgpcorsaro_plugin_t *plugin)
 {
   assert(plugin != NULL);
 
-  return wandio_printf(file, "# BGPCORSARO_PLUGIN_DATA_END %s\n", plugin->name);
-}
-
-void bgpcorsaro_io_print_plugin_end(bgpcorsaro_plugin_t *plugin)
-{
-  fprintf(stdout, "# BGPCORSARO_PLUGIN_DATA_END %s\n", plugin->name);
+  return wandio_printf(file, "# BGPCORSARO_PLUGIN_DATA_END %s\n", PLUGIN_NAME);
 }

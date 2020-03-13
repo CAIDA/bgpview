@@ -53,12 +53,10 @@ typedef enum {
  */
 #define BGPVIEW_IO_SERIALIZE_VAL(buf, len, written, from)                      \
   do {                                                                         \
-    size_t s;                                                                  \
     assert(((len) - (written)) >= sizeof((from)));                             \
     memcpy((buf), &(from), sizeof(from));                                      \
-    s = sizeof(from);                                                          \
-    written += s;                                                              \
-    buf += s;                                                                  \
+    written += sizeof(from);                                                   \
+    buf += sizeof(from);                                                       \
   } while (0)
 
 /** Convenience macro to deserialize a simple variable from a byte array.
@@ -71,12 +69,10 @@ typedef enum {
  */
 #define BGPVIEW_IO_DESERIALIZE_VAL(buf, len, read, to)                         \
   do {                                                                         \
-    size_t s;                                                                  \
     assert(((len) - (read)) >= sizeof(to));                                    \
     memcpy(&(to), (buf), sizeof(to));                                          \
-    s = sizeof(to);                                                            \
-    read += s;                                                                 \
-    buf += s;                                                                  \
+    read += sizeof(to);                                                        \
+    buf += sizeof(to);                                                         \
   } while (0)
 
 /** Callback for filtering entries in a view when sending from

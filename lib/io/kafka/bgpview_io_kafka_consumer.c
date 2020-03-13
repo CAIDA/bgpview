@@ -1041,12 +1041,13 @@ static int recv_global_view(bgpview_io_kafka_t *client, bgpview_t *view,
   /* disable peers that belong to workers that have touched the view in the past
      but are not part of this view */
   khiter_t k;
-  gc_topics_t *gct;
-  for (k = 0; k < kh_end(client->gc_state.topics); k++) {
+  for (k = kh_begin(client->gc_state.topics);
+      k != kh_end(client->gc_state.topics); k++)
+  {
     if (!kh_exist(client->gc_state.topics, k)) {
       continue;
     }
-    gct = kh_val(client->gc_state.topics, k);
+    gc_topics_t *gct = kh_val(client->gc_state.topics, k);
     /* gct->metas cannot be used */
 
     fprintf(stderr, "DEBUG: checking whether %s should be disabled\n",

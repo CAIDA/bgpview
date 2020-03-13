@@ -88,7 +88,7 @@ typedef struct peras_info {
 
 /** Hash table: <origin ASn,pfxs info> */
 KHASH_INIT(as_pfxs_info, uint32_t, peras_info_t, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 
 /* our 'instance' */
 typedef struct bvc_perasvisibility_state {
@@ -166,7 +166,7 @@ static void init_thresholds(bvc_perasvisibility_state_t *state)
   state->thresholds[VIS_100_PERCENT] = 1;
 }
 
-static char *threshold_string(int i)
+static const char *threshold_string(int i)
 {
   switch (i) {
   case VIS_1_FF_ASN:
@@ -182,7 +182,6 @@ static char *threshold_string(int i)
   default:
     return "ERROR";
   }
-  return "ERROR";
 }
 
 /* ==================== ORIGINS FUNCTIONS ==================== */
@@ -270,7 +269,7 @@ static int peras_info_update(bvc_t *consumer, peras_info_t *per_as,
   int pfx_ff_cnt = bgpstream_id_set_size(state->ff_asns);
   assert(pfx_ff_cnt > 0);
 
-  float ratio = (float)pfx_ff_cnt / (float)totalfullfeed;
+  double ratio = (double)pfx_ff_cnt / (double)totalfullfeed;
 
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
@@ -523,6 +522,14 @@ int bvc_perasvisibility_init(bvc_t *consumer, int argc, char **argv)
 
   /* react to args here */
 
+  /* get full feed peer ids from Visibility */
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr,
+            "ERROR: The Per-AS Visibility requires the Visibility consumer "
+            "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -575,14 +582,6 @@ int bvc_perasvisibility_process_view(bvc_t *consumer, bgpview_t *view)
 
   /* compute arrival delay */
   state->arrival_delay = epoch_sec() - bgpview_get_time(view);
-
-  /* get full feed peer ids from Visibility */
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr,
-            "ERROR: The Per-AS Visibility requires the Visibility consumer "
-            "to be run first\n");
-    return -1;
-  }
 
   /* create a new iterator */
   bgpview_iter_t *it;

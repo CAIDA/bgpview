@@ -77,7 +77,7 @@ typedef struct bvc_chain_state {
 
   /* Visibility state */
 
-  /** Has the visibility consumer run? */
+  /** Has the visibility consumer initialized or run? */
   int visibility_computed;
 
   /** Total number of peers in the view */

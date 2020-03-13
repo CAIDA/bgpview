@@ -33,6 +33,13 @@
  *
  */
 
-BGPCORSARO_PLUGIN_GENERATE_PROTOS(bgpcorsaro_routingtables)
+int bgpcorsaro_routingtables_init_output(struct bgpcorsaro *bgpcorsaro);
+int bgpcorsaro_routingtables_close_output(struct bgpcorsaro *bgpcorsaro);
+int bgpcorsaro_routingtables_start_interval(struct bgpcorsaro *bgpcorsaro,
+    struct bgpcorsaro_interval *int_start);
+int bgpcorsaro_routingtables_end_interval(struct bgpcorsaro *bgpcorsaro,
+    struct bgpcorsaro_interval *int_end);
+int bgpcorsaro_routingtables_process_record(struct bgpcorsaro *bgpcorsaro,
+    struct bgpstream_record *bs_record);
 
 #endif /* __BGPCORSARO_ROUTINGTABLES_H */

@@ -5,7 +5,7 @@
  * bgpstream-info@caida.org
  *
  * Copyright (C) 2012 The Regents of the University of California.
- * Authors: Alistair King, Chiara Orsini
+ * Authors: Alistair King, Chiara Orsini, Ken Keys
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License as published by the Free Software
@@ -113,38 +113,6 @@ struct bgpcorsaro_interval {
 /** The interval after which we will end an interval */
 #define BGPCORSARO_INTERVAL_DEFAULT 60
 
-/** Bgpcorsaro state for a record
- *
- * This is passed, along with the record, to each plugin.
- * Plugins can add data to it, or check for data from earlier plugins.
- */
-struct bgpcorsaro_record_state {
-  /** Features of the record that have been identified by earlier plugins */
-  uint8_t flags;
-
-  /** Pointer to routingtables views */
-  bgpview_t *shared_view_ptr;
-};
-
-/** The possible record state flags */
-enum {
-  /** The record should be ignored by filter-aware plugins */
-  BGPCORSARO_RECORD_STATE_FLAG_IGNORE = 0x01,
-};
-
-/** A lightweight wrapper around a bgpstream record */
-struct bgpcorsaro_record {
-  /** The bgpcorsaro state associated with this record */
-  bgpcorsaro_record_state_t state;
-
-  /** A pointer to the underlying bgpstream record */
-  bgpstream_record_t *bsrecord;
-};
-
-/** Convenience macro to get to the bgpstream recprd inside a bgpcorsaro
-    record */
-#define BS_REC(bgpcorsaro_record) (bgpcorsaro_record->bsrecord)
-
 /** Bgpcorsaro output state */
 struct bgpcorsaro {
   /** The local wall time that bgpcorsaro was started at */
@@ -154,7 +122,7 @@ struct bgpcorsaro {
   bgpstream_t *stream;
 
   /** The name of the monitor that bgpcorsaro is running on */
-  char *monitorname;
+  char monitorname[HOST_NAME_MAX+1];
 
   /** The template used to create bgpcorsaro output files */
   char *template;
@@ -174,12 +142,12 @@ struct bgpcorsaro {
   /** A borrowed pointer to a libtimeseries instance */
   timeseries_t *timeseries;
 
-  /** A pointer to the wrapper record passed to the plugins */
-  bgpcorsaro_record_t *record;
+  /** A pointer to the record passed to the plugins */
+  bgpstream_record_t *bsrecord;
 
   /** The first interval end will be rounded down to the nearest integer
       multiple of the interval length if enabled */
-  bgpcorsaro_interval_align_t interval_align;
+  int align_intervals;
 
   /** The number of seconds after which plugins will be asked to dump data */
   int interval;
@@ -218,7 +186,7 @@ struct bgpcorsaro {
   int eof;
 
   /** Minimum record time allowed */
-  int minimum_time;
+  uint32_t minimum_time;
 
   /** Maximum allowed packet inter-arrival time */
   int gap_limit;
@@ -234,13 +202,13 @@ struct bgpcorsaro {
 #define TIMER_START(timer)                                                     \
   struct timeval timer_start;                                                  \
   do {                                                                         \
-    gettimeofday_wrap(&timer_start);                                           \
+    gettimeofday(&timer_start, NULL);                                          \
   } while (0)
 
 #define TIMER_END(timer)                                                       \
   struct timeval timer_end, timer_diff;                                        \
   do {                                                                         \
-    gettimeofday_wrap(&timer_end);                                             \
+    gettimeofday(&timer_end, NULL);                                            \
     timeval_subtract(&timer_diff, &timer_end, &timer_start);                   \
   } while (0)
 

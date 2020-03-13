@@ -23,16 +23,14 @@
 
 #include "bvc_routedspace.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <ctype.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 /** Name of the consumer */
@@ -50,9 +48,6 @@
 
 /** Default size of window: 1 day (in seconds) */
 #define WINDOW_SIZE (24 * 3600)
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* macro to access the current consumer state */
 #define STATE (BVC_GET_STATE(consumer, routedspace))
@@ -451,7 +446,7 @@ void bvc_routedspace_destroy(bvc_t *consumer)
   BVC_SET_STATE(consumer, NULL);
 }
 
-bgpstream_patricia_walk_cb_result_t remove_old_prefixes(
+static bgpstream_patricia_walk_cb_result_t remove_old_prefixes(
     bgpstream_patricia_tree_t *pt, bgpstream_patricia_node_t *node, void *data)
 {
   bvc_t *consumer = (bvc_t *)data;
@@ -506,14 +501,9 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
   iow_t *wandio_fh;
 
   char filename[PATH_MAX];
-  snprintf(filename, PATH_MAX,
+  if (!(wandio_fh = bvcu_open_outfile(filename,
            "%srouted-space.%" PRIu32 ".%" PRIu32 "s-window.gz",
-           state->output_folder, state->ts, state->window_size);
-
-  if ((wandio_fh =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
+           state->output_folder, state->ts, state->window_size))) {
     return -1;
   }
 
@@ -615,16 +605,7 @@ int bvc_routedspace_process_view(bvc_t *consumer, bgpview_t *view)
   wandio_wdestroy(wandio_fh);
 
   /* write the .done file */
-  snprintf(filename, PATH_MAX,
-           "%srouted-space.%" PRIu32 ".%" PRIu32 "s-window.gz.done",
-           state->output_folder, state->ts, state->window_size);
-  if ((wandio_fh =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-    return -1;
-  }
-  wandio_wdestroy(wandio_fh);
+  bvcu_create_donefile(filename);
 
   /* destroy the view iterator */
   bgpview_iter_destroy(it);

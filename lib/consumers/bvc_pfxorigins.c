@@ -23,16 +23,14 @@
 
 #include "bvc_pfxorigins.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "pfx-origins"
@@ -44,9 +42,6 @@
 
 /** Default output folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -91,7 +86,7 @@ typedef struct struct_origin_status_t {
 /** Map <prefix,origin_status>
  */
 KHASH_INIT(bwv_pfx_origin, bgpstream_pfx_t, origin_status_t, 1,
-           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val);
+           bgpstream_pfx_hash_val, bgpstream_pfx_equal_val)
 typedef khash_t(bwv_pfx_origin) bwv_pfx_origin_t;
 
 /* our 'instance' */
@@ -132,23 +127,19 @@ typedef struct bvc_pfxorigins_state {
 
 /** Update the pfx_origins map and print the status to file  */
 
-int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
+static int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
 {
   bvc_pfxorigins_state_t *state = STATE;
 
   iow_t *f = NULL;
-  char filename[BUFFER_LEN];
+  char filename[BVCU_PATH_MAX];
   // char buffer_str[BUFFER_LEN];
   char origin_str[MAX_ASPATH_SEGMENT_STR];
   char pfx_str[INET6_ADDRSTRLEN + 3];
 
-  sprintf(filename, "%s/" NAME ".%" PRIu32 ".gz", state->output_folder,
-          current_view_ts);
-
   /* open file for writing */
-  if ((f = wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
+  if (!(f = bvcu_open_outfile(filename, "%s/" NAME ".%" PRIu32 ".gz",
+      state->output_folder, current_view_ts))) {
     return -1;
   }
 
@@ -285,14 +276,7 @@ int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
   wandio_wdestroy(f);
 
   /* generate the .done file */
-  sprintf(filename, "%s/" NAME ".%" PRIu32 ".gz.done", state->output_folder,
-          current_view_ts);
-  if ((f = wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                          DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-    return -1;
-  }
-  wandio_wdestroy(f);
+  bvcu_create_donefile(filename);
 
   /* fprintf(stdout, "%"PRIu32" same: %d changed: %d appeared: %d disappeared:
    * %d\n", current_view_ts, same, changed, appeared, disappeared);   */
@@ -464,6 +448,12 @@ int bvc_pfxorigins_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
+    fprintf(stderr, "ERROR: pfx-origins requires the Visibility consumer "
+                    "to be run first\n");
+    goto err;
+  }
+
   return 0;
 
 err:
@@ -528,12 +518,6 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
   bgpview_iter_t *it;
 
   if ((it = bgpview_iter_create(view)) == NULL) {
-    return -1;
-  }
-
-  if (BVC_GET_CHAIN_STATE(consumer)->visibility_computed == 0) {
-    fprintf(stderr, "ERROR: pfx-origins requires the Visibility consumer "
-                    "to be run first\n");
     return -1;
   }
 

@@ -23,17 +23,15 @@
 
 #include "bvc_edges.h"
 #include "bgpview_consumer_interface.h"
+#include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_pfx_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <wandio.h>
 #include <assert.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #define NAME "edges"
@@ -64,9 +62,6 @@
 
 /** Default output folder: current folder */
 #define DEFAULT_OUTPUT_FOLDER "./"
-
-/** Default compression level of output file */
-#define DEFAULT_COMPRESS_LEVEL 6
 
 /* IPv4 default route */
 #define IPV4_DEFAULT_ROUTE "0.0.0.0/0"
@@ -103,18 +98,18 @@ typedef struct edge_info {
 } edge_info_t;
 
 KHASH_INIT(edge_list, uint32_t, edge_info_t, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 typedef khash_t(edge_list) edge_list_t;
 
 // contains all the edges
 KHASH_INIT(edges_map, uint32_t, edge_list_t *, 1, kh_int_hash_func,
-           kh_int_hash_equal);
+           kh_int_hash_equal)
 typedef khash_t(edges_map) edges_map_t;
 
-KHASH_INIT(new_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal);
+KHASH_INIT(new_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal)
 typedef khash_t(new_edges) new_edges_t;
 
-KHASH_INIT(newrec_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal);
+KHASH_INIT(newrec_edges, char *, char, 1, kh_str_hash_func, kh_str_hash_equal)
 typedef khash_t(newrec_edges) newrec_edges_t;
 
 /* our 'instance' */
@@ -130,7 +125,7 @@ typedef struct bvc_edges_state {
   edges_map_t *edges_map;
   // Khash holding triplets
   // Output files for edges and triplets
-  char filename_newedges[MAX_BUFFER_LEN];
+  char filename_newedges[BVCU_PATH_MAX];
   iow_t *file_newedges;
 
   /** blacklist prefixes */
@@ -286,18 +281,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   /* checking that output_folder is a valid folder */
-  struct stat st;
-  errno = 0;
-  if (stat(state->output_folder, &st) == -1) {
-    fprintf(stderr, "Error: %s does not exist\n", state->output_folder);
+  if (!bvcu_is_writable_folder(state->output_folder)) {
     usage(consumer);
     return -1;
-  } else {
-    if (!S_ISDIR(st.st_mode)) {
-      fprintf(stderr, "Error: %s is not a directory \n", state->output_folder);
-      usage(consumer);
-      return -1;
-    }
   }
 
   return 0;
@@ -377,7 +363,6 @@ void bvc_edges_destroy(bvc_t *consumer)
 {
   bvc_edges_state_t *state = STATE;
   if (state != NULL) {
-    bvc_edges_state_t *state = STATE;
     khint_t k;
     for (k = kh_begin(state->edges_map); k != kh_end(state->edges_map); k++) {
       if (kh_exist(state->edges_map, k)) {
@@ -522,34 +507,10 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
         if (bgpstream_id_set_exists(
               BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
               peerid)) {
-          bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
-          // first ASn
-          seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-          if (seg != NULL) {
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, "%s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
-          // from the second ASN to the last one (origin ASn)
-          while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-            // printing each segment
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, " %s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
+          if (bvcu_print_pfx_peer_as_path(state->file_newedges, it, "", " ") < 0)
+            return -1;
+
           if (wandio_printf(state->file_newedges, ":") == -1) {
           fprintf(stderr, "ERROR: Could not write data to file\n");
             return -1;
@@ -594,37 +555,13 @@ static int print_new_newrec(bvc_t *consumer, bgpstream_pfx_t *pfx,
         if (bgpstream_id_set_exists(
               BVC_GET_CHAIN_STATE(consumer)->full_feed_peer_ids[ipv_idx],
               peerid)) {
-          bgpview_iter_pfx_peer_as_path_seg_iter_reset(it);
 
-          // first ASn
-          seg = bgpview_iter_pfx_peer_as_path_seg_next(it);
-          if (seg != NULL) {
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, "%s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
-          // second -> origin ASn
-          while ((seg = bgpview_iter_pfx_peer_as_path_seg_next(it)) != NULL) {
-            // printing each segment
-            if (bgpstream_as_path_seg_snprintf(asn_buffer, MAX_BUFFER_LEN,
-                                               seg) >= MAX_BUFFER_LEN) {
-              fprintf(stderr, "ERROR: ASn print truncated output\n");
-              return -1;
-            }
-            if (wandio_printf(state->file_newedges, " %s", asn_buffer) == -1) {
-              fprintf(stderr, "ERROR: Could not write data to file\n");
-              return -1;
-            }
-          }
-          if (wandio_printf(state->file_newedges, ":") == -1) {
-          fprintf(stderr, "ERROR: Could not write data to file\n");
+          if (bvcu_print_pfx_peer_as_path(state->file_newedges, it, "", " ") < 0)
             return -1;
+
+          if (wandio_printf(state->file_newedges, ":") == -1) {
+            fprintf(stderr, "ERROR: Could not write data to file\n");
+              return -1;
           }
         }
       }
@@ -717,8 +654,8 @@ static void remove_stale_link(bvc_t *consumer)
 }
 
 // Updates khash and stores new and newrec edges
-int insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2,
-                        bgpstream_pfx_t *pfx)
+static int insert_update_edges(bvc_t *consumer, uint32_t asn1, uint32_t asn2,
+  bgpstream_pfx_t *pfx)
 {
   int ret, category;
   category = -1;
@@ -847,16 +784,9 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   state->newrec_edges_count = 0;
   int count = 0;
   // Opening file for newedges
-  snprintf(state->filename_newedges, MAX_BUFFER_LEN,
-           OUTPUT_FILE_FORMAT_NEWEDGES, state->output_folder, time_now,
-           state->window_size);
-  /* open file for writing */
-  if ((state->file_newedges = wandio_wcreate(
-         state->filename_newedges,
-         wandio_detect_compression_type(state->filename_newedges),
-         DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n",
-            state->filename_newedges);
+  if (!(state->file_newedges = bvcu_open_outfile(state->filename_newedges,
+      OUTPUT_FILE_FORMAT_NEWEDGES, state->output_folder, time_now,
+      state->window_size))) {
     return -1;
   }
 
@@ -968,19 +898,18 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
 
               // int st=epoch_msec();
               category = insert_update_edges(consumer, asn1, asn2, pfx);
-              int buffer_len = 25;
-              char edge_str[buffer_len];
+              char edge_str[25];
               edge_str[0] = '\0';
 
               written = 0;
               // Making a char array from two ASNs
 
               if (state->vc > 1) {
-                ret = snprintf(edge_str, buffer_len - 1,
+                ret = snprintf(edge_str, sizeof(edge_str) - 1,
                                "%" PRIu32 "-%" PRIu32 "", asn1, asn2);
-                // ret =snprintf(triplet, buffer_len - 1, "%"PRIu32"-%"PRIu32"",
+                // ret =snprintf(triplet, sizeof(edge_str) - 1, "%"PRIu32"-%"PRIu32"",
                 // prev_asn, asn);
-                if (ret < 0 || ret >= buffer_len - written - 1) {
+                if (ret < 0 || ret >= sizeof(edge_str) - written - 1) {
                   fprintf(stderr, "ERROR: cannot write ASN tiplet.\n");
                   return -1;
                 }
@@ -1038,8 +967,6 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   bgpview_iter_destroy(it);
   // Close file I/O
   wandio_wdestroy(state->file_newedges);
-  char filename[MAX_BUFFER_LEN];
-  iow_t *done_newedge = NULL;
 
   // print_asps(as_paths);
   // clear_aspaths(as_paths);
@@ -1050,15 +977,7 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
   kh_destroy(newrec_edges, newrec_edges);
 
   /* generate separate .done files for both edges and triplets*/
-  snprintf(filename, MAX_BUFFER_LEN, OUTPUT_FILE_FORMAT_NEWEDGES ".done",
-           state->output_folder, time_now, state->window_size);
-  if ((done_newedge =
-         wandio_wcreate(filename, wandio_detect_compression_type(filename),
-                        DEFAULT_COMPRESS_LEVEL, O_CREAT)) == NULL) {
-    fprintf(stderr, "ERROR: Could not open %s for writing\n", filename);
-    return -1;
-  }
-  wandio_wdestroy(done_newedge);
+  bvcu_create_donefile(state->filename_newedges);
 
   /* compute processed delay */
   state->processed_delay = epoch_sec() - bgpview_get_time(view);
