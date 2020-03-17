@@ -122,7 +122,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
       break;
 
     case '6':
-      STATE->full_feed_size[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)] =
+      STATE->full_feed_size[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)] =
         atoi(optarg);
       break;
 
