@@ -351,8 +351,8 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
 
   peerinfo->as_path_id = path_id;
 
-  if (khret > 0) {
-    // did not already exist
+  if (peerinfo->state == BGPVIEW_FIELD_INVALID) {
+    // did not already exist or was invalid
     peerinfo->state = BGPVIEW_FIELD_INACTIVE;
 
     /** peerinfo->user remains untouched */
