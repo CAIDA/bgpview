@@ -2175,6 +2175,11 @@ bgpstream_as_path_store_t *bgpview_get_as_path_store(bgpview_t *view)
   return view->pathstore;
 }
 
+bgpstream_peer_sig_map_t *bgpview_get_peersigns(bgpview_t *view)
+{
+  return view->peersigns;
+}
+
 bgpstream_peer_id_t bgpview_get_peer_id(bgpview_t *view,
                                         bgpstream_peer_sig_t *ps)
 {

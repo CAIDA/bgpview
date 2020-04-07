@@ -101,25 +101,32 @@ typedef struct {
   int op;
   int peer;
   const char *pfx;
+  int path[9]; // new AS path, not including peer AS, 0-terminated
 } test_instruction_t;
 
 static test_state_t test = {0};
 static char buf[65536];
 
 static test_instruction_t testscript[] = {
-//  time  operation                  peer  pfx
-  {    0, OP_RIB,                     0,   NULL },
-  {  199, OP_PFX_ANNOUNCE,            3,   "10.3.3.0/24" },
-  {  299, OP_PFX_WITHDRAW,            4,   "10.4.4.0/24" },
-  {  399, OP_PFX_ANNOUNCE | OP_LOST,  6,   "10.6.6.0/24" },
-  {  499, OP_PFX_WITHDRAW | OP_LOST,  7,   "10.7.7.0/24" },
-  {  599, OP_PEER_DOWN,               5,   NULL },
-  {  699, OP_PEER_DOWN,               2,   NULL },
-  {  799, OP_PEER_UP,                 5,   NULL },
-  // RT will deactivate a peer if it is missing from a RIB and has sent no
-  // messages for at least RT_MAX_INACTIVE_TIME (3600s).
-  { 7200, OP_RIB,                     0,   NULL },
-  {   -1, OP_EOS,                     0,   NULL },
+//  time  operation                 peer pfx            path
+  {    0, OP_RIB,                    0,  NULL,          {0}},
+  // toggle some routes
+  {  199, OP_PFX_ANNOUNCE,           3,  "10.3.3.0/24", {0}},
+  {  299, OP_PFX_WITHDRAW,           4,  "10.4.4.0/24", {0}},
+  {  399, OP_PFX_ANNOUNCE | OP_LOST, 6,  "10.6.6.0/24", {0}},
+  {  499, OP_PFX_WITHDRAW | OP_LOST, 7,  "10.7.7.0/24", {0}},
+  // toggle some peers
+  {  599, OP_PEER_DOWN,              5,  NULL,          {0}},
+  {  699, OP_PEER_DOWN,              2,  NULL,          {0}},
+  {  799, OP_PEER_UP,                5,  NULL,          {0}},
+  // change some paths
+  {  899, OP_PFX_ANNOUNCE,           5,  "10.5.3.0/24", {15031,15030,0}},
+  {  999, OP_PFX_ANNOUNCE,           7,  "10.7.3.0/24", {17031,17030,0}},
+  { 1099, OP_PFX_ANNOUNCE,           7,  "10.7.3.0/24", {27032,27031,27030,0}},
+  // Run longer than RT_MAX_INACTIVE_TIME (3600s) since the PEER_DOWN(2)
+  // so RT will deactivate that peer.
+  { 7200, OP_RIB,                    0,  NULL,          {0}},
+  {   -1, OP_EOS,                    0,  NULL,          {0}},
 };
 
 #define TEST_PEER_ASN(peer)         (1000 * (peer))
@@ -204,19 +211,25 @@ static int test_get_next_record(bgpstream_t *bgpstream,
       uint32_t peer_asn = TEST_PEER_ASN(peer);
       peer_id = bgpview_iter_add_peer(test.iter, test_collector_name, &test_peer_ip, peer_asn);
       if (peer_id == 0) {
-        fprintf(stderr, "ERROR: can't add peer to test view\n");
+        fprintf(stderr, "ERROR: can't add peer (%d) to test view\n", peer);
         goto err;
       }
       assert(peer_id == peer);
       if (bgpview_iter_activate_peer(test.iter) != 1) {
-        fprintf(stderr, "ERROR: can't activate peer in test view\n");
+        fprintf(stderr, "ERROR: can't activate peer (%d) in test view\n", peer);
         goto err;
       }
 
       for (int i = 1; i <= test_table_size; i++) {
         bgpstream_pfx_t test_prefix;
         test_prefix.address.version = BGPSTREAM_ADDR_VERSION_IPV4;
-        test_prefix.address.bs_ipv4.addr.s_addr = TEST_PFX(peer, i);
+        if ((peer == 5 || peer == 6) && i == 4) {
+          // generate multiple entries with the same pfx but different
+          // origins, to make things interesting
+          test_prefix.address.bs_ipv4.addr.s_addr = TEST_PFX(56, i);
+        } else {
+          test_prefix.address.bs_ipv4.addr.s_addr = TEST_PFX(peer, i);
+        }
         test_prefix.mask_len = 24;
 
         int seg_cnt = (peer + i) % 5 + 2; // 2 - 6 segments
@@ -239,14 +252,14 @@ static int test_get_next_record(bgpstream_t *bgpstream,
         }
 
         if (bgpview_iter_add_pfx_peer(test.iter, &test_prefix, peer_id, test_as_path) != 0) {
-          fprintf(stderr, "ERROR: can't add prefix to test view\n");
+          fprintf(stderr, "ERROR: can't add prefix (%d,%d) to test view\n", peer, i);
           goto err;
         }
         if ((peer % 3 == 0) && i == peer) {
           // leave a few routes unactivated to make the test more interesting
         } else {
           if (bgpview_iter_pfx_activate_peer(test.iter) != 1) {
-            fprintf(stderr, "ERROR: can't activate pfx-peer int test view\n");
+            fprintf(stderr, "ERROR: can't activate pfx-peer (%d,%d) in test view\n", peer, i);
             goto err;
           }
         }
@@ -315,6 +328,19 @@ static int test_get_next_record(bgpstream_t *bgpstream,
         bgpview_iter_pfx_activate_peer(test.iter);
       } else {
         bgpview_iter_pfx_deactivate_peer(test.iter);
+      }
+      if (instr->path[0] > 0) {
+        // change the AS path
+        bgpstream_as_path_t *test_as_path;
+        test_as_path = bgpstream_as_path_create();
+        bgpstream_as_path_clear(test_as_path);
+        uint32_t peer_asn = TEST_PEER_ASN(instr->peer);
+        bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_ASN, &peer_asn, 1);
+        for (int j = 0; instr->path[j]; ++j) {
+          bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_ASN, &instr->path[j], 1);
+        }
+        bgpview_iter_pfx_peer_set_as_path(test.iter, test_as_path);
+        bgpstream_as_path_destroy(test_as_path);
       }
       if (instr->op & OP_LOST) {
         // simulate a lost update record; move on to next instruction

@@ -362,6 +362,13 @@ void bgpview_set_pfx_peer_user_destructor(
  */
 bgpstream_as_path_store_t *bgpview_get_as_path_store(bgpview_t *view);
 
+/** Get the Peer Signatures table associated with this view
+ *
+ * @param view          pointer to the view to retrieve the peersigns for
+ * @return pointer to the peersigns used by the view
+ */
+bgpstream_peer_sig_map_t *bgpview_get_peersigns(bgpview_t *view);
+
 /** Get the ID of a peer given a peer signature
  *
  * @param view          pointer to the view to get the peer ID for
