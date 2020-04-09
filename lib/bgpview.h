@@ -187,8 +187,8 @@ void bgpview_destroy(bgpview_t *view);
  * @param view          view to clear
  *
  * This does not actually free any memory, it just marks prefix and peers as
- * dirty so that future inserts can re-use the memory allocation. It does *not*
- * clear the peersigns table.
+ * invalid so that future inserts can re-use the memory allocation. It does
+ * *not* clear the peersigns table.
  */
 void bgpview_clear(bgpview_t *view);
 
