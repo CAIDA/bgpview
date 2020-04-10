@@ -200,7 +200,7 @@ static int close_outfiles(bvc_t *consumer)
     else if (pp_is_compact(iter))                                              \
       pp_set_compact_view_cnt(iter, (n));                                      \
     else                                                                       \
-      pp_get_aod(iter)->view_cnt_0 = (n);                                       \
+      pp_get_aod(iter)->view_cnt_0 = (n);                                      \
   } while (0)
 
 #define path_id_equal(a, b) (memcmp(&a, &b, sizeof(a)) == 0) /* XXX ??? */
@@ -229,53 +229,61 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
   int indent = 0;
   iow_t *f = STATE->outfile;
 
+// DUMP_LINE(delim, fmt, args...)
+// depends on `f` and `indent` being in scope
+#define DUMP_LINE(delim, ...) \
+  do {                                                                         \
+    wandio_printf(f, "%s\n%*s", delim, indent, "");                            \
+    wandio_printf(f, __VA_ARGS__);                                             \
+  } while (0)
+
   // Dump dataset metadata
 
-  wandio_printf(f, "%*sdataset: {", indent, "");
+  wandio_printf(f, "dataset: {");
   indent += 2;
 
-  wandio_printf(f, "\n%*sstart: %d,", indent, "", STATE->out_interval_start);
-  wandio_printf(f, "\n%*sduration: %d,", indent, "", STATE->view_cnt * view_interval);
-  wandio_printf(f, "\n%*smonitor_count: %d,", indent, "", -1); // XXX
-  wandio_printf(f, "\n%*sprefix_count: %d", indent, "", -1); // XXX
+  DUMP_LINE("", "start: %d", STATE->out_interval_start);
+  DUMP_LINE(",", "duration: %d", STATE->view_cnt * view_interval);
+  DUMP_LINE(",", "monitor_count: %d", -1); // XXX
+  DUMP_LINE(",", "prefix_count: %d", -1); // XXX
 
   indent -= 2;
-  wandio_printf(f, "\n%*s},\n", indent, ""); // dataset
+  DUMP_LINE("", "}"); // dataset
 
   // Dump monitors
 
-  wandio_printf(f, "%*smonitors: [", indent, "");
+  DUMP_LINE(",", "monitors: [");
   indent += 2;
 
-  const char *mon_delim = "\n";
+  const char *mon_delim = "";
   bgpstream_peer_sig_map_t *psmap = bgpview_get_peersigns(STATE->view);
   for (bgpview_iter_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_peer(myit);
       bgpview_iter_next_peer(myit)) {
     bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
     bgpstream_peer_sig_t *ps = bgpstream_peer_sig_map_get_sig(psmap, peer_id);
-    wandio_printf(f, "%s%*s{", mon_delim, indent, "");
-    mon_delim = ",\n";
+    DUMP_LINE(mon_delim, "{");
+    mon_delim = ",";
     indent += 2;
-    wandio_printf(f, "\n%*smonitor_id: %d,", indent, "", peer_id);
-    wandio_printf(f, "\n%*sproject: \"%s\",", indent, "", "XXX"); // XXX
-    wandio_printf(f, "\n%*scollector: \"%s\",", indent, "", ps->collector_str);
-    wandio_printf(f, "\n%*sprefix_count: %d,", indent, "", -1); // XXX
-    wandio_printf(f, "\n%*sasn: %d", indent, "", ps->peer_asnumber);
+    DUMP_LINE("", "monitor_id: %d", peer_id);
+    DUMP_LINE(",", "project: \"%s\"", "XXX"); // XXX
+    DUMP_LINE(",", "collector: \"%s\"", ps->collector_str);
+    DUMP_LINE(",", "prefix_count: %d", -1); // XXX
+    DUMP_LINE(",", "asn: %d", ps->peer_asnumber);
     indent -= 2;
-    wandio_printf(f, "\n%*s}", indent, "");
+    DUMP_LINE("", "}");
   }
 
   indent -= 2;
-  wandio_printf(f, "\n%*s],\n", indent, ""); // monitors list
+  DUMP_LINE("", "]"); // monitors list
 
   // Dump prefixes
 
-  wandio_printf(f, "%*sprefix_as_meta_data: [", indent, "");
+  DUMP_LINE(",", "prefix_as_meta_data: [");
   indent += 2;
 
   // for each prefix
-  const char *pfx_delim = "\n";
+  const char *pfx_delim = "";
   for (bgpview_iter_first_pfx(myit, 0, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(myit);
       bgpview_iter_next_pfx(myit)) {
@@ -341,33 +349,31 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
       bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(myit);
       bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
       bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), origins[i].origin);
-      wandio_printf(f, "%s%*s{",
-          pfx_delim, indent, ""); // prefix_as_meta_data obj
-      pfx_delim = ",\n";
+      DUMP_LINE(pfx_delim, "{"); // prefix_as_meta_data obj
+      pfx_delim = ",";
       indent += 2;
-      wandio_printf(f, "\n%*snetwork: %s," indent, "", pfx_str);
-      wandio_printf(f, "\n%*sasn:%s,", indent, "", orig_str);
+      DUMP_LINE("", "network: %s", pfx_str);
+      DUMP_LINE(",", "asn:%s", orig_str);
 
-      wandio_printf(f, "\n%*smonitors: [", indent, "");
+      DUMP_LINE(",", "monitors: [");
       indent += 2;
 
-      const char *pfxmon_delim = "\n";
+      const char *pfxmon_delim = "";
       for (int j = 0; j < origins[i].peer_cnt; ++j) {
         uint32_t duration = origins[i].peers[j].view_cnt * view_interval;
-        wandio_printf(f,
-            "%s%*s{ monitor:%"PRIu16", duration:%"PRIu32" }",
-            pfxmon_delim, indent, "", origins[i].peers[j].peer_id, duration);
-        pfxmon_delim = ",\n";
+        DUMP_LINE(pfxmon_delim, "{ monitor:%"PRIu16", duration:%"PRIu32" }",
+            origins[i].peers[j].peer_id, duration);
+        pfxmon_delim = ",";
       }
 
       indent -= 2;
-      wandio_printf(f, "\n%*s]", indent, ""); // monitors
+      DUMP_LINE("", "]"); // monitors
       indent -= 2;
-      wandio_printf(f, "\n%*s}", indent, ""); // prefix_as_meta_data obj
+      DUMP_LINE("", "}"); // prefix_as_meta_data obj
     }
   }
   indent -= 2;
-  wandio_printf(f, "\n%*s]\n", indent, ""); // prefix_as_meta_data list
+  DUMP_LINE("", "]\n"); // prefix_as_meta_data list
 
   /* close the output files and create .done file */
   if (close_outfiles(consumer) != 0) {
