@@ -34,7 +34,8 @@ include_HEADERS =
 
 libbgpview_io_bsrt_la_SOURCES = 	\
 	bgpview_io_bsrt.c		\
-	bgpview_io_bsrt.h
+	bgpview_io_bsrt.h		\
+	bgpview_io_bsrt_int.h
 
 libbgpview_io_bsrt_la_LIBADD =
 libbgpview_io_bsrt_la_LIBADD += $(top_srcdir)/lib/io/bsrt/libroutingtables/libroutingtables.la
