@@ -24,7 +24,9 @@
 #include "bvc_pfx2as.h"
 #include "bgpview_consumer_interface.h"
 #include "bgpview_consumer_utils.h"
+#include "bgpstream_utils_addr.h"
 #include "bgpstream_utils_pfx_set.h"
+#include "bgpstream_utils_id_set.h"
 #include "khash.h"
 #include "utils.h"
 #include <assert.h>
@@ -95,6 +97,9 @@ typedef struct bvc_pfx2as_state {
   /** only output peer counts */
   int peer_count_only;
 
+  /** split prefixes into files by IP version */
+  int split_ipv;
+
   /* ----- working state ----- */
 
   /** data for all pfx-peers */
@@ -103,7 +108,7 @@ typedef struct bvc_pfx2as_state {
   /** iterator for state->view */
   bgpview_iter_t *myit;
 
-  /** count of views since last reset */
+  /** count of views in current output interval */
   uint32_t view_cnt;
 
   /** time of first view */
@@ -125,6 +130,9 @@ typedef struct bvc_pfx2as_state {
   bgpstream_peer_id_t full_feed_peer_id;
   bgpstream_peer_id_t partial_feed_peer_id;
 
+  /** sets of peers that observed v4 or v6 prefixes */
+  bgpstream_id_set_t *peer_set[BGPSTREAM_MAX_IP_VERSION_IDX];
+
 } bvc_pfx2as_state_t;
 
 typedef struct pfx2as_stats {
@@ -132,6 +140,7 @@ typedef struct pfx2as_stats {
   int32_t tot_origin_cnt;
   int32_t max_origin_cnt;
   int32_t mopp_cnt; // pfx-peers with multiple origins
+  int32_t compactable_cnt; // mopps with only 1 nonzero origin
   int32_t overwrite_cnt;
   int32_t malloc_cnt;
   int32_t realloc_cnt;
@@ -139,10 +148,13 @@ typedef struct pfx2as_stats {
 
 /* ==================== CONSUMER INTERNAL FUNCTIONS ==================== */
 
-static int open_outfiles(bvc_t *consumer, uint32_t vtime)
+static int open_outfiles(bvc_t *consumer, int version, uint32_t vtime)
 {
+  char version_str[4] = "";
+  if (version != 0)
+    sprintf(version_str, ".v%d", bgpstream_ipv2number(version));
   if (!(STATE->outfile = bvcu_open_outfile(STATE->outfile_name,
-        "%s/" NAME ".%" PRIu32 ".gz", STATE->outdir, vtime)))
+        "%s/" NAME "%s.%" PRIu32 ".gz", STATE->outdir, version_str, vtime)))
     return -1;
 
   return 0;
@@ -165,19 +177,19 @@ static int close_outfiles(bvc_t *consumer)
 // - we overload the user pointer with a flag in bit0 to indicate we're
 //   overloading it, and store the view_cnt in the remaining 31 (or more) bits.
 // If there are multiple origins, only then do we allocate a user data
-// structure to hold view_cnt_0 and origin/view_cnt pairs 1..N-1.
+// structure to hold view_cnt_0 and {origin,view_cnt} pairs 1..N-1.
 // This assumes that a real user pointer will always have a bit0 == 0 because
 // the alignment of the struct will always be at least 2.
 
 #pragma GCC diagnostic ignored "-Wbad-function-cast"
 
-#define aod_size(origin_cnt)                                                   \
+#define aod_size(origin_cnt) /* undefined if (origin_cnt <= 1) */              \
   offsetof(additional_origin_durations_t, origins[(origin_cnt)-1])
 
 #define pp_is_compact(iter) /* undefined if (user==NULL) */                    \
   ((uintptr_t)bgpview_iter_pfx_peer_get_user(iter) & 0x1)
 
-#define pp_get_aod(iter)                                                       \
+#define pp_get_aod(iter) /* undefined if (pp_is_compact(iter)) */              \
   ((additional_origin_durations_t*)bgpview_iter_pfx_peer_get_user(iter))
 
 #define pp_origin_cnt(iter)                                                    \
@@ -233,37 +245,46 @@ typedef struct peer_duration {
 
 typedef struct origin_peers {
   bgpstream_as_path_seg_t *origin;
-  uint32_t full_feed_peer_cnt;
   peer_duration_t full_feed_peers; // psuedo peer
-  uint32_t partial_feed_peer_cnt;
+  uint32_t full_feed_peer_cnt; // count of real peers comprising pseudo peer
   peer_duration_t partial_feed_peers; // psuedo peer
+  uint32_t partial_feed_peer_cnt; // count of real peers comprising pseudo peer
   peer_duration_t peers[MAX_ORIGIN_PEER_CNT]; // real peers
   int peer_cnt;
 } origin_peers_t;
 
-static int dump_results(bvc_t *consumer, uint32_t view_interval)
+static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 {
   bgpview_iter_t *myit = STATE->myit;
   int indent = 0;
-  iow_t *f = STATE->outfile;
+  int vidx = (version == 0) ? 0 : bgpstream_ipv2idx(version);
+
+  if (open_outfiles(consumer, version, STATE->out_interval_start) != 0) {
+    return -1;
+  }
 
 // DUMP_LINE(delim, fmt, args...)
-// depends on `f` and `indent` being in scope
+// depends on `indent` being in scope
 #define DUMP_LINE(delim, ...) \
   do {                                                                         \
-    wandio_printf(f, "%s\n%*s", delim, indent, "");                            \
-    wandio_printf(f, __VA_ARGS__);                                             \
+    wandio_printf(STATE->outfile, "%s\n%*s", delim, indent, "");               \
+    wandio_printf(STATE->outfile, __VA_ARGS__);                                \
   } while (0)
 
   // Dump dataset metadata
 
-  wandio_printf(f, "dataset: {");
+  wandio_printf(STATE->outfile, "dataset: {");
   indent += 2;
 
   DUMP_LINE("", "start: %d", STATE->out_interval_start);
   DUMP_LINE(",", "duration: %d", STATE->view_cnt * view_interval);
-  DUMP_LINE(",", "monitor_count: %d", -1); // XXX
-  DUMP_LINE(",", "prefix_count: %d", -1); // XXX
+  uint32_t peer_cnt = bgpstream_id_set_size(STATE->peer_set[vidx]);
+  DUMP_LINE(",", "monitor_count: %d", peer_cnt);
+  uint32_t pfx_cnt =
+    (version == BGPSTREAM_ADDR_VERSION_IPV4 ? bgpview_v4pfx_cnt :
+    version == BGPSTREAM_ADDR_VERSION_IPV6 ? bgpview_v6pfx_cnt :
+    bgpview_pfx_cnt)(STATE->view, BGPVIEW_FIELD_ACTIVE);
+  DUMP_LINE(",", "prefix_count: %"PRIu32, pfx_cnt);
 
   indent -= 2;
   DUMP_LINE("", "}"); // dataset
@@ -280,6 +301,11 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
         bgpview_iter_has_more_peer(myit);
         bgpview_iter_next_peer(myit)) {
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
+
+      if (peer_id == STATE->full_feed_peer_id ||
+          peer_id == STATE->partial_feed_peer_id)
+        continue; // skip pseudo-peers
+
       bgpstream_peer_sig_t *ps = bgpstream_peer_sig_map_get_sig(psmap, peer_id);
       DUMP_LINE(mon_delim, "{");
       mon_delim = ",";
@@ -287,8 +313,9 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
       DUMP_LINE("", "monitor_id: %d", peer_id);
       DUMP_LINE(",", "project: \"%s\"", "XXX"); // XXX
       DUMP_LINE(",", "collector: \"%s\"", ps->collector_str);
-      DUMP_LINE(",", "prefix_count: %d", -1); // XXX
-      DUMP_LINE(",", "asn: %d", ps->peer_asnumber);
+      DUMP_LINE(",", "prefix_count: %"PRIu32,
+          bgpview_iter_peer_get_pfx_cnt(myit, version, BGPVIEW_FIELD_ACTIVE));
+      DUMP_LINE(",", "asn: %"PRIu32, ps->peer_asnumber);
       indent -= 2;
       DUMP_LINE("", "}");
     }
@@ -304,7 +331,7 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
 
   // for each prefix
   const char *pfx_delim = "";
-  for (bgpview_iter_first_pfx(myit, 0, BGPVIEW_FIELD_ACTIVE);
+  for (bgpview_iter_first_pfx(myit, version, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(myit);
       bgpview_iter_next_pfx(myit)) {
 
@@ -371,7 +398,7 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
 
       if (observed == 0) {
         // peer never observed prefix in last out_interval; delete pfx-peer
-        bgpview_iter_pfx_peer_set_user(myit, NULL);
+        pp_set_compact_view_cnt(myit, 0); // deallocates user ptr
         bgpview_iter_pfx_remove_peer(myit);
       }
     }
@@ -387,26 +414,18 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
       DUMP_LINE(pfx_delim, "{"); // prefix_as_meta_data obj
       pfx_delim = ",";
       indent += 2;
-      DUMP_LINE("", "network: %s", pfx_str);
-      DUMP_LINE(",", "asn:\"%s\"", orig_str);
+      DUMP_LINE("", "network: \"%s\"", pfx_str);
+      DUMP_LINE(",", "asn: \"%s\"", orig_str);
 
       // full/partial-feed monitor counts
-      DUMP_LINE(",", "monitors: {");
-      indent += 2;
-      DUMP_LINE("", "full: %d", origins[i].full_feed_peer_cnt);
-      DUMP_LINE(",", "partial: %d", origins[i].partial_feed_peer_cnt);
-      indent -= 2;
-      DUMP_LINE("", "}");
+      DUMP_LINE(",", "monitors: { full: %d, partial: %d }",
+          origins[i].full_feed_peer_cnt, origins[i].partial_feed_peer_cnt);
 
       // announced_duration
-      DUMP_LINE(",", "announced_duration: {");
-      indent += 2;
-      pd = &origins[i].full_feed_peers;
-      DUMP_LINE("", "full: %d", pd->view_cnt * view_interval);
-      pd = &origins[i].partial_feed_peers;
-      DUMP_LINE(",", "partial: %d", pd->view_cnt * view_interval);
-      indent -= 2;
-      DUMP_LINE("", "}");
+      peer_duration_t *pd_full = &origins[i].full_feed_peers;
+      peer_duration_t *pd_partial = &origins[i].partial_feed_peers;
+      DUMP_LINE(",", "announced_duration: { full: %d, partial: %d }",
+          pd_full->view_cnt * view_interval, pd_partial->view_cnt * view_interval);
 
       // list of {monitor_id, duration}
       if (!STATE->peer_count_only) {
@@ -435,10 +454,6 @@ static int dump_results(bvc_t *consumer, uint32_t view_interval)
   if (close_outfiles(consumer) != 0) {
     return -1;
   }
-
-  // reset state
-  STATE->view_cnt = 0;
-  // don't reset first_view_time, prev_view_time, or prev_view_interval
 
   return 0;
 }
@@ -492,10 +507,10 @@ static int count_origin_peer(bvc_t *consumer, bgpview_iter_t *vit,
     uintptr_t view_cnt = pp_get_view_cnt(myit, found_i);
     view_cnt++;
     pp_set_view_cnt(myit, found_i, view_cnt);
-  } else if (pp_is_compact(myit) && pp_get_view_cnt(myit, 0) == 0) {
+  } else if (pp_get_view_cnt(myit, 0) == 0) {
     // we can overwrite origin0
     bgpview_iter_pfx_peer_set_as_path_by_id(myit, path_id);
-    pp_set_view_cnt(myit, found_i, 1);
+    pp_set_view_cnt(myit, 0, 1);
     ++stats->overwrite_cnt;
   } else {
     // use a new aod slot
@@ -516,7 +531,7 @@ static int count_origin_peer(bvc_t *consumer, bgpview_iter_t *vit,
     aod->origin_cnt = new_origin_cnt;
     aod->origins[aod->origin_cnt-2].path_id = path_id;
     aod->origins[aod->origin_cnt-2].view_cnt = 1;
-    bgpview_iter_pfx_peer_set_user(myit, aod);
+    bgpview_iter_pfx_peer_set_user(myit, aod); // frees old aod if there was one
   }
   return 0;
 }
@@ -540,6 +555,10 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
     STATE->prev_view_interval = 0;
     STATE->next_output_time = vtime + STATE->out_interval;
     STATE->myit = bgpview_iter_create(STATE->view);
+
+    for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i)
+      STATE->peer_set[i] = bgpstream_id_set_create();
+
     // for counts by feed type
     bgpstream_ip_addr_t bogus_addr;
     bgpstream_str2addr("0.0.0.0", &bogus_addr);
@@ -568,19 +587,32 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
     }
     if (vtime >= STATE->next_output_time) {
       // Dump results BEFORE processing current view
-      if (dump_results(consumer, view_interval) < 0)
-        goto err;
+      if (STATE->split_ipv) {
+        if (dump_results(consumer, BGPSTREAM_ADDR_VERSION_IPV4, view_interval) < 0)
+          goto err;
+        if (dump_results(consumer, BGPSTREAM_ADDR_VERSION_IPV6, view_interval) < 0)
+          goto err;
+      } else {
+        if (dump_results(consumer, 0, view_interval) < 0)
+          goto err;
+      }
+
+      // reset state
+      STATE->view_cnt = 0;
+      STATE->out_interval_start = 0;
+      for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i)
+        bgpstream_id_set_clear(STATE->peer_set[i]);
+
+      // Don't bgpview_gc() yet: the view we're about to process may re-add
+      // some of the records we just removed.
+
       STATE->next_output_time += STATE->out_interval;
     }
   }
 
-  if (!STATE->outfile) {
-    // prepare output files for writing (doing this now instead of waiting for
-    // the end of the out_interval lets us generate any error message sooner)
+  if (!STATE->out_interval_start) {
+    // Start a new output interval
     STATE->out_interval_start = vtime;
-    if (open_outfiles(consumer, STATE->out_interval_start) != 0) {
-      return -1;
-    }
   }
 
   STATE->view_cnt++;
@@ -611,6 +643,7 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       bgpview_iter_next_pfx(vit)) {
 
     bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(vit);
+    int vidx = bgpstream_ipv2idx(pfx->address.version);
 
     // for each peer in pfx
     for (bgpview_iter_pfx_first_peer(vit, BGPVIEW_FIELD_ACTIVE);
@@ -621,11 +654,14 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       bgpstream_as_path_store_path_id_t path_id =
           bgpview_iter_pfx_peer_get_as_path_store_path_id(vit);
 
+      bgpstream_id_set_insert(STATE->peer_set[STATE->split_ipv ? vidx : 0],
+          peer_id);
+
       // count into full- or partial-feed pseudo-peer
-      int idx = bgpstream_ipv2idx(pfx->address.version);
-      int full = bgpstream_id_set_exists(CHAIN_STATE->full_feed_peer_ids[idx], peer_id);
+      int is_full = bgpstream_id_set_exists(
+          CHAIN_STATE->full_feed_peer_ids[vidx], peer_id);
       if (count_origin_peer(consumer, vit, myit, pfx,
-          full ? STATE->full_feed_peer_id : STATE->partial_feed_peer_id,
+          is_full ? STATE->full_feed_peer_id : STATE->partial_feed_peer_id,
           path_id, &stats) < 0)
         goto err;
 
@@ -656,17 +692,25 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       stats.pfxpeer_cnt++;
       int origin_cnt = pp_origin_cnt(myit);
       stats.tot_origin_cnt += origin_cnt;
-      if (origin_cnt > 1)
+      if (origin_cnt > 1) {
         stats.mopp_cnt++;
+        int nonzero_cnt = 0;
+        for (int i = 0; i < origin_cnt; ++i) {
+          if (pp_get_view_cnt(myit, i) > 0)
+            nonzero_cnt++;
+        }
+        if (nonzero_cnt == 1)
+          stats.compactable_cnt++;
+      }
       if (origin_cnt > stats.max_origin_cnt)
         stats.max_origin_cnt = origin_cnt;
     }
   }
-  printf("# pp=%d; orig: tot=%d, max=%d; orig/pp=%f; mopp=%d; overwrite=%d; malloc=%d,%d\n",
+  printf("# pp=%d; orig: tot=%d, max=%d; orig/pp=%f; mopp=%d (%d compactable); overwrite=%d; malloc=%d,%d\n",
       stats.pfxpeer_cnt,
       stats.tot_origin_cnt, stats.max_origin_cnt,
       (double)stats.tot_origin_cnt/stats.pfxpeer_cnt,
-      stats.mopp_cnt,
+      stats.mopp_cnt, stats.compactable_cnt,
       stats.overwrite_cnt,
       stats.malloc_cnt, stats.realloc_cnt);
 #endif
@@ -684,7 +728,8 @@ static void usage(bvc_t *consumer)
       "consumer usage: %s\n"
       "       -i <output-interval>  output interval in seconds (default %d)\n"
       "       -o <path>             output directory\n"
-      "       -c                    output peer counts, not full list\n",
+      "       -c                    output peer counts, not full list\n"
+      "       -v                    split prefixes into files by IP version\n",
       consumer->name, OUTPUT_INTERVAL);
 }
 
@@ -700,7 +745,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while ((opt = getopt(argc, argv, "i:o:c?")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:cv?")) >= 0) {
     switch (opt) {
     case 'i':
       state->out_interval = strtoul(optarg, NULL, 10);
@@ -710,6 +755,9 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
       break;
     case 'c':
       state->peer_count_only = 1;
+      break;
+    case 'v':
+      state->split_ipv = 1;
       break;
     case '?':
     case ':':
@@ -760,6 +808,15 @@ int bvc_pfx2as_init(bvc_t *consumer, int argc, char **argv)
     goto err;
   }
 
+  // Test ability to open output files now so user gets immediate feedback on
+  // any errors, instead of waiting for the end of the first out_interval
+  if (open_outfiles(consumer, 0, 0) != 0) {
+    goto err;
+  }
+  wandio_wdestroy(STATE->outfile);
+  STATE->outfile = NULL;
+  remove(STATE->outfile_name);
+
   return 0;
 
 err:
@@ -787,6 +844,10 @@ void bvc_pfx2as_destroy(bvc_t *consumer)
 
   if (STATE->view)
     bgpview_destroy(STATE->view);
+
+  for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i)
+    if (STATE->peer_set[i])
+      bgpstream_id_set_destroy(STATE->peer_set[i]);
 
   free(STATE->outdir);
 
