@@ -101,7 +101,7 @@ typedef struct {
   int op;
   int peer;
   const char *pfx;
-  int path[9]; // new AS path, not including peer AS, 0-terminated
+  uint32_t path[9]; // new AS path, not including peer AS, 0-terminated
 } test_instruction_t;
 
 static test_state_t test = {0};
@@ -111,29 +111,29 @@ static test_instruction_t testscript[] = {
 //  time  operation                 peer pfx            path
   {    0, OP_RIB,                    0,  NULL,          {0}},
   // toggle some routes
-  {  199, OP_PFX_ANNOUNCE,           3,  "10.3.3.0/24", {0}},
-  {  299, OP_PFX_WITHDRAW,           4,  "10.4.4.0/24", {0}},
-  {  399, OP_PFX_ANNOUNCE | OP_LOST, 6,  "10.6.6.0/24", {0}},
-  {  499, OP_PFX_WITHDRAW | OP_LOST, 7,  "10.7.7.0/24", {0}},
+  {  199, OP_PFX_ANNOUNCE,           3,  "10.99.3.0/24", {0}},
+  {  299, OP_PFX_WITHDRAW,           4,  "10.99.4.0/24", {0}},
+  {  399, OP_PFX_ANNOUNCE | OP_LOST, 6,  "10.99.6.0/24", {0}},
+  {  499, OP_PFX_WITHDRAW | OP_LOST, 7,  "10.99.7.0/24", {0}},
   // toggle some peers
   {  599, OP_PEER_DOWN,              5,  NULL,          {0}},
   {  699, OP_PEER_DOWN,              2,  NULL,          {0}},
   {  799, OP_PEER_UP,                5,  NULL,          {0}},
   // change some paths
-  {  899, OP_PFX_ANNOUNCE,           5,  "10.5.3.0/24", {15031,15030,0}},
-  {  999, OP_PFX_ANNOUNCE,           7,  "10.7.3.0/24", {17031,17030,0}},
-  { 1099, OP_PFX_ANNOUNCE,           7,  "10.7.3.0/24", {27032,27031,27030,0}},
+  {  899, OP_PFX_ANNOUNCE,           5,  "10.99.3.0/24", {19931,19930,0}},
+  {  999, OP_PFX_ANNOUNCE,           7,  "10.99.3.0/24", {19931,19930,0}},
+  { 1099, OP_PFX_ANNOUNCE,           7,  "10.99.3.0/24", {29932,29931,29930,0}},
   // Run longer than RT_MAX_INACTIVE_TIME (3600s) since the PEER_DOWN(2)
   // so RT will deactivate that peer.
   { 7200, OP_RIB,                    0,  NULL,          {0}},
   {   -1, OP_EOS,                    0,  NULL,          {0}},
 };
 
-#define TEST_PEER_ASN(peer)         (1000 * (peer))
+#define TEST_PEER_ASN(peer)         (100 * (peer))
 #define TEST_PEER_ADDR(peer)        htonl((100<<24) | (peer)) // "100.0.0.peer"
 #define TEST_PFX(peer, i)           htonl((10<<24) | ((peer)<<16) | ((i)<<8)) // "10.peer.i.0"
-#define TEST_ORIGIN_ASN(peer, i)    (1000 * (peer) + 10 * (i))
-#define TEST_HOP_ASN(peer, i, hop)  (1000 * (peer) + 10 * (i) + hop)
+#define TEST_ORIGIN_ASN(peer, i)    (100 * (peer) + 10 * (i))
+#define TEST_HOP_ASN(peer, i, hop)  (100 * (peer) + 10 * (i) + hop)
 
 static int print_record(bgpstream_record_t *record)
 {
@@ -223,13 +223,7 @@ static int test_get_next_record(bgpstream_t *bgpstream,
       for (int i = 1; i <= test_table_size; i++) {
         bgpstream_pfx_t test_prefix;
         test_prefix.address.version = BGPSTREAM_ADDR_VERSION_IPV4;
-        if ((peer == 5 || peer == 6) && i == 4) {
-          // generate multiple entries with the same pfx but different
-          // origins, to make things interesting
-          test_prefix.address.bs_ipv4.addr.s_addr = TEST_PFX(56, i);
-        } else {
-          test_prefix.address.bs_ipv4.addr.s_addr = TEST_PFX(peer, i);
-        }
+        test_prefix.address.bs_ipv4.addr.s_addr = TEST_PFX(99, i);
         test_prefix.mask_len = 24;
 
         int seg_cnt = (peer + i) % 5 + 2; // 2 - 6 segments
@@ -238,10 +232,16 @@ static int test_get_next_record(bgpstream_t *bgpstream,
         bgpstream_as_path_clear(test_as_path);
         bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_ASN, &peer_asn, 1);
         for (int hop = seg_cnt-2; hop > 0; hop--) {
-          asn_set[0] = TEST_HOP_ASN(peer, i, hop);
+          asn_set[0] = TEST_HOP_ASN(99, i, hop);
           bgpstream_as_path_append(test_as_path, BGPSTREAM_AS_PATH_SEG_ASN, asn_set, 1);
         }
-        asn_set[0] = TEST_ORIGIN_ASN(peer, i);
+        if ((peer == 5 || peer == 6) && i == 4) {
+          // generate multiple entries with the same pfx but different
+          // origins, to make things interesting
+          asn_set[0] = TEST_ORIGIN_ASN(peer, i);
+        } else {
+          asn_set[0] = TEST_ORIGIN_ASN(99, i);
+        }
         if (peer == 4 && i % 3 == 0) {
           // insert an AS SET to make things interesting
           asn_set[1] = asn_set[0] + 100;
