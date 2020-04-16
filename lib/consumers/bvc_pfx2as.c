@@ -304,21 +304,18 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 
     const char *mon_delim = "";
     bgpstream_peer_sig_map_t *psmap = bgpview_get_peersigns(STATE->view);
+    // note: ACTIVE peers excludes pseudo-peers
     for (bgpview_iter_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
         bgpview_iter_has_more_peer(myit);
         bgpview_iter_next_peer(myit)) {
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
 
-      if (peer_id == STATE->full_feed_peer_id ||
-          peer_id == STATE->partial_feed_peer_id)
-        continue; // skip pseudo-peers
-
       bgpstream_peer_sig_t *ps = bgpstream_peer_sig_map_get_sig(psmap, peer_id);
       DUMP_LINE(mon_delim, "{");
       mon_delim = ",";
       indent += 2;
-      DUMP_LINE("", "monitor_id: %d", peer_id);
-      DUMP_LINE(",", "project: \"%s\"", "XXX"); // XXX
+      DUMP_LINE("", "monitor_idx: %d", peer_id);
+      // DUMP_LINE(",", "project: \"%s\"", ???); // not available from bgpview
       DUMP_LINE(",", "collector: \"%s\"", ps->collector_str);
       DUMP_LINE(",", "prefix_count: %"PRIu32,
           bgpview_iter_peer_get_pfx_cnt(myit, version, BGPVIEW_FIELD_ACTIVE));
@@ -350,7 +347,8 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
     // convert map of peer->origin to map of origin->peer
 
     // for each peer in pfx
-    for (bgpview_iter_pfx_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
+    // note: ALL_VALID peers includes pseudo-peers
+    for (bgpview_iter_pfx_first_peer(myit, BGPVIEW_FIELD_ALL_VALID);
         bgpview_iter_pfx_has_more_peer(myit);
         bgpview_iter_pfx_next_peer(myit)) {
 
@@ -437,7 +435,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
       DUMP_LINE(",", "announced_duration: { full: %d, partial: %d }",
           pd_full->view_cnt * view_interval, pd_partial->view_cnt * view_interval);
 
-      // list of {monitor_id, duration}
+      // list of {monitor_idx, duration}
       if (!STATE->peer_count_only) {
         DUMP_LINE(",", "monitors: [");
         indent += 2;
@@ -477,14 +475,14 @@ static int count_origin_peer(bvc_t *consumer,
   // TODO: If we can guarantee that pfx already exists in myit and myit is
   // pointing to it, we can replace verb_pfx_peer() with the faster
   // pfx_verb_peer().
+  // Note: ALL_VALID peers includes pseudo-peers.
   if (!bgpview_iter_seek_pfx_peer(myit, pfx, peer_id, BGPVIEW_FIELD_ACTIVE,
-      BGPVIEW_FIELD_ACTIVE)) {
+      BGPVIEW_FIELD_ALL_VALID)) {
     bgpview_iter_add_pfx_peer_by_id(myit, pfx, peer_id, path_id);
-  }
 
-  if (bgpview_iter_pfx_peer_get_state(myit) == BGPVIEW_FIELD_INACTIVE) {
-    // new pfx-peer
-    bgpview_iter_pfx_activate_peer(myit);
+    if (peer_id != STATE->full_feed_peer_id && peer_id != STATE->partial_feed_peer_id) {
+      bgpview_iter_pfx_activate_peer(myit);
+    }
     pp_set_compact_view_cnt(myit, 1);
     return 0;
   }
@@ -576,10 +574,8 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
     bgpstream_str2addr("0.0.0.0", &bogus_addr);
     STATE->full_feed_peer_id = bgpview_iter_add_peer(STATE->myit,
         "FULL_FEED_PEERS", &bogus_addr, 0);
-    bgpview_iter_activate_peer(STATE->myit);
     STATE->partial_feed_peer_id = bgpview_iter_add_peer(STATE->myit,
         "PARTIAL_FEED_PEERS", &bogus_addr, 0);
-    bgpview_iter_activate_peer(STATE->myit);
 
   } else {
     view_interval = vtime - STATE->prev_view_time;
@@ -755,16 +751,12 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
 
     bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(myit);
 
-    // for each peer in pfx
+    // for each ACTIVE (non-pseudo) peer in pfx
     for (bgpview_iter_pfx_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
         bgpview_iter_pfx_has_more_peer(myit);
         bgpview_iter_pfx_next_peer(myit)) {
 
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
-      if (peer_id == STATE->full_feed_peer_id ||
-          peer_id == STATE->partial_feed_peer_id)
-        continue; // skip pseudo-peers
-
       stats.pfxpeer_cnt++;
       int origin_cnt = pp_origin_cnt(myit);
       stats.tot_origin_cnt += origin_cnt;
