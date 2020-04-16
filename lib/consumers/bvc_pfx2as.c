@@ -130,10 +130,6 @@ typedef struct bvc_pfx2as_state {
   bgpstream_peer_id_t full_feed_peer_id;
   bgpstream_peer_id_t partial_feed_peer_id;
 
-  /** sets of peers (subdivided by IP version of the announced prefix, if
-   * split_ipv) */
-  bgpstream_id_set_t *peer_set[BGPSTREAM_MAX_IP_VERSION_IDX];
-
   /** sets of peers that were considered full-feed in any view within out_interval */
   bgpstream_id_set_t *full_feed_peer_set[BGPSTREAM_MAX_IP_VERSION_IDX];
 
@@ -265,6 +261,17 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   bgpview_iter_t *myit = STATE->myit;
   int indent = 0;
 
+  // count peers where pfx_cnt > 0
+  uint32_t peer_cnt = 0;
+  for (bgpview_iter_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
+      bgpview_iter_has_more_peer(myit);
+      bgpview_iter_next_peer(myit)) {
+    if (bgpview_iter_peer_get_pfx_cnt(myit, version, BGPVIEW_FIELD_ACTIVE) > 0)
+      peer_cnt++;
+  }
+  if (peer_cnt == 0) // e.g., peers are ipv-specific, and split_ipv is true
+    return 0; // nothing to report
+
   if (open_outfiles(consumer, version, STATE->out_interval_start) != 0) {
     return -1;
   }
@@ -284,8 +291,6 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 
   DUMP_LINE("", "start: %d", STATE->out_interval_start);
   DUMP_LINE(",", "duration: %d", STATE->view_cnt * view_interval);
-  uint32_t peer_cnt = bgpstream_id_set_size(
-      STATE->peer_set[(version == 0) ? 0 : bgpstream_ipv2idx(version)]);
   DUMP_LINE(",", "monitor_count: %d", peer_cnt);
   uint32_t pfx_cnt =
     (version == BGPSTREAM_ADDR_VERSION_IPV4 ? bgpview_v4pfx_cnt :
@@ -309,6 +314,10 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
         bgpview_iter_has_more_peer(myit);
         bgpview_iter_next_peer(myit)) {
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
+      uint32_t peer_pfx_cnt = bgpview_iter_peer_get_pfx_cnt(myit, version,
+          BGPVIEW_FIELD_ACTIVE);
+      if (peer_pfx_cnt == 0)
+        continue; // skip peer with no prefixes with the requested ipv
 
       bgpstream_peer_sig_t *ps = bgpstream_peer_sig_map_get_sig(psmap, peer_id);
       DUMP_LINE(mon_delim, "{");
@@ -565,7 +574,6 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
     STATE->myit = bgpview_iter_create(STATE->view);
 
     for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i) {
-      STATE->peer_set[i] = bgpstream_id_set_create();
       STATE->full_feed_peer_set[i] = bgpstream_id_set_create();
     }
 
@@ -609,7 +617,6 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       STATE->view_cnt = 0;
       STATE->out_interval_start = 0;
       for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i) {
-        bgpstream_id_set_clear(STATE->peer_set[i]);
         bgpstream_id_set_clear(STATE->full_feed_peer_set[i]);
       }
 
@@ -679,10 +686,6 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
           bgpview_iter_pfx_peer_get_origin_seg(vit);
       int is_full = bgpstream_id_set_exists(
           CHAIN_STATE->full_feed_peer_ids[vidx], peer_id);
-
-      // count peer by ipv
-      bgpstream_id_set_insert(
-          STATE->peer_set[STATE->split_ipv ? vidx : 0], peer_id);
 
       // count full-feed peer
       if (is_full) {
@@ -925,8 +928,6 @@ void bvc_pfx2as_destroy(bvc_t *consumer)
     bgpview_destroy(STATE->view);
 
   for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i) {
-    if (STATE->peer_set[i])
-      bgpstream_id_set_destroy(STATE->peer_set[i]);
     if (STATE->full_feed_peer_set[i])
       bgpstream_id_set_destroy(STATE->full_feed_peer_set[i]);
   }
