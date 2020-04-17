@@ -181,13 +181,11 @@ static int close_outfiles(bvc_t *consumer)
 // This assumes that a real user pointer will always have a bit0 == 0 because
 // the alignment of the struct will always be at least 2.
 
-#pragma GCC diagnostic ignored "-Wbad-function-cast"
-
 #define aod_size(origin_cnt) /* undefined if (origin_cnt <= 1) */              \
   offsetof(additional_origin_durations_t, origins[(origin_cnt)-1])
 
 #define pp_is_compact(iter) /* undefined if (user==NULL) */                    \
-  ((uintptr_t)bgpview_iter_pfx_peer_get_user(iter) & 0x1)
+  ((uintptr_t)(bgpview_iter_pfx_peer_get_user(iter)) & 0x1)
 
 #define pp_get_aod(iter) /* undefined if (pp_is_compact(iter)) */              \
   ((additional_origin_durations_t*)bgpview_iter_pfx_peer_get_user(iter))
@@ -202,7 +200,7 @@ static int close_outfiles(bvc_t *consumer)
 #define pp_get_view_cnt(iter, i)                                               \
   (((i) > 0) ? pp_get_aod(iter)->origins[(i)-1].view_cnt :                     \
     pp_is_compact(iter) ?                                                      \
-    ((uintptr_t)bgpview_iter_pfx_peer_get_user(iter) >> 1) :                   \
+    ((uintptr_t)(bgpview_iter_pfx_peer_get_user(iter)) >> 1) :                 \
     pp_get_aod(iter)->view_cnt_0)
 
 #define path_get_origin_seg(view, path_id)                                     \
@@ -234,7 +232,7 @@ static int close_outfiles(bvc_t *consumer)
 // XXX This belongs in bgpstream
 #define path_id_equal(a, b) (memcmp(&a, &b, sizeof(a)) == 0)
 
-static void pp_destroy(void *pp)
+static void ppu_destroy(void *pp)
 {
   if (!((uintptr_t)pp & 0x1))
     free(pp);
@@ -558,7 +556,7 @@ static int init_my_view(bvc_t *consumer, bgpview_t *srcview)
   // receiving first view; initialize my state
   uint32_t vtime = bgpview_get_time(srcview);
   STATE->view = bgpview_create_shared(bgpview_get_peersigns(srcview),
-      bgpview_get_as_path_store(srcview), NULL, NULL, NULL, pp_destroy);
+      bgpview_get_as_path_store(srcview), NULL, NULL, NULL, ppu_destroy);
   if (!STATE->view)
     return -1;
   STATE->view_cnt = 0;
