@@ -261,7 +261,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   bgpview_iter_t *myit = STATE->myit;
   int indent = 0;
 
-  // count peers where pfx_cnt > 0
+  // count real peers where pfx_cnt > 0
   uint32_t peer_cnt = 0;
   for (bgpview_iter_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_peer(myit);
@@ -355,8 +355,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 
     // convert map of peer->origin to map of origin->peer
 
-    // for each peer in pfx
-    // note: ALL_VALID peers includes pseudo-peers
+    // for each VALID (real or pseudo) peer in pfx
     for (bgpview_iter_pfx_first_peer(myit, BGPVIEW_FIELD_ALL_VALID);
         bgpview_iter_pfx_has_more_peer(myit);
         bgpview_iter_pfx_next_peer(myit)) {
@@ -705,20 +704,17 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
   memset(&stats, 0, sizeof(stats));
   STATE->view_cnt++;
 
-  if (!STATE->peer_count_only) {
-    // make sure every peer in view exists in myview
-    for (bgpview_iter_first_peer(vit, BGPVIEW_FIELD_ACTIVE);
-        bgpview_iter_has_more_peer(vit);
-        bgpview_iter_next_peer(vit)) {
-
-      bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(vit);
-      if (!bgpview_iter_seek_peer(myit, peer_id, BGPVIEW_FIELD_ACTIVE)) {
-        bgpstream_peer_sig_t *ps = bgpview_iter_peer_get_sig(vit);
-        bgpstream_peer_id_t new_peer_id = bgpview_iter_add_peer(myit,
-            ps->collector_str, &ps->peer_ip_addr, ps->peer_asnumber);
-        assert(new_peer_id == peer_id);
-        bgpview_iter_activate_peer(myit);
-      }
+  // make sure every peer in view exists in myview
+  for (bgpview_iter_first_peer(vit, BGPVIEW_FIELD_ACTIVE);
+      bgpview_iter_has_more_peer(vit);
+      bgpview_iter_next_peer(vit)) {
+    bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(vit);
+    if (!bgpview_iter_seek_peer(myit, peer_id, BGPVIEW_FIELD_ACTIVE)) {
+      bgpstream_peer_sig_t *ps = bgpview_iter_peer_get_sig(vit);
+      bgpstream_peer_id_t new_peer_id = bgpview_iter_add_peer(myit,
+          ps->collector_str, &ps->peer_ip_addr, ps->peer_asnumber);
+      assert(new_peer_id == peer_id);
+      bgpview_iter_activate_peer(myit);
     }
   }
 
@@ -788,20 +784,18 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       }
 
       // count into actual peer
-      if (STATE->peer_count_only == 0) {
-        if (count_origin_peer(consumer, pfx, peer_id, path_id, &stats) < 0)
-          goto err;
-      }
+      if (count_origin_peer(consumer, pfx, peer_id, path_id, &stats) < 0)
+        goto err;
     }
 
     // finalize count for pseudo-peers
     for (int i = 0; i < pfx_origin_cnt; ++i) {
-      if (pfx_origins[i].full_cnt) {
+      if (pfx_origins[i].full_cnt > 0) {
         if (count_origin_peer(consumer, pfx, STATE->full_feed_peer_id,
             pfx_origins[i].path_id, &stats) < 0)
           goto err;
       }
-      if (pfx_origins[i].partial_cnt) {
+      if (pfx_origins[i].partial_cnt > 0) {
         if (count_origin_peer(consumer, pfx, STATE->partial_feed_peer_id,
             pfx_origins[i].path_id, &stats) < 0)
           goto err;
@@ -948,8 +942,9 @@ void bvc_pfx2as_destroy(bvc_t *consumer)
     bgpview_destroy(STATE->view);
 
   for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i) {
-    if (STATE->full_feed_peer_set[i])
+    if (STATE->full_feed_peer_set[i]) {
       bgpstream_id_set_destroy(STATE->full_feed_peer_set[i]);
+    }
   }
 
   free(STATE->outdir);
