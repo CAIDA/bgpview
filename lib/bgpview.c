@@ -1059,6 +1059,7 @@ int bgpview_iter_seek_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
     (iter)->pfx_peer_state_mask = state_mask;                                  \
     (iter)->pfx_peer_it = 0;                                                   \
     (iter)->pfx_peer_it_valid = 0;                                             \
+    if (!peertable) break;                                                     \
     WHILE_NOT_MATCHED_PFX_PEER(iter, peertable) {                              \
       (iter)->pfx_peer_it++;                                                   \
     }                                                                          \
@@ -1114,14 +1115,14 @@ int bgpview_iter_seek_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
 #define __iter_pfx_seek_peer_tab(iter, tabtype, peertable, peerid, state_mask) \
   do {                                                                         \
     (iter)->pfx_peer_state_mask = state_mask;                                  \
-    khiter_t k = kh_get(tabtype, peertable, peerid);                           \
-    if (k != kh_end(peertable) &&                                              \
+    khiter_t k;                                                                \
+    if (peertable &&                                                           \
+        (k = kh_get(tabtype, peertable, peerid)) != kh_end(peertable) &&       \
         ((iter)->pfx_peer_state_mask & kh_val(peertable, k).state)) {          \
       (iter)->pfx_peer_it_valid = 1;                                           \
       (iter)->pfx_peer_it = k;                                                 \
       __iter_seek_peer((iter), peerid, state_mask);                            \
     } else {                                                                   \
-      iter->pfx_peer_it = kh_end(peertable);                                   \
       iter->pfx_peer_it_valid = 0;                                             \
     }                                                                          \
   } while (0)
