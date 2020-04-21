@@ -475,18 +475,26 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 // Accumulate info about {peer_id, path_id} into myit's pfx-peer
 static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
     bgpstream_peer_id_t peer_id, bgpstream_as_path_store_path_id_t path_id,
-    pfx2as_stats_t *stats)
+    int pfx_exists, pfx2as_stats_t *stats)
 {
-  // Make sure pfx-peer exists in myit
-  // TODO: If we can guarantee that pfx already exists in myit and myit is
-  // pointing to it, we can replace verb_pfx_peer() with the faster
-  // pfx_verb_peer().
-  // Note: ALL_VALID peers includes pseudo-peers.
   bgpview_iter_t *myit = STATE->myit;
-  if (!bgpview_iter_seek_pfx_peer(myit, pfx, peer_id, BGPVIEW_FIELD_ACTIVE,
-      BGPVIEW_FIELD_ALL_VALID)) {
+  // Make sure pfx-peer exists in myit
+  int pfx_peer_is_new = 0;
+  if (pfx_exists) {
+    assert(bgpstream_pfx_equal(bgpview_iter_pfx_get_pfx(myit), pfx));
+    // we can use pfx_seek_peer() instead of seek_pfx_peer()
+    // Note: ALL_VALID peers includes pseudo-peers.
+    if (!bgpview_iter_pfx_seek_peer(myit, peer_id, BGPVIEW_FIELD_ALL_VALID)) {
+      bgpview_iter_pfx_add_peer_by_id(myit, peer_id, path_id);
+      pfx_peer_is_new = 1;
+    }
+  } else {
+    // pfx doesn't exist, so pfx-peer can't exist either
     bgpview_iter_add_pfx_peer_by_id(myit, pfx, peer_id, path_id);
+    pfx_peer_is_new = 1;
+  }
 
+  if (pfx_peer_is_new) {
     if (peer_id != STATE->full_feed_peer_id && peer_id != STATE->partial_feed_peer_id) {
       bgpview_iter_pfx_activate_peer(myit);
     }
@@ -736,6 +744,9 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
     int vidx = bgpstream_ipv2idx(pfx->address.version);
     pfx_origin_cnt = 0;
 
+    // does pfx already exist in myview?
+    int pfx_exists = bgpview_iter_seek_pfx(myit, pfx, BGPVIEW_FIELD_ACTIVE);
+
     // for each peer in pfx
     for (bgpview_iter_pfx_first_peer(vit, BGPVIEW_FIELD_ACTIVE);
         bgpview_iter_pfx_has_more_peer(vit);
@@ -782,21 +793,24 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       }
 
       // count into actual peer
-      if (count_origin_peer(consumer, pfx, peer_id, path_id, &stats) < 0)
+      if (count_origin_peer(consumer, pfx, peer_id, path_id, pfx_exists, &stats) < 0)
         goto err;
+      pfx_exists = 1;
     }
 
     // finalize count for pseudo-peers
     for (int i = 0; i < pfx_origin_cnt; ++i) {
       if (pfx_origins[i].full_cnt > 0) {
         if (count_origin_peer(consumer, pfx, STATE->full_feed_peer_id,
-            pfx_origins[i].path_id, &stats) < 0)
+            pfx_origins[i].path_id, pfx_exists, &stats) < 0)
           goto err;
+        pfx_exists = 1;
       }
       if (pfx_origins[i].partial_cnt > 0) {
         if (count_origin_peer(consumer, pfx, STATE->partial_feed_peer_id,
-            pfx_origins[i].path_id, &stats) < 0)
+            pfx_origins[i].path_id, pfx_exists, &stats) < 0)
           goto err;
+        pfx_exists = 1;
       }
     }
   }
