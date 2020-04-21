@@ -630,13 +630,8 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
   /* if an entry already exists for the prefix-peer, then check
    * that this update is not old  */
 
-  int rc = bgpview_iter_seek_add_pfx_peer(rt->iter, &elem->prefix, peer_id,
-      NULL);
-  if (rc < 0) {
-    fprintf(stderr, "bgpview_iter_seek_add_pfx_peer fails\n");
-    return -1;
-
-  } else if (rc == 0) { /* An entry already existed */
+  if (bgpview_iter_seek_pfx_peer(rt->iter, &elem->prefix, peer_id,
+        BGPVIEW_FIELD_ALL_VALID, BGPVIEW_FIELD_ALL_VALID) != 0) {
     pp = (perpfx_perpeer_info_t *)bgpview_iter_pfx_peer_get_user(rt->iter);
     assert(pp);
     if (ts < pp->bgp_time_last_ts) {
@@ -645,8 +640,12 @@ static int apply_prefix_update(routingtables_t *rt, collector_t *c,
     }
 
   } else { /* otherwise we create the prefix-peer and the associated info ds */
+    if (bgpview_iter_add_pfx_peer(rt->iter, &elem->prefix, peer_id, NULL) < 0) {
+      fprintf(stderr, "bgpview_iter_add_pfx_peer fails\n");
+      return -1;
+    }
     /* when we create a new pfx peer this has to be inactive */
-    bgpview_iter_pfx_deactivate_peer(rt->iter);
+    assert(bgpview_iter_pfx_peer_get_state(rt->iter) == BGPVIEW_FIELD_INACTIVE);
     if ((pp = perpfx_perpeer_info_create()) == NULL) {
       return -1;
     }
@@ -809,14 +808,17 @@ static int apply_rib_message(routingtables_t *rt, collector_t *c,
   p->bgp_time_uc_rib_end = ts;
   p->rib_messages_cnt++;
 
-  int rc = bgpview_iter_seek_add_pfx_peer(rt->iter, &elem->prefix, peer_id,
-      NULL);
-  if (rc < 0) {
-    fprintf(stderr, "bgpview_iter_seek_add_pfx_peer fails\n");
-    return -1;
-  } else if (rc == 1) {
+  if (bgpview_iter_seek_pfx_peer(rt->iter, &elem->prefix, peer_id,
+      BGPVIEW_FIELD_ALL_VALID, BGPVIEW_FIELD_ALL_VALID) == 0) {
+    /* the prefix-peer does not exist, therefore we
+     * create a new empty structure to populate */
+    if (bgpview_iter_add_pfx_peer(rt->iter, &elem->prefix, peer_id, NULL) != 0)
+    {
+      fprintf(stderr, "bgpview_iter_add_pfx_peer fails\n");
+      return -1;
+    }
     /* when we create a new pfx peer this has to be inactive */
-    bgpview_iter_pfx_deactivate_peer(rt->iter);
+    assert(bgpview_iter_pfx_peer_get_state(rt->iter) == BGPVIEW_FIELD_INACTIVE);
   }
 
   if ((pp = (perpfx_perpeer_info_t *)bgpview_iter_pfx_peer_get_user(
