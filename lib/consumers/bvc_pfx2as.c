@@ -184,33 +184,28 @@ static int close_outfiles(bvc_t *consumer)
 #define aod_size(origin_cnt) /* undefined if (origin_cnt <= 1) */              \
   offsetof(additional_origin_durations_t, origins[(origin_cnt)-1])
 
-#define pp_is_compact(iter) /* undefined if (user==NULL) */                    \
-  ((uintptr_t)(bgpview_iter_pfx_peer_get_user(iter)) & 0x1)
+#define ppu_is_compact(ppu) /* undefined if (ppu==NULL) */                     \
+  ((uintptr_t)(ppu) & 0x1)
 
-#define pp_get_aod(iter) /* undefined if (pp_is_compact(iter)) */              \
-  ((additional_origin_durations_t*)bgpview_iter_pfx_peer_get_user(iter))
+#define ppu_get_aod(ppu) /* undefined if (ppu_is_compact(ppu)) */              \
+  ((additional_origin_durations_t*)(ppu))
 
-#define pp_origin_cnt(iter)                                                    \
-  (pp_is_compact(iter) ? 1 : pp_get_aod(iter)->origin_cnt)
+#define ppu_get_origin_cnt(ppu)                                                \
+  (ppu_is_compact(ppu) ? 1 : ppu_get_aod(ppu)->origin_cnt)
 
-#define pp_get_path_id(iter, i)                                                \
-  (((i) > 0) ? pp_get_aod(iter)->origins[(i)-1].path_id :                      \
-    bgpview_iter_pfx_peer_get_as_path_store_path_id(iter))
-
-#define pp_get_view_cnt(iter, i)                                               \
-  (((i) > 0) ? pp_get_aod(iter)->origins[(i)-1].view_cnt :                     \
-    pp_is_compact(iter) ?                                                      \
-    ((uintptr_t)(bgpview_iter_pfx_peer_get_user(iter)) >> 1) :                 \
-    pp_get_aod(iter)->view_cnt_0)
+#define ppu_get_view_cnt(ppu, i)                                               \
+  (((i) > 0) ? ppu_get_aod(ppu)->origins[(i)-1].view_cnt :                     \
+    ppu_is_compact(ppu) ? ((uintptr_t)(ppu) >> 1) :                            \
+    ppu_get_aod(ppu)->view_cnt_0)
 
 #define path_get_origin_seg(view, path_id)                                     \
     bgpstream_as_path_store_path_get_origin_seg(                               \
       bgpstream_as_path_store_get_store_path(                                  \
         bgpview_get_as_path_store(view), path_id))
 
-#define pp_get_origin_seg(view, iter, i)                                       \
+#define ppu_get_origin_seg(view, iter, ppu, i)                                 \
   (((i) > 0) ?                                                                 \
-    path_get_origin_seg(view, pp_get_aod(iter)->origins[(i)-1].path_id) :      \
+    path_get_origin_seg(view, ppu_get_aod(ppu)->origins[(i)-1].path_id) :      \
     bgpview_iter_pfx_peer_get_origin_seg(iter))
 
 #define pp_set_compact_view_cnt(iter, n) \
@@ -219,23 +214,24 @@ static int close_outfiles(bvc_t *consumer)
     bgpview_iter_pfx_peer_set_user(iter, (void*)(((n) << 1) | 0x1));           \
   } while (0)
 
-#define pp_set_view_cnt(iter, i, n) \
+/* note: invalidates ppu */
+#define ppu_set_view_cnt(iter, ppu, i, n)                                      \
   do {                                                                         \
     if ((i) > 0)                                                               \
-      pp_get_aod(iter)->origins[(i)-1].view_cnt = (n);                         \
-    else if (pp_is_compact(iter))                                              \
+      ppu_get_aod(ppu)->origins[(i)-1].view_cnt = (n);                         \
+    else if (ppu_is_compact(ppu))                                              \
       pp_set_compact_view_cnt(iter, (n));                                      \
     else                                                                       \
-      pp_get_aod(iter)->view_cnt_0 = (n);                                      \
+      ppu_get_aod(ppu)->view_cnt_0 = (n);                                      \
   } while (0)
 
 // XXX This belongs in bgpstream
 #define path_id_equal(a, b) (memcmp(&a, &b, sizeof(a)) == 0)
 
-static void ppu_destroy(void *pp)
+static void ppu_destroy(void *ppu)
 {
-  if (!((uintptr_t)pp & 0x1))
-    free(pp);
+  if (!ppu_is_compact(ppu))
+    free(ppu);
 }
 
 
@@ -360,14 +356,15 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 
       int peer_observed_pfx = 0;
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
+      void *ppu = bgpview_iter_pfx_peer_get_user(myit);
 
       // for each origin in pfx-peer
-      for (int i = 0; i < pp_origin_cnt(myit); ++i) {
-        uint32_t view_cnt = pp_get_view_cnt(myit, i);
+      for (int i = 0; i < ppu_get_origin_cnt(ppu); ++i) {
+        uint32_t view_cnt = ppu_get_view_cnt(ppu, i);
         if (view_cnt == 0)
           continue; // skip unobserved origin
         peer_observed_pfx = 1;
-        bgpstream_as_path_seg_t *seg = pp_get_origin_seg(STATE->view, myit, i);
+        bgpstream_as_path_seg_t *seg = ppu_get_origin_seg(STATE->view, myit, ppu, i);
 
         // linear search through array -- most prefixes should have one origin
         origin_peers_t *op = NULL;
@@ -407,7 +404,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
           }
         }
         pd->view_cnt = view_cnt;
-        pp_set_view_cnt(myit, i, 0); // reset counter
+        ppu_set_view_cnt(myit, ppu, i, 0); // reset counter
       }
 
       if (!peer_observed_pfx && peer_id != STATE->full_feed_peer_id &&
@@ -478,6 +475,7 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
     int pfx_exists, pfx2as_stats_t *stats)
 {
   bgpview_iter_t *myit = STATE->myit;
+
   // Make sure pfx-peer exists in myit
   int pfx_peer_is_new = 0;
   if (pfx_exists) {
@@ -502,6 +500,7 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
     return 0;
   }
 
+  void *ppu = bgpview_iter_pfx_peer_get_user(myit);
   int found_i = -1;
   bgpstream_as_path_store_path_id_t mypathid0 =
       bgpview_iter_pfx_peer_get_as_path_store_path_id(myit);
@@ -514,10 +513,10 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
     // path_id's origin
     bgpstream_as_path_seg_t *origin =
         path_get_origin_seg(STATE->view, path_id);
-    int origin_cnt = pp_origin_cnt(myit);
+    int origin_cnt = ppu_get_origin_cnt(ppu);
     for (int i = 0; i < origin_cnt; ++i) {
       bgpstream_as_path_seg_t *myorigin =
-          pp_get_origin_seg(STATE->view, myit, i);
+          ppu_get_origin_seg(STATE->view, myit, ppu, i);
       if (bgpstream_as_path_seg_equal(myorigin, origin)) {
         found_i = i;
         break;
@@ -527,27 +526,27 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
 
   if (found_i >= 0) {
     // use existing origin
-    uintptr_t view_cnt = pp_get_view_cnt(myit, found_i);
+    uintptr_t view_cnt = ppu_get_view_cnt(ppu, found_i);
     view_cnt++;
-    pp_set_view_cnt(myit, found_i, view_cnt);
-  } else if (pp_get_view_cnt(myit, 0) == 0) {
+    ppu_set_view_cnt(myit, ppu, found_i, view_cnt);
+  } else if (ppu_get_view_cnt(ppu, 0) == 0) {
     // we can overwrite origin0
     bgpview_iter_pfx_peer_set_as_path_by_id(myit, path_id);
-    pp_set_view_cnt(myit, 0, 1);
+    ppu_set_view_cnt(myit, ppu, 0, 1);
     ++stats->overwrite_cnt;
   } else {
     // use a new aod slot
     additional_origin_durations_t *aod;
-    int new_origin_cnt = pp_origin_cnt(myit) + 1; // >= 2
+    int new_origin_cnt = ppu_get_origin_cnt(ppu) + 1; // >= 2
     if (!(aod = malloc(aod_size(new_origin_cnt))))
       return -1;
     if (new_origin_cnt == 2) {
       // replace compact storage with a new aod
-      aod->view_cnt_0 = pp_get_view_cnt(myit, 0);
+      aod->view_cnt_0 = ppu_get_view_cnt(ppu, 0);
       ++stats->malloc_cnt;
     } else {
       // replace existing aod with a larger aod
-      memcpy(aod, pp_get_aod(myit), aod_size(new_origin_cnt-1));
+      memcpy(aod, ppu_get_aod(ppu), aod_size(new_origin_cnt-1));
       ++stats->realloc_cnt;
     }
     assert(((uintptr_t)aod & 0x1) == 0);
@@ -629,9 +628,10 @@ static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
         bgpview_iter_pfx_has_more_peer(myit);
         bgpview_iter_pfx_next_peer(myit)) {
 
+      void *ppu = bgpview_iter_pfx_peer_get_user(myit);
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
       stats->pfxpeer_cnt++;
-      int origin_cnt = pp_origin_cnt(myit);
+      int origin_cnt = ppu_get_origin_cnt(ppu);
       stats->tot_origin_cnt += origin_cnt;
       if (origin_cnt > 1) {
         char pfx_str[INET6_ADDRSTRLEN + 4];
@@ -642,8 +642,8 @@ static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
         for (int i = 0; i < origin_cnt; ++i) {
           char orig_str[4096];
           bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str),
-              pp_get_origin_seg(STATE->view, myit, i));
-          int view_cnt = pp_get_view_cnt(myit, i);
+              ppu_get_origin_seg(STATE->view, myit, ppu, i));
+          int view_cnt = ppu_get_view_cnt(ppu, i);
           printf(" %s %d;", orig_str, view_cnt);
           if (view_cnt > 0)
             nonzero_cnt++;
