@@ -255,6 +255,39 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   bgpview_iter_t *myit = STATE->myit;
   int indent = 0;
 
+
+  // delete pfx-peers with 0 views
+
+  // for each prefix
+  for (bgpview_iter_first_pfx(myit, version, BGPVIEW_FIELD_ACTIVE);
+      bgpview_iter_has_more_pfx(myit);
+      bgpview_iter_next_pfx(myit)) {
+
+    // for each real peer in pfx
+    for (bgpview_iter_pfx_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
+        bgpview_iter_pfx_has_more_peer(myit);
+        bgpview_iter_pfx_next_peer(myit)) {
+
+      int peer_observed_pfx = 0;
+      void *ppu = bgpview_iter_pfx_peer_get_user(myit);
+
+      // for each origin in pfx-peer
+      for (int i = 0; i < ppu_get_origin_cnt(ppu); ++i) {
+        uint32_t view_cnt = ppu_get_view_cnt(ppu, i);
+        if (view_cnt > 0) {
+          peer_observed_pfx = 1;
+          break;
+        }
+      }
+
+      if (!peer_observed_pfx) {
+        // peer never observed prefix in last out_interval; delete pfx-peer
+        pp_set_compact_view_cnt(myit, 0); // deallocates user ptr
+        bgpview_iter_pfx_remove_peer(myit);
+      }
+    }
+  }
+
   // count real peers where pfx_cnt > 0
   uint32_t peer_cnt = 0;
   for (bgpview_iter_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
@@ -320,8 +353,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
       DUMP_LINE("", "monitor_idx: %d", peer_id);
       // DUMP_LINE(",", "project: \"%s\"", ???); // not available from bgpview
       DUMP_LINE(",", "collector: \"%s\"", ps->collector_str);
-      DUMP_LINE(",", "prefix_count: %"PRIu32,
-          bgpview_iter_peer_get_pfx_cnt(myit, version, BGPVIEW_FIELD_ACTIVE));
+      DUMP_LINE(",", "prefix_count: %"PRIu32, peer_pfx_cnt);
       DUMP_LINE(",", "asn: %"PRIu32, ps->peer_asnumber);
       indent -= 2;
       DUMP_LINE("", "}");
@@ -354,7 +386,6 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
         bgpview_iter_pfx_has_more_peer(myit);
         bgpview_iter_pfx_next_peer(myit)) {
 
-      int peer_observed_pfx = 0;
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
       void *ppu = bgpview_iter_pfx_peer_get_user(myit);
 
@@ -363,7 +394,6 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
         uint32_t view_cnt = ppu_get_view_cnt(ppu, i);
         if (view_cnt == 0)
           continue; // skip unobserved origin
-        peer_observed_pfx = 1;
         bgpstream_as_path_seg_t *seg = ppu_get_origin_seg(STATE->view, myit, ppu, i);
 
         // linear search through array -- most prefixes should have one origin
@@ -405,13 +435,6 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
         }
         pd->view_cnt = view_cnt;
         ppu_set_view_cnt(myit, ppu, i, 0); // reset counter
-      }
-
-      if (!peer_observed_pfx && peer_id != STATE->full_feed_peer_id &&
-          peer_id != STATE->partial_feed_peer_id) {
-        // peer never observed prefix in last out_interval; delete pfx-peer
-        pp_set_compact_view_cnt(myit, 0); // deallocates user ptr
-        bgpview_iter_pfx_remove_peer(myit);
       }
     }
 
