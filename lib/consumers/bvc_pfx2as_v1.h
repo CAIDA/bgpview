@@ -21,8 +21,8 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __BVC_PFX2AS_H
-#define __BVC_PFX2AS_H
+#ifndef __BVC_PFX2AS_V1_H
+#define __BVC_PFX2AS_V1_H
 
 #include "bgpview_consumer_interface.h"
 
@@ -35,6 +35,6 @@
  *
  */
 
-BVC_GENERATE_PROTOS(pfx2as)
+BVC_GENERATE_PROTOS(pfx2as_v1)
 
-#endif /* __BVC_PFX2AS_H */
+#endif /* __BVC_PFX2AS_V1_H */

@@ -21,7 +21,7 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bvc_pfx2as.h"
+#include "bvc_pfx2as_v1.h"
 #include "bgpview_consumer_interface.h"
 #include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_addr.h"
@@ -35,21 +35,21 @@
 #include <unistd.h>
 #include <wandio.h>
 
-#define NAME "pfx2as"
+#define NAME "pfx2as-v1"
 
 #define MAX_ORIGIN_CNT 512
 #define MAX_ORIGIN_PEER_CNT 1024
 #define OUTPUT_INTERVAL 86400
 
-#define STATE (BVC_GET_STATE(consumer, pfx2as))
+#define STATE (BVC_GET_STATE(consumer, pfx2as_v1))
 
 #define CHAIN_STATE (BVC_GET_CHAIN_STATE(consumer))
 
 /* our 'class' */
-static bvc_t bvc_pfx2as = { //
-  BVC_ID_PFX2AS, //
+static bvc_t bvc_pfx2as_v1 = { //
+  BVC_ID_PFX2AS_V1, //
   NAME, //
-  BVC_GENERATE_PTRS(pfx2as) //
+  BVC_GENERATE_PTRS(pfx2as_v1) //
 };
 
 /// origin and duration
@@ -78,7 +78,7 @@ typedef struct additional_origin_durations {
 } additional_origin_durations_t;
 
 /* our 'instance' */
-typedef struct bvc_pfx2as_state {
+typedef struct bvc_pfx2as_v1_state {
 
   /* ----- configuration ----- */
 
@@ -133,9 +133,9 @@ typedef struct bvc_pfx2as_state {
   /** sets of peers that were considered full-feed in any view within out_interval */
   bgpstream_id_set_t *full_feed_peer_set[BGPSTREAM_MAX_IP_VERSION_IDX];
 
-} bvc_pfx2as_state_t;
+} bvc_pfx2as_v1_state_t;
 
-typedef struct pfx2as_stats {
+typedef struct pfx2as_v1_stats {
   int32_t pfxpeer_cnt[2];     // count of pfx-peers
   int32_t ppo_cnt[2];         // count of pfx-peer-origins
   int32_t max_origin_cnt[2];  // max origin count for any pfx-peer
@@ -144,7 +144,7 @@ typedef struct pfx2as_stats {
   int32_t overwrite_cnt[2];
   int32_t new_aod_cnt[2];
   int32_t grow_aod_cnt[2];
-} pfx2as_stats_t;
+} pfx2as_v1_stats_t;
 
 /* ==================== CONSUMER INTERNAL FUNCTIONS ==================== */
 
@@ -496,7 +496,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 // Accumulate info about {peer_id, path_id} into myit's pfx-peer
 static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
     bgpstream_peer_id_t peer_id, bgpstream_as_path_store_path_id_t path_id,
-    int pfx_exists, pfx2as_stats_t *stats)
+    int pfx_exists, pfx2as_v1_stats_t *stats)
 {
   bgpview_iter_t *myit = STATE->myit;
   int si = // stat index: 0=real peer, 1=pseudo peer
@@ -688,7 +688,7 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   return 0;
 }
 
-static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
+static void dump_stats(bvc_t *consumer, pfx2as_v1_stats_t *stats)
 {
   bgpview_iter_t *myit = STATE->myit;
   // for each prefix
@@ -747,7 +747,7 @@ static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
       stats->grow_aod_cnt[0], stats->grow_aod_cnt[1]);
 }
 
-int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
+int bvc_pfx2as_v1_process_view(bvc_t *consumer, bgpview_t *view)
 {
   uint32_t vtime = bgpview_get_time(view);
   uintptr_t view_interval = 0;
@@ -764,14 +764,14 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
     if (STATE->prev_view_interval == 0) {
       // second view (end of first view_interval)
       if (STATE->out_interval % view_interval != 0) {
-        fprintf(stderr, "WARNING: pfx2as: output interval %d is not a multiple "
+        fprintf(stderr, "WARNING: " NAME ": output interval %d is not a multiple "
             "of view interval %"PRIuPTR" at %"PRIu32"\n",
             STATE->out_interval, view_interval, vtime);
       }
     } else {
       if (STATE->prev_view_interval != view_interval) {
         // third+ view (end of second+ view_interval)
-        fprintf(stderr, "ERROR: pfx2as: view interval changed from %d to "
+        fprintf(stderr, "ERROR: " NAME ": view interval changed from %d to "
             "%"PRIuPTR" at %"PRIu32"\n",
             STATE->prev_view_interval, view_interval, vtime);
         goto err;
@@ -786,7 +786,7 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
 
   vit = bgpview_iter_create(view);
   myit = STATE->myit;
-  pfx2as_stats_t stats;
+  pfx2as_v1_stats_t stats;
   memset(&stats, 0, sizeof(stats));
   STATE->view_cnt++;
 
@@ -927,7 +927,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   int opt;
   assert(argc > 0 && argv != NULL);
 
-  bvc_pfx2as_state_t *state = STATE;
+  bvc_pfx2as_v1_state_t *state = STATE;
 
   /* NB: remember to reset optind to 1 before using getopt! */
   optind = 1;
@@ -956,7 +956,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   }
 
   if (state->outdir == NULL) {
-    fprintf(stderr, "ERROR: pfx2as output directory required\n");
+    fprintf(stderr, "ERROR: " NAME " output directory required\n");
     usage(consumer);
     return -1;
   }
@@ -966,16 +966,16 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 
 /* ==================== CONSUMER INTERFACE FUNCTIONS ==================== */
 
-bvc_t *bvc_pfx2as_alloc()
+bvc_t *bvc_pfx2as_v1_alloc()
 {
-  return &bvc_pfx2as;
+  return &bvc_pfx2as_v1;
 }
 
-int bvc_pfx2as_init(bvc_t *consumer, int argc, char **argv)
+int bvc_pfx2as_v1_init(bvc_t *consumer, int argc, char **argv)
 {
-  bvc_pfx2as_state_t *state = NULL;
+  bvc_pfx2as_v1_state_t *state = NULL;
 
-  if ((state = malloc_zero(sizeof(bvc_pfx2as_state_t))) == NULL) {
+  if ((state = malloc_zero(sizeof(bvc_pfx2as_v1_state_t))) == NULL) {
     return -1;
   }
   BVC_SET_STATE(consumer, state);
@@ -1008,11 +1008,11 @@ int bvc_pfx2as_init(bvc_t *consumer, int argc, char **argv)
   return 0;
 
 err:
-  bvc_pfx2as_destroy(consumer);
+  bvc_pfx2as_v1_destroy(consumer);
   return -1;
 }
 
-void bvc_pfx2as_destroy(bvc_t *consumer)
+void bvc_pfx2as_v1_destroy(bvc_t *consumer)
 {
   if (STATE == NULL) {
     return;

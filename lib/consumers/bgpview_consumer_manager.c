@@ -92,7 +92,8 @@
 #include "bvc_peerpfxorigins.h"
 
 /* Prefix to AS consumer */
-#include "bvc_pfx2as.h"
+#include "bvc_pfx2as_v1.h"
+#include "bvc_pfx2as_v2.h"
 
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
@@ -181,7 +182,8 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   bvc_peerpfxorigins_alloc,
 
   /** Pointer to pfx2as alloc function */
-  bvc_pfx2as_alloc,
+  bvc_pfx2as_v1_alloc,
+  bvc_pfx2as_v2_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
