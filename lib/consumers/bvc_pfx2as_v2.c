@@ -200,13 +200,14 @@ static int close_outfiles(bvc_t *consumer)
 static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 {
   int indent = 0;
+  int v4idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
 
-  // for each prefix
+  // for each ipv
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
     khint_t end;
     if (version && bgpstream_ipv2idx(version) != vidx)
       continue;
-    if (vidx == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)) {
+    if (vidx == v4idx) {
       end = kh_end(STATE->v4pfxs);
     } else { // v6
       end = kh_end(STATE->v6pfxs);
@@ -216,7 +217,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
     for (khint_t pi = 0; pi != end; ++pi) {
       bgpstream_pfx_t *pfx;
       pfx_info_t *pfxinfo;
-      if (vidx == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)) {
+      if (vidx == v4idx) {
         if (!kh_exist(STATE->v4pfxs, pi)) continue;
         pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
         pfxinfo = kh_val(STATE->v4pfxs, pi);
@@ -307,7 +308,8 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
     for (khint_t k = 0; k != kh_end(STATE->peers); ++k) {
       if (!kh_exist(STATE->peers, k)) continue;
       bgpstream_peer_id_t peer_id = kh_key(STATE->peers, k);
-      if (kh_val(STATE->peers, k).pfx_cnt == 0)
+      uint32_t peer_pfx_cnt = kh_val(STATE->peers, k).pfx_cnt;
+      if (peer_pfx_cnt == 0)
         continue; // skip peer with no prefixes with the requested ipv
 
       bgpstream_peer_sig_t *ps =
@@ -318,8 +320,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
       DUMP_LINE("", "monitor_idx: %d", peer_id);
       // DUMP_LINE(",", "project: \"%s\"", ???); // not available from bgpview
       DUMP_LINE(",", "collector: \"%s\"", ps->collector_str);
-      DUMP_LINE(",", "prefix_count: %"PRIu32,
-          kh_val(STATE->peers, k).pfx_cnt);
+      DUMP_LINE(",", "prefix_count: %"PRIu32, peer_pfx_cnt);
       DUMP_LINE(",", "asn: %"PRIu32, ps->peer_asnumber);
       indent -= 2;
       DUMP_LINE("", "}");
@@ -333,14 +334,14 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   DUMP_LINE(",", "prefix_as_meta_data: [");
   indent += 2;
 
-  // for each prefix
   const char *pfx_delim = "";
 
+  // for each ipv
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
     khint_t end;
     if (version && bgpstream_ipv2idx(version) != vidx)
       continue;
-    if (vidx == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)) {
+    if (vidx == v4idx) {
       end = kh_end(STATE->v4pfxs);
     } else { // v6
       end = kh_end(STATE->v6pfxs);
@@ -350,7 +351,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
     for (khint_t pi = 0; pi != end; ++pi) {
       bgpstream_pfx_t *pfx;
       pfx_info_t *pfxinfo;
-      if (vidx == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)) {
+      if (vidx == v4idx) {
         if (!kh_exist(STATE->v4pfxs, pi)) continue;
         pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
         pfxinfo = kh_val(STATE->v4pfxs, pi);
@@ -418,9 +419,6 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   if (close_outfiles(consumer) != 0) {
     return -1;
   }
-  kh_clear(map_peerid_pfxcnt, STATE->peers);
-  kh_clear(map_v4pfx_pfxinfo, STATE->v4pfxs);
-  kh_clear(map_v6pfx_pfxinfo, STATE->v6pfxs);
 
   return 0;
 }
@@ -458,13 +456,10 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   }
 
   // reset state
+  kh_clear(map_peerid_pfxcnt, STATE->peers);
+  kh_clear(map_v4pfx_pfxinfo, STATE->v4pfxs);
+  kh_clear(map_v6pfx_pfxinfo, STATE->v6pfxs);
   STATE->view_cnt = 0;
-#if 0
-  for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i) {
-    bgpstream_id_set_clear(STATE->full_feed_peer_set[i]);
-  }
-#endif
-
   STATE->out_interval_start = vtime;
   STATE->next_output_time += STATE->out_interval;
   return 0;
@@ -473,9 +468,10 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
 static void dump_stats(bvc_t *consumer, pfx2as_v2_stats_t *stats)
 {
   // for each prefix
+  int v4idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; ++vidx) {
     khint_t end;
-    if (vidx == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)) {
+    if (vidx == v4idx) {
       end = kh_end(STATE->v4pfxs);
     } else { // v6
       end = kh_end(STATE->v6pfxs);
@@ -485,7 +481,7 @@ static void dump_stats(bvc_t *consumer, pfx2as_v2_stats_t *stats)
     for (khint_t pi = 0; pi != end; ++pi) {
       bgpstream_pfx_t *pfx;
       pfx_info_t *pfxinfo;
-      if (vidx == bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4)) {
+      if (vidx == v4idx) {
         if (!kh_exist(STATE->v4pfxs, pi)) continue;
         pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
         pfxinfo = kh_val(STATE->v4pfxs, pi);
