@@ -136,14 +136,14 @@ typedef struct bvc_pfx2as_state {
 } bvc_pfx2as_state_t;
 
 typedef struct pfx2as_stats {
-  int32_t pfxpeer_cnt;
-  int32_t tot_origin_cnt;
-  int32_t max_origin_cnt;
-  int32_t mopp_cnt; // pfx-peers with multiple origins
-  int32_t compactable_cnt; // mopps with only 1 nonzero origin
-  int32_t overwrite_cnt;
-  int32_t malloc_cnt;
-  int32_t realloc_cnt;
+  int32_t pfxpeer_cnt[2];     // count of pfx-peers
+  int32_t ppo_cnt[2];         // count of pfx-peer-origins
+  int32_t max_origin_cnt[2];  // max origin count for any pfx-peer
+  int32_t mopp_cnt[2];        // count of pfx-peers with multiple origins
+  int32_t compactable_cnt[2]; // mopps with only 1 nonzero origin
+  int32_t overwrite_cnt[2];
+  int32_t new_aod_cnt[2];
+  int32_t grow_aod_cnt[2];
 } pfx2as_stats_t;
 
 /* ==================== CONSUMER INTERNAL FUNCTIONS ==================== */
@@ -208,13 +208,14 @@ static int close_outfiles(bvc_t *consumer)
     path_get_origin_seg(view, ppu_get_aod(ppu)->origins[(i)-1].path_id) :      \
     bgpview_iter_pfx_peer_get_origin_seg(iter))
 
+/* note: invalidates ppu */
 #define pp_set_compact_view_cnt(iter, n) \
   do {                                                                         \
     assert((n) <= 0x7FFFFFFF);                                                 \
     bgpview_iter_pfx_peer_set_user(iter, (void*)(((n) << 1) | 0x1));           \
   } while (0)
 
-/* note: invalidates ppu */
+/* note: may invalidate ppu */
 #define ppu_set_view_cnt(iter, ppu, i, n)                                      \
   do {                                                                         \
     if ((i) > 0)                                                               \
@@ -498,6 +499,16 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
     int pfx_exists, pfx2as_stats_t *stats)
 {
   bgpview_iter_t *myit = STATE->myit;
+  int si = // stat index: 0=real peer, 1=pseudo peer
+    (peer_id == STATE->full_feed_peer_id || peer_id == STATE->partial_feed_peer_id) ? 1 : 0;
+
+#if 1
+    char pfx_str[INET6_ADDRSTRLEN + 4];
+    bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
+    char orig_str[4096];
+    bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str),
+        path_get_origin_seg(STATE->view, path_id));
+#endif
 
   // Make sure pfx-peer exists in myit
   int pfx_peer_is_new = 0;
@@ -516,10 +527,13 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
   }
 
   if (pfx_peer_is_new) {
-    if (peer_id != STATE->full_feed_peer_id && peer_id != STATE->partial_feed_peer_id) {
+    if (si == 0) {
       bgpview_iter_pfx_activate_peer(myit);
     }
     pp_set_compact_view_cnt(myit, 1);
+#if 1
+    // printf("### new %s %d: [%d] %s %d\n", pfx_str, peer_id, 0, orig_str, 1);
+#endif
     return 0;
   }
 
@@ -548,17 +562,45 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
   }
 
   if (found_i >= 0) {
-    // use existing origin
+    // use existing matching origin
     uintptr_t view_cnt = ppu_get_view_cnt(ppu, found_i);
     view_cnt++;
     ppu_set_view_cnt(myit, ppu, found_i, view_cnt);
+#if 1
+    // printf("### existing %s %d: [%d] %s %d\n", pfx_str, peer_id, found_i, orig_str, (int)view_cnt);
+#endif
+    return 0;
+
   } else if (ppu_get_view_cnt(ppu, 0) == 0) {
     // we can overwrite origin0
     bgpview_iter_pfx_peer_set_as_path_by_id(myit, path_id);
     ppu_set_view_cnt(myit, ppu, 0, 1);
-    ++stats->overwrite_cnt;
+    ++stats->overwrite_cnt[si];
+#if 1
+    printf("### overwrite %s %d: [%d] %s %d\n", pfx_str, peer_id, 0, orig_str, 1);
+#endif
+    return 0;
+  }
+
+  // is there an existing aod slot with view_cnt==0 that we can overwrite?
+  int origin_cnt = ppu_get_origin_cnt(ppu);
+  for (int i = 1; i < origin_cnt; ++i) {
+    if (ppu_get_view_cnt(ppu, i) == 0) {
+      // we can overwrite origins[i]
+      found_i = i;
+    }
+  }
+  if (found_i >= 0) {
+    // overwrite empty aod slot
+#if 1
+    printf("### overwrite %s %d: [%d] %s %d\n", pfx_str, peer_id, found_i, orig_str, 1);
+#endif
+    ++stats->overwrite_cnt[si];
+    additional_origin_durations_t *aod = ppu_get_aod(ppu);
+    aod->origins[found_i-1].path_id = path_id;
+    aod->origins[found_i-1].view_cnt = 1;
   } else {
-    // use a new aod slot
+    // create a new aod slot
     additional_origin_durations_t *aod;
     int new_origin_cnt = ppu_get_origin_cnt(ppu) + 1; // >= 2
     if (!(aod = malloc(aod_size(new_origin_cnt))))
@@ -566,11 +608,17 @@ static int count_origin_peer(bvc_t *consumer, bgpstream_pfx_t *pfx,
     if (new_origin_cnt == 2) {
       // replace compact storage with a new aod
       aod->view_cnt_0 = ppu_get_view_cnt(ppu, 0);
-      ++stats->malloc_cnt;
+      ++stats->new_aod_cnt[si];
+#if 1
+      printf("### new_aod %s %d: [%d] %s %d\n", pfx_str, peer_id, new_origin_cnt-1, orig_str, 1);
+#endif
     } else {
       // replace existing aod with a larger aod
       memcpy(aod, ppu_get_aod(ppu), aod_size(new_origin_cnt-1));
-      ++stats->realloc_cnt;
+      ++stats->grow_aod_cnt[si];
+#if 1
+      printf("### grow_aod %s %d: [%d] %s %d\n", pfx_str, peer_id, new_origin_cnt-1, orig_str, 1);
+#endif
     }
     assert(((uintptr_t)aod & 0x1) == 0);
     aod->origin_cnt = new_origin_cnt;
@@ -608,6 +656,10 @@ static int init_my_view(bvc_t *consumer, bgpview_t *srcview)
       "FULL_FEED_PEERS", &bogus_addr, 0);
   STATE->partial_feed_peer_id = bgpview_iter_add_peer(STATE->myit,
       "PARTIAL_FEED_PEERS", &bogus_addr, 0);
+#if 1
+  printf("## pseudo-peers: %"PRIu16 " %"PRIu16 "\n",
+    STATE->full_feed_peer_id, STATE->partial_feed_peer_id);
+#endif
   return 0;
 }
 
@@ -646,21 +698,23 @@ static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
 
     bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(myit);
 
-    // for each ACTIVE (non-pseudo) peer in pfx
-    for (bgpview_iter_pfx_first_peer(myit, BGPVIEW_FIELD_ACTIVE);
+    // for each peer in pfx
+    for (bgpview_iter_pfx_first_peer(myit, BGPVIEW_FIELD_ALL_VALID);
         bgpview_iter_pfx_has_more_peer(myit);
         bgpview_iter_pfx_next_peer(myit)) {
 
       void *ppu = bgpview_iter_pfx_peer_get_user(myit);
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(myit);
-      stats->pfxpeer_cnt++;
+      int si = // stat index: 0=real peer, 1=pseudo peer
+        (peer_id == STATE->full_feed_peer_id || peer_id == STATE->partial_feed_peer_id) ? 1 : 0;
+      stats->pfxpeer_cnt[si]++;
       int origin_cnt = ppu_get_origin_cnt(ppu);
-      stats->tot_origin_cnt += origin_cnt;
+      stats->ppo_cnt[si] += origin_cnt;
       if (origin_cnt > 1) {
         char pfx_str[INET6_ADDRSTRLEN + 4];
         bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
         printf("## mopp %s %d:", pfx_str, peer_id);
-        stats->mopp_cnt++;
+        stats->mopp_cnt[si]++;
         int nonzero_cnt = 0;
         for (int i = 0; i < origin_cnt; ++i) {
           char orig_str[4096];
@@ -673,21 +727,24 @@ static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
         }
         if (nonzero_cnt == 1) {
           printf(" (compactable)");
-          stats->compactable_cnt++;
+          stats->compactable_cnt[si]++;
         }
         printf("\n");
       }
-      if (origin_cnt > stats->max_origin_cnt)
-        stats->max_origin_cnt = origin_cnt;
+      if (origin_cnt > stats->max_origin_cnt[si])
+        stats->max_origin_cnt[si] = origin_cnt;
     }
   }
-  printf("# pp=%d; orig: tot=%d, max=%d; orig/pp=%f; mopp=%d (%d compactable); overwrite=%d; malloc=%d,%d\n",
-      stats->pfxpeer_cnt,
-      stats->tot_origin_cnt, stats->max_origin_cnt,
-      (double)stats->tot_origin_cnt/stats->pfxpeer_cnt,
-      stats->mopp_cnt, stats->compactable_cnt,
-      stats->overwrite_cnt,
-      stats->malloc_cnt, stats->realloc_cnt);
+  printf("# pp=%d,%d; ppo: tot=%d,%d, max=%d,%d; ppo/pp=%f; mopp=%d,%d (%d,%d compactable); overwrite=%d,%d; new_aod=%d,%d; grow_aod=%d,%d\n",
+      stats->pfxpeer_cnt[0], stats->pfxpeer_cnt[1],
+      stats->ppo_cnt[0], stats->ppo_cnt[1],
+      stats->max_origin_cnt[0], stats->max_origin_cnt[1],
+      (double)(stats->ppo_cnt[0] + stats->ppo_cnt[1]) / (stats->pfxpeer_cnt[0] + stats->pfxpeer_cnt[1]),
+      stats->mopp_cnt[0], stats->mopp_cnt[1],
+      stats->compactable_cnt[0], stats->compactable_cnt[1],
+      stats->overwrite_cnt[0], stats->overwrite_cnt[1],
+      stats->new_aod_cnt[0], stats->new_aod_cnt[1],
+      stats->grow_aod_cnt[0], stats->grow_aod_cnt[1]);
 }
 
 int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
