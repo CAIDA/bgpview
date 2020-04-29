@@ -332,6 +332,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   // Dump monitors
 
   if (!STATE->peer_count_only) {
+    char addr_str[INET6_ADDRSTRLEN];
     DUMP_LINE(",", "monitors: [");
     indent += 2;
 
@@ -354,6 +355,8 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
       DUMP_LINE("", "monitor_idx: %d", peer_id);
       // DUMP_LINE(",", "project: \"%s\"", ???); // not available from bgpview
       DUMP_LINE(",", "collector: \"%s\"", ps->collector_str);
+      bgpstream_addr_ntop(addr_str, sizeof(addr_str), &ps->peer_ip_addr);
+      DUMP_LINE(",", "address: \"%s\"", addr_str);
       DUMP_LINE(",", "prefix_count: %"PRIu32, peer_pfx_cnt);
       DUMP_LINE(",", "asn: %"PRIu32, ps->peer_asnumber);
       indent -= 2;
@@ -440,10 +443,10 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
     }
 
     // dump {pfx,origin} => ...
+    char pfx_str[INET6_ADDRSTRLEN + 4];
+    bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
     for (int i = 0; i < origin_cnt; ++i) {
-      char pfx_str[INET6_ADDRSTRLEN + 4];
       char orig_str[4096];
-      bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
       bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), origins[i].origin);
 
       DUMP_LINE(pfx_delim, "{"); // prefix_as_meta_data obj

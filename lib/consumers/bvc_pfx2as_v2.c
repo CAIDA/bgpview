@@ -301,6 +301,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   // Dump monitors
 
   if (!STATE->peer_count_only) {
+    char addr_str[INET6_ADDRSTRLEN];
     DUMP_LINE(",", "monitors: [");
     indent += 2;
 
@@ -320,6 +321,8 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
       DUMP_LINE("", "monitor_idx: %d", peer_id);
       // DUMP_LINE(",", "project: \"%s\"", ???); // not available from bgpview
       DUMP_LINE(",", "collector: \"%s\"", ps->collector_str);
+      bgpstream_addr_ntop(addr_str, sizeof(addr_str), &ps->peer_ip_addr);
+      DUMP_LINE(",", "address: \"%s\"", addr_str);
       DUMP_LINE(",", "prefix_count: %"PRIu32, peer_pfx_cnt);
       DUMP_LINE(",", "asn: %"PRIu32, ps->peer_asnumber);
       indent -= 2;
