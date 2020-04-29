@@ -201,6 +201,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 {
   int indent = 0;
   int v4idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
+  assert(kh_size(STATE->peers) == 0); // STATE->peers belongs to this function
 
   // for each ipv
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
@@ -418,6 +419,9 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
   indent -= 2;
   DUMP_LINE("", "]\n"); // prefix_as_meta_data list
 
+  // reset STATE->peers NOW so it's ready for another ipv in the same interval
+  kh_clear(map_peerid_pfxcnt, STATE->peers);
+
   /* close the output files and create .done file */
   if (close_outfiles(consumer) != 0) {
     return -1;
@@ -459,7 +463,6 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   }
 
   // reset state
-  kh_clear(map_peerid_pfxcnt, STATE->peers);
   kh_clear(map_v4pfx_pfxinfo, STATE->v4pfxs);
   kh_clear(map_v6pfx_pfxinfo, STATE->v6pfxs);
   STATE->view_cnt = 0;
