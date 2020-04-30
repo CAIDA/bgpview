@@ -197,6 +197,15 @@ static int close_outfiles(bvc_t *consumer)
 #define path_id_equal(a, b) (memcmp(&a, &b, sizeof(a)) == 0)
 
 
+static void pfxinfo_destroy(pfx_info_t *pfxinfo)
+{
+  if (!pfxinfo) return;
+  for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
+    kh_destroy(map_peerid_viewcnt, pfxinfo->origins[oi].peers);
+  }
+  free(pfxinfo);
+}
+
 static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 {
   int indent = 0;
@@ -413,7 +422,12 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
         indent -= 2;
         DUMP_LINE("", "}"); // prefix_as_meta_data obj
       }
-      free(pfxinfo);
+      pfxinfo_destroy(pfxinfo);
+      if (vidx == v4idx) {
+        kh_val(STATE->v4pfxs, pi) = NULL;
+      } else { // v6
+        kh_val(STATE->v6pfxs, pi) = NULL;
+      }
     }
   }
   indent -= 2;
@@ -463,8 +477,18 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   }
 
   // reset state
+  for (khint_t k = 0; k != kh_end(STATE->v4pfxs); ++k) {
+    if (!kh_exist(STATE->v4pfxs, k)) continue;
+    pfxinfo_destroy(kh_val(STATE->v4pfxs, k));
+  }
   kh_clear(map_v4pfx_pfxinfo, STATE->v4pfxs);
+
+  for (khint_t k = 0; k != kh_end(STATE->v6pfxs); ++k) {
+    if (!kh_exist(STATE->v6pfxs, k)) continue;
+    pfxinfo_destroy(kh_val(STATE->v6pfxs, k));
+  }
   kh_clear(map_v6pfx_pfxinfo, STATE->v6pfxs);
+
   STATE->view_cnt = 0;
   STATE->out_interval_start = vtime;
   STATE->next_output_time += STATE->out_interval;
@@ -824,17 +848,17 @@ void bvc_pfx2as_v2_destroy(bvc_t *consumer)
   }
 
   if (STATE->v4pfxs) {
-    for (khint_t k = 0; k < kh_end(STATE->v4pfxs); ++k) {
+    for (khint_t k = 0; k != kh_end(STATE->v4pfxs); ++k) {
       if (!kh_exist(STATE->v4pfxs, k)) continue;
-      free(kh_val(STATE->v4pfxs, k));
+      pfxinfo_destroy(kh_val(STATE->v4pfxs, k));
     }
     kh_destroy(map_v4pfx_pfxinfo, STATE->v4pfxs);
   }
 
   if (STATE->v6pfxs) {
-    for (khint_t k = 0; k < kh_end(STATE->v6pfxs); ++k) {
+    for (khint_t k = 0; k != kh_end(STATE->v6pfxs); ++k) {
       if (!kh_exist(STATE->v6pfxs, k)) continue;
-      free(kh_val(STATE->v6pfxs, k));
+      pfxinfo_destroy(kh_val(STATE->v6pfxs, k));
     }
     kh_destroy(map_v6pfx_pfxinfo, STATE->v6pfxs);
   }
