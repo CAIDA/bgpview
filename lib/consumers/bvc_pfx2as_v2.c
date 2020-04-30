@@ -96,6 +96,13 @@ KHASH_INIT(map_peerid_pfxcnt, bgpstream_peer_id_t, pfxcnt_t, 1,
            kh_int_hash_func, kh_int_hash_equal)
 typedef khash_t(map_peerid_pfxcnt) map_peerid_pfxcnt_t;
 
+typedef enum {
+  OUTFMT_DSV,
+  OUTFMT_JSON
+} format_t;
+
+static int v4idx = 0; // should be compile-time const in bgpstream_utils_addr.h
+
 /* our 'instance' */
 typedef struct bvc_pfx2as_v2_state {
 
@@ -112,6 +119,9 @@ typedef struct bvc_pfx2as_v2_state {
 
   /** output interval */
   uint32_t out_interval;
+
+  /** output format */
+  format_t format;
 
   /** only output peer counts */
   int peer_count_only;
@@ -149,11 +159,6 @@ typedef struct bvc_pfx2as_v2_state {
 
   /** first view_time in the current output interval */
   uint32_t out_interval_start;
-
-#if 0
-  /** sets of peers that were considered full-feed in any view within out_interval */
-  bgpstream_id_set_t *full_feed_peer_set[BGPSTREAM_MAX_IP_VERSION_IDX];
-#endif
 
 } bvc_pfx2as_v2_state_t;
 
@@ -206,12 +211,8 @@ static void pfxinfo_destroy(pfx_info_t *pfxinfo)
   free(pfxinfo);
 }
 
-static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
+static void prep_results(bvc_t *consumer, int version, uint32_t view_interval)
 {
-  int indent = 0;
-  int v4idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
-  assert(kh_size(STATE->peers) == 0); // STATE->peers belongs to this function
-
   // for each ipv
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
     khint_t end;
@@ -274,15 +275,11 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
       }
     }
   }
+}
 
-  uint32_t peer_cnt = kh_size(STATE->peers);
-  if (peer_cnt == 0) // e.g., peers are ipv-specific, and split_ipv is true
-    return 0; // nothing to report
-
-  if (open_outfiles(consumer, version, STATE->out_interval_start) != 0) {
-    return -1;
-  }
-
+static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interval)
+{
+  int indent = 0;
 // DUMP_LINE(delim, fmt, args...)
 // depends on `indent` being in scope
 #define DUMP_LINE(delim, ...) \
@@ -298,7 +295,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 
   DUMP_LINE("", "start: %d", STATE->out_interval_start);
   DUMP_LINE(",", "duration: %d", STATE->view_cnt * view_interval);
-  DUMP_LINE(",", "monitor_count: %d", peer_cnt);
+  DUMP_LINE(",", "monitor_count: %d", kh_size(STATE->peers));
   uint32_t pfx_cnt =
     version == BGPSTREAM_ADDR_VERSION_IPV4 ? kh_size(STATE->v4pfxs) :
     version == BGPSTREAM_ADDR_VERSION_IPV6 ? kh_size(STATE->v6pfxs) :
@@ -422,16 +419,135 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
         indent -= 2;
         DUMP_LINE("", "}"); // prefix_as_meta_data obj
       }
-      pfxinfo_destroy(pfxinfo);
-      if (vidx == v4idx) {
-        kh_val(STATE->v4pfxs, pi) = NULL;
-      } else { // v6
-        kh_val(STATE->v6pfxs, pi) = NULL;
-      }
     }
   }
   indent -= 2;
   DUMP_LINE("", "]\n"); // prefix_as_meta_data list
+}
+
+static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interval)
+{
+  // Header
+  wandio_printf(STATE->outfile, "# D|<start>|<duration>|<monitor_cnt>|<pfx_cnt>\n");
+  wandio_printf(STATE->outfile, "# M|<monitor_idx>|<collector>|<address>|<asn>|<pfx_cnt>\n");
+  wandio_printf(STATE->outfile, "# P|<pfx>|<asn>|<full_cnt>|<partial_cnt>|<full_duration>|<partial_duration>\n");
+  wandio_printf(STATE->outfile, "# p|<pfx>|<asn>|<monitor_idx>|<duration>\n");
+
+  // Dump dataset metadata
+  uint32_t pfx_cnt =
+      version == BGPSTREAM_ADDR_VERSION_IPV4 ? kh_size(STATE->v4pfxs) :
+      version == BGPSTREAM_ADDR_VERSION_IPV6 ? kh_size(STATE->v6pfxs) :
+      kh_size(STATE->v4pfxs) + kh_size(STATE->v6pfxs);
+  wandio_printf(STATE->outfile, "D|%d|%d|%d|%"PRIu32"\n",
+      STATE->out_interval_start,
+      STATE->view_cnt * view_interval,
+      kh_size(STATE->peers),
+      pfx_cnt);
+
+  // Dump monitors
+  if (!STATE->peer_count_only) {
+    char addr_str[INET6_ADDRSTRLEN];
+    for (khint_t k = 0; k != kh_end(STATE->peers); ++k) {
+      if (!kh_exist(STATE->peers, k)) continue;
+      bgpstream_peer_id_t peer_id = kh_key(STATE->peers, k);
+      uint32_t peer_pfx_cnt = kh_val(STATE->peers, k).pfx_cnt;
+      if (peer_pfx_cnt == 0)
+        continue; // skip peer with no prefixes with the requested ipv
+      bgpstream_peer_sig_t *ps =
+          bgpstream_peer_sig_map_get_sig(STATE->peersigs, peer_id);
+      bgpstream_addr_ntop(addr_str, sizeof(addr_str), &ps->peer_ip_addr);
+      wandio_printf(STATE->outfile, "M|%d|%s|%s|%"PRIu32"|%"PRIu32"\n",
+          peer_id,
+          ps->collector_str,
+          addr_str,
+          peer_pfx_cnt,
+          ps->peer_asnumber);
+    }
+  }
+
+  // Dump prefixes
+  // for each ipv
+  for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
+    khint_t end;
+    if (version && bgpstream_ipv2idx(version) != vidx)
+      continue;
+    if (vidx == v4idx) {
+      end = kh_end(STATE->v4pfxs);
+    } else { // v6
+      end = kh_end(STATE->v6pfxs);
+    }
+
+    // for each prefix in the selected ipv
+    for (khint_t pi = 0; pi != end; ++pi) {
+      bgpstream_pfx_t *pfx;
+      pfx_info_t *pfxinfo;
+      if (vidx == v4idx) {
+        if (!kh_exist(STATE->v4pfxs, pi)) continue;
+        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
+        pfxinfo = kh_val(STATE->v4pfxs, pi);
+      } else { // v6
+        if (!kh_exist(STATE->v6pfxs, pi)) continue;
+        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v6pfxs, pi);
+        pfxinfo = kh_val(STATE->v6pfxs, pi);
+      }
+
+      char pfx_str[INET6_ADDRSTRLEN + 4];
+      bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
+
+      // dump {pfx,origin} => ...
+      for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
+        origin_info_t *originfo = &pfxinfo->origins[oi];
+        bgpstream_as_path_store_path_id_t path_id = originfo->path_id;
+        bgpstream_as_path_seg_t *seg = path_get_origin_seg(STATE->pathstore, path_id);
+
+        char orig_str[4096];
+        bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
+
+        wandio_printf(STATE->outfile, "P|%s|%s|%d|%d|%d|%d\n",
+            pfx_str,
+            orig_str,
+            originfo->full_feed_peer_cnt,
+            originfo->partial_feed_peer_cnt,
+            originfo->full_feed_peer_view_cnt * view_interval,
+            originfo->partial_feed_peer_view_cnt * view_interval);
+
+        // list of {monitor_idx, duration}
+        if (!STATE->peer_count_only) {
+          for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
+            if (!kh_exist(originfo->peers, mi)) continue;
+            uint32_t duration = view_interval *
+              (kh_val(originfo->peers, mi).full_cnt +
+               kh_val(originfo->peers, mi).partial_cnt);
+
+            wandio_printf(STATE->outfile, "p|%s|%s|%"PRIu16"|%"PRIu32"\n",
+                pfx_str,
+                orig_str,
+                kh_key(originfo->peers, mi),
+                duration);
+          }
+        }
+      }
+    }
+  }
+}
+
+static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
+{
+  assert(kh_size(STATE->peers) == 0); // STATE->peers belongs to this function
+
+  prep_results(consumer, version, view_interval);
+
+  if (kh_size(STATE->peers) == 0) // e.g., peers are ipv-specific, and split_ipv is true
+    return 0; // nothing to report
+
+  if (open_outfiles(consumer, version, STATE->out_interval_start) != 0) {
+    return -1;
+  }
+
+  if (STATE->format == OUTFMT_JSON)
+    dump_results_json(consumer, version, view_interval);
+  else
+    dump_results_dsv(consumer, version, view_interval);
 
   // reset STATE->peers NOW so it's ready for another ipv in the same interval
   kh_clear(map_peerid_pfxcnt, STATE->peers);
@@ -459,6 +575,8 @@ static int init_my_state(bvc_t *consumer, bgpview_t *srcview)
   STATE->v4pfxs = kh_init(map_v4pfx_pfxinfo);
   STATE->v6pfxs = kh_init(map_v6pfx_pfxinfo);
   STATE->peers = kh_init(map_peerid_pfxcnt);
+
+  v4idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
 
   return 0;
 }
@@ -498,7 +616,6 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
 static void dump_stats(bvc_t *consumer, pfx2as_v2_stats_t *stats)
 {
   // for each prefix
-  int v4idx = bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV4);
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; ++vidx) {
     khint_t end;
     if (vidx == v4idx) {
@@ -735,10 +852,11 @@ static void usage(bvc_t *consumer)
 {
   fprintf(stderr,
       "consumer usage: %s\n"
-      "       -i <output-interval>  output interval in seconds (default %d)\n"
-      "       -o <path>             output directory\n"
-      "       -c                    output peer counts, not full list\n"
-      "       -v                    split prefixes into files by IP version\n",
+      "       -i <interval>  output interval in seconds (default %d)\n"
+      "       -o <path>      output directory\n"
+      "       -f <fmt>       output format: \"dsv\" (default) or \"json\"\n"
+      "       -c             output peer counts, not full list\n"
+      "       -v             split prefixes into files by IP version\n",
       consumer->name, OUTPUT_INTERVAL);
 }
 
@@ -754,13 +872,25 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while ((opt = getopt(argc, argv, "i:o:cv?")) >= 0) {
+  while ((opt = getopt(argc, argv, "i:o:f:cv?")) >= 0) {
     switch (opt) {
     case 'i':
       state->out_interval = strtoul(optarg, NULL, 10);
       break;
     case 'o':
       state->outdir = strdup(optarg);
+      break;
+    case 'f':
+      if (strcmp(optarg, "dsv") == 0) {
+        state->format = OUTFMT_DSV;
+      } if (strcmp(optarg, "json") == 0) {
+        state->format = OUTFMT_JSON;
+      } else {
+        fprintf(stderr, "ERROR: " NAME
+            " output format must be \"dsv\" or \"json\"\n");
+        usage(consumer);
+        return -1;
+      }
       break;
     case 'c':
       state->peer_count_only = 1;
@@ -865,14 +995,6 @@ void bvc_pfx2as_v2_destroy(bvc_t *consumer)
 
   if (STATE->peers)
     kh_destroy(map_peerid_pfxcnt, STATE->peers);
-
-#if 0
-  for (int i = 0; i < BGPSTREAM_MAX_IP_VERSION_IDX; ++i) {
-    if (STATE->full_feed_peer_set[i]) {
-      bgpstream_id_set_destroy(STATE->full_feed_peer_set[i]);
-    }
-  }
-#endif
 
   free(STATE->outdir);
 
