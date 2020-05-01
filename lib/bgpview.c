@@ -315,7 +315,7 @@ static bwv_peerid_pfxinfo_t *peerid_pfxinfo_create(void)
   return v;
 }
 
-static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
+static int peerid_pfxinfo_insert(bgpview_iter_t *iter,
                                  bwv_peerid_pfxinfo_t *v,
                                  bgpstream_peer_id_t peerid,
                                  bgpstream_as_path_store_path_id_t path_id)
@@ -361,7 +361,7 @@ static int peerid_pfxinfo_insert(bgpview_iter_t *iter, bgpstream_pfx_t *prefix,
     v->peers_cnt[BGPVIEW_FIELD_INACTIVE]++;
 
     /* also count this as an inactive pfx for the peer */
-    switch (prefix->address.version) {
+    switch (iter->version_ptr) {
     case BGPSTREAM_ADDR_VERSION_IPV4:
       kh_value(iter->view->peerinfo, iter->peer_it)
 	.v4_pfx_cnt[BGPVIEW_FIELD_INACTIVE]++;
@@ -1453,8 +1453,7 @@ int bgpview_iter_pfx_add_peer(bgpview_iter_t *iter, bgpstream_peer_id_t peer_id,
 
   __iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
 
-  return peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
-    __pfx_peerinfos(iter), peer_id, path_id);
+  return peerid_pfxinfo_insert(iter, __pfx_peerinfos(iter), peer_id, path_id);
 }
 
 int bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
@@ -1464,8 +1463,7 @@ int bgpview_iter_pfx_add_peer_by_id(bgpview_iter_t *iter,
   /* this code is mostly a duplicate of the above func, for efficiency */
   __iter_seek_peer(iter, peer_id, BGPVIEW_FIELD_ALL_VALID);
 
-  return peerid_pfxinfo_insert(iter, __iter_pfx_get_pfx(iter),
-    __pfx_peerinfos(iter), peer_id, path_id);
+  return peerid_pfxinfo_insert(iter, __pfx_peerinfos(iter), peer_id, path_id);
 }
 
 int bgpview_iter_pfx_remove_peer(bgpview_iter_t *iter)
