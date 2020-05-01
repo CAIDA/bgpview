@@ -38,7 +38,6 @@
 #define NAME "pfx2as-v2"
 
 #define MAX_ORIGIN_CNT 512
-#define MAX_ORIGIN_PEER_CNT 1024
 #define OUTPUT_INTERVAL 86400
 
 #define STATE (BVC_GET_STATE(consumer, pfx2as_v2))
@@ -52,9 +51,12 @@ static bvc_t bvc_pfx2as_v2 = { //
   BVC_GENERATE_PTRS(pfx2as_v2) //
 };
 
+typedef uint16_t viewcnt_t;
+#define MAX_VIEW_CNT UINT16_MAX
+
 typedef struct peerviews {
-  uint16_t full_cnt;     // count of views in which pfx-origin was seen by this peer and this peer was considered full-feed
-  uint16_t partial_cnt;  // count of views in which pfx-origin was seen by this peer and this peer was considered partial-feed
+  viewcnt_t full_cnt;     // count of views in which pfx-origin was seen by this peer and this peer was considered full-feed
+  viewcnt_t partial_cnt;  // count of views in which pfx-origin was seen by this peer and this peer was considered partial-feed
 } peerviews_t;
 
 KHASH_INIT(map_peerid_viewcnt, bgpstream_peer_id_t, peerviews_t, 1,
@@ -63,13 +65,11 @@ typedef khash_t(map_peerid_viewcnt) map_peerid_viewcnt_t;
 
 typedef struct origin_info {
   bgpstream_as_path_store_path_id_t path_id; // id of path containing the origin
-  uint8_t counted_as_full;             // has full_feed_peer_view_cnt been incremented yet in the current view?
-  uint8_t counted_as_partial;          // has partial_feed_peer_view_cnt been incremented yet in the current view?
-  uint32_t full_feed_peer_cnt;         // count of full-feed peers that observed this pfx-origin
-  uint32_t partial_feed_peer_cnt;      // count of partial-feed peers that observed this pfx-origin
-  uint32_t full_feed_peer_view_cnt;    // count of views in which any full-feed peer observed this pfx-origin
-  uint32_t partial_feed_peer_view_cnt; // count of views in which any partial-feed peer observed this pfx-origin
-  map_peerid_viewcnt_t *peers;         // peers that observed this pfx-origin, and in how many views
+  uint16_t full_feed_peer_cnt;          // count of full-feed peers that observed this pfx-origin
+  uint16_t partial_feed_peer_cnt;       // count of partial-feed peers that observed this pfx-origin
+  viewcnt_t full_feed_peer_view_cnt;    // count of views in which any full-feed peer observed this pfx-origin
+  viewcnt_t partial_feed_peer_view_cnt; // count of views in which any partial-feed peer observed this pfx-origin
+  map_peerid_viewcnt_t *peers;          // peers that observed this pfx-origin, and in how many views
 } origin_info_t;
 
 typedef struct pfx_info {
@@ -706,6 +706,7 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
 
   } else {
     view_interval = vtime - STATE->prev_view_time;
+    assert(STATE->out_interval/view_interval <= MAX_VIEW_CNT);
     if (STATE->prev_view_interval == 0) {
       // second view (end of first view_interval)
       if (STATE->out_interval % view_interval != 0) {
@@ -734,6 +735,11 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
   memset(&stats, 0, sizeof(stats));
   STATE->view_cnt++;
 
+  struct {
+    uint8_t counted_as_full;    // has pfx-origin's full_feed_peer_view_cnt been incremented yet in the current view?
+    uint8_t counted_as_partial; // has pfx-origin's partial_feed_peer_view_cnt been incremented yet in the current view?
+  } originflags[MAX_ORIGIN_CNT];
+
   // for each prefix
   for (bgpview_iter_first_pfx(vit, 0, BGPVIEW_FIELD_ACTIVE);
       bgpview_iter_has_more_pfx(vit);
@@ -758,14 +764,12 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
         pfxinfo = kh_val(STATE->v6pfxs, pi);
       }
       origin_cnt = pfxinfo->origin_cnt;
-      // reset counted flags
-      for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
-        pfxinfo->origins[oi].counted_as_full = 0;
-        pfxinfo->origins[oi].counted_as_partial = 0;
-      }
     } else {
       // pfx is new; pfxinfo will be allocated later, for the first peer-origin
     }
+
+    assert(origin_cnt <= MAX_ORIGIN_CNT);
+    memset(originflags, 0, sizeof(originflags[0]) * origin_cnt);
 
     char pfx_str[INET6_ADDRSTRLEN + 4];
     bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
@@ -807,6 +811,8 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
         // realloc does nothing (or it could theoretically shrink pfxinfo, if
         // it the previous interval left it larger than 1).
         oi = origin_cnt++;
+        assert(origin_cnt <= MAX_ORIGIN_CNT);
+        memset(&originflags[oi], 0, sizeof(originflags[oi]));
         if (pfxinfo) {
           if (origin_cnt == 1) {
             stats.recycled_cnt++;
@@ -826,10 +832,8 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
         }
         pfxinfo->origin_cnt = origin_cnt;
         pfxinfo->origins[oi].path_id = path_id;
-        pfxinfo->origins[oi].counted_as_full = 0;
         pfxinfo->origins[oi].full_feed_peer_cnt = 0;
         pfxinfo->origins[oi].full_feed_peer_view_cnt = 0;
-        pfxinfo->origins[oi].counted_as_partial = 0;
         pfxinfo->origins[oi].partial_feed_peer_cnt = 0;
         pfxinfo->origins[oi].partial_feed_peer_view_cnt = 0;
         pfxinfo->origins[oi].peers = kh_init(map_peerid_viewcnt);
@@ -837,14 +841,14 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
 
       // count pfx-origin peertype
       if (is_full) {
-        if (!pfxinfo->origins[oi].counted_as_full) {
+        if (!originflags[oi].counted_as_full) {
           pfxinfo->origins[oi].full_feed_peer_view_cnt++;
-          pfxinfo->origins[oi].counted_as_full = 1;
+          originflags[oi].counted_as_full = 1;
         }
       } else {
-        if (!pfxinfo->origins[oi].counted_as_partial) {
+        if (!originflags[oi].counted_as_partial) {
           pfxinfo->origins[oi].partial_feed_peer_view_cnt++;
-          pfxinfo->origins[oi].counted_as_partial = 1;
+          originflags[oi].counted_as_partial = 1;
         }
       }
 
