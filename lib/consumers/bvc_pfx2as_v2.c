@@ -134,9 +134,13 @@ typedef struct bvc_pfx2as_v2_state {
   bgpstream_as_path_store_t *pathstore;
   bgpstream_peer_sig_map_t *peersigs;
 
-  /** data for all pfxs */
+  /** data for all pfxs (may include pfxs with 0 origins) */
   map_v4pfx_pfxinfo_t *v4pfxs;
   map_v6pfx_pfxinfo_t *v6pfxs;
+
+  /** count of pfxs with at least 1 origin */
+  uint32_t v4pfx_cnt;
+  uint32_t v6pfx_cnt;
 
   /** peers that observed pfxes (used only in dump_results(); stored here so
    * memory can be reused) */
@@ -166,8 +170,8 @@ typedef struct pfx2as_v2_stats {
   uint32_t pfxorigin_cnt;   // count of pfx-origins
   uint32_t max_origin_cnt;  // max origin count for any pfx
   uint32_t mop_cnt;         // count of pfxs with multiple origins
-  uint32_t overwrite_cnt;
-  uint32_t grow_cnt;
+  uint32_t recycled_cnt;    // count of pfxinfos that were recycled
+  uint32_t grow_cnt;        // count of pfxinfos that grew
 } pfx2as_v2_stats_t;
 
 /* ==================== CONSUMER INTERNAL FUNCTIONS ==================== */
@@ -297,9 +301,9 @@ static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interv
   DUMP_LINE(",", "duration: %d", STATE->view_cnt * view_interval);
   DUMP_LINE(",", "monitor_count: %d", kh_size(STATE->peers));
   uint32_t pfx_cnt =
-    version == BGPSTREAM_ADDR_VERSION_IPV4 ? kh_size(STATE->v4pfxs) :
-    version == BGPSTREAM_ADDR_VERSION_IPV6 ? kh_size(STATE->v6pfxs) :
-    kh_size(STATE->v4pfxs) + kh_size(STATE->v6pfxs);
+    version == BGPSTREAM_ADDR_VERSION_IPV4 ? STATE->v4pfx_cnt :
+    version == BGPSTREAM_ADDR_VERSION_IPV6 ? STATE->v6pfx_cnt :
+    STATE->v4pfx_cnt + STATE->v6pfx_cnt;
   DUMP_LINE(",", "prefix_count: %"PRIu32, pfx_cnt);
 
   indent -= 2;
@@ -435,9 +439,9 @@ static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interva
 
   // Dump dataset metadata
   uint32_t pfx_cnt =
-      version == BGPSTREAM_ADDR_VERSION_IPV4 ? kh_size(STATE->v4pfxs) :
-      version == BGPSTREAM_ADDR_VERSION_IPV6 ? kh_size(STATE->v6pfxs) :
-      kh_size(STATE->v4pfxs) + kh_size(STATE->v6pfxs);
+      version == BGPSTREAM_ADDR_VERSION_IPV4 ? STATE->v4pfx_cnt :
+      version == BGPSTREAM_ADDR_VERSION_IPV6 ? STATE->v6pfx_cnt :
+      STATE->v4pfx_cnt + STATE->v6pfx_cnt;
   wandio_printf(STATE->outfile, "D|%d|%d|%d|%"PRIu32"\n",
       STATE->out_interval_start,
       STATE->view_cnt * view_interval,
@@ -581,6 +585,25 @@ static int init_my_state(bvc_t *consumer, bgpview_t *srcview)
   return 0;
 }
 
+#define CLEAR_PFX_MAP(ipv)                                                     \
+  do {                                                                         \
+    pfx_info_t *pfxinfo;                                                       \
+    for (khint_t k = 0; k != kh_end(STATE->ipv##pfxs); ++k) {                  \
+      if (!kh_exist(STATE->ipv##pfxs, k)) continue;                            \
+      pfxinfo = kh_val(STATE->ipv##pfxs, k);                                   \
+      if (pfxinfo->origin_cnt == 0) {                                          \
+        /* pfx was not seen in this interval; delete it */                     \
+        gc_cnt++;                                                              \
+        pfxinfo_destroy(pfxinfo);                                              \
+        kh_del(map_##ipv##pfx_pfxinfo, STATE->ipv##pfxs, k);                   \
+      } else {                                                                 \
+        /* pfx is likely to be seen again in the next interval; keep it */     \
+        pfxinfo->origin_cnt = 0;                                               \
+      }                                                                        \
+    }                                                                          \
+    STATE->ipv##pfx_cnt = 0;                                                   \
+  } while (0)
+
 static int end_output_interval(bvc_t *consumer, uint32_t vtime,
     uint32_t view_interval)
 {
@@ -595,17 +618,10 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   }
 
   // reset state
-  for (khint_t k = 0; k != kh_end(STATE->v4pfxs); ++k) {
-    if (!kh_exist(STATE->v4pfxs, k)) continue;
-    pfxinfo_destroy(kh_val(STATE->v4pfxs, k));
-  }
-  kh_clear(map_v4pfx_pfxinfo, STATE->v4pfxs);
-
-  for (khint_t k = 0; k != kh_end(STATE->v6pfxs); ++k) {
-    if (!kh_exist(STATE->v6pfxs, k)) continue;
-    pfxinfo_destroy(kh_val(STATE->v6pfxs, k));
-  }
-  kh_clear(map_v6pfx_pfxinfo, STATE->v6pfxs);
+  int gc_cnt = 0;
+  CLEAR_PFX_MAP(v4);
+  CLEAR_PFX_MAP(v6);
+  printf("# gc=%d\n", gc_cnt);
 
   STATE->view_cnt = 0;
   STATE->out_interval_start = vtime;
@@ -664,14 +680,16 @@ static void dump_stats(bvc_t *consumer, pfx2as_v2_stats_t *stats)
     }
   }
 
-  uint32_t pfx_cnt = kh_size(STATE->v4pfxs) + kh_size(STATE->v6pfxs);
+  uint32_t pfx_cnt = STATE->v4pfx_cnt + STATE->v6pfx_cnt;
+  uint32_t pfx_slots = kh_size(STATE->v4pfxs) + kh_size(STATE->v6pfxs);
 
-  printf("# pfxs=%d; po: tot=%d, max=%d; po/pfxs=%f; mop=%d; grow=%d\n",
-      pfx_cnt,
+  printf("# pfxs=%d/%d; po: tot=%d, max=%d; po/pfxs=%f; mop=%d; recycle=%d, grow=%d\n",
+      pfx_cnt, pfx_slots,
       stats->pfxorigin_cnt,
       stats->max_origin_cnt,
       (double)stats->pfxorigin_cnt / pfx_cnt,
       stats->mop_cnt,
+      stats->recycled_cnt,
       stats->grow_cnt);
 }
 
@@ -731,30 +749,26 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
     } else {
       pi = kh_put(map_v6pfx_pfxinfo, STATE->v6pfxs, pfx->bs_ipv6, &khret);
     }
-    int pfx_existed = (khret == 0);
     pfx_info_t *pfxinfo = NULL;
     int origin_cnt = 0;
-    if (pfx_existed) {
+    if (khret == 0) { // pfx already existed
       if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
         pfxinfo = kh_val(STATE->v4pfxs, pi);
       } else {
         pfxinfo = kh_val(STATE->v6pfxs, pi);
       }
       origin_cnt = pfxinfo->origin_cnt;
-    } else {
-      // pfxinfo will be allocated later, for the first peer-origin
-    }
-
-    char pfx_str[INET6_ADDRSTRLEN + 4];
-    bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
-
-    // reset counted flags
-    if (pfxinfo) {
+      // reset counted flags
       for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
         pfxinfo->origins[oi].counted_as_full = 0;
         pfxinfo->origins[oi].counted_as_partial = 0;
       }
+    } else {
+      // pfx is new; pfxinfo will be allocated later, for the first peer-origin
     }
+
+    char pfx_str[INET6_ADDRSTRLEN + 4];
+    bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
 
     // for each peer in pfx
     for (bgpview_iter_pfx_first_peer(vit, BGPVIEW_FIELD_ACTIVE);
@@ -785,17 +799,30 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
           break;
         }
       }
-      // XXX TODO: if (oi<0), see if we can recycle an empty origin
       if (oi < 0) {
-        // allocate or grow pfxinfo to accommodate a new pfxinfo->origins entry
+        // Allocate/grow pfxinfo to accommodate a new pfxinfo->origins entry.
+        // If pfx is new, pfxinfo is NULL, and realloc will create a new one.
+        // If pfx already contains origins, realloc will grow pfxinfo.
+        // If pfx has no origins yet this interval, origin_cnt becomes 1, and
+        // realloc does nothing (or it could theoretically shrink pfxinfo, if
+        // it the previous interval left it larger than 1).
         oi = origin_cnt++;
-        if (pfxinfo)
-          stats.grow_cnt++;
+        if (pfxinfo) {
+          if (origin_cnt == 1) {
+            stats.recycled_cnt++;
+          } else {
+            stats.grow_cnt++;
+          }
+        }
         pfxinfo = realloc(pfxinfo, pfxinfo_size(origin_cnt));
         if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
           kh_val(STATE->v4pfxs, pi) = pfxinfo;
+          if (origin_cnt == 1)
+            STATE->v4pfx_cnt++;
         } else {
           kh_val(STATE->v6pfxs, pi) = pfxinfo;
+          if (origin_cnt == 1)
+            STATE->v6pfx_cnt++;
         }
         pfxinfo->origin_cnt = origin_cnt;
         pfxinfo->origins[oi].path_id = path_id;
