@@ -432,10 +432,18 @@ static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interv
 static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interval)
 {
   // Header
-  wandio_printf(STATE->outfile, "# D|<start>|<duration>|<monitor_cnt>|<pfx_cnt>\n");
-  wandio_printf(STATE->outfile, "# M|<monitor_idx>|<collector>|<address>|<asn>|<pfx_cnt>\n");
-  wandio_printf(STATE->outfile, "# P|<pfx>|<asn>|<full_cnt>|<partial_cnt>|<full_duration>|<partial_duration>\n");
-  wandio_printf(STATE->outfile, "# p|<pfx>|<asn>|<monitor_idx>|<duration>\n");
+  wandio_printf(STATE->outfile,
+      "# D|<start>|<duration>|<monitor_cnt>|<pfx_cnt>\n");
+  if (!STATE->peer_count_only) {
+    wandio_printf(STATE->outfile,
+        "# M|<monitor_idx>|<collector>|<address>|<asn>|<pfx_cnt>\n");
+  }
+  wandio_printf(STATE->outfile, "# P|<pfx>|<asn>|<full_cnt>|<partial_cnt>|"
+      "<full_duration>|<partial_duration>\n");
+  if (!STATE->peer_count_only) {
+    wandio_printf(STATE->outfile, "# p|<pfx>|<asn>|<monitor_idx>|<duration>\n");
+  }
+
 
   // Dump dataset metadata
   uint32_t pfx_cnt =
