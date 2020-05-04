@@ -1054,11 +1054,19 @@ int bgpview_iter_seek_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
 
 /* optimized macros. be careful when using these */
 
-#define WHILE_NOT_MATCHED_PFX_PEER(iter, peertable)                            \
-  while (((iter)->pfx_peer_it != kh_end(peertable)) &&                         \
-         (!kh_exist(peertable, (iter)->pfx_peer_it) ||                         \
-          !((iter)->pfx_peer_state_mask &                                      \
-            kh_val(peertable, (iter)->pfx_peer_it).state)))
+#define SCAN_FOR_MATCHING_PFX_PEER(iter, peertable)                            \
+  do {                                                                         \
+    for ( ; (iter)->pfx_peer_it != kh_end(peertable); ++(iter)->pfx_peer_it) { \
+      if (!kh_exist(peertable, (iter)->pfx_peer_it)) continue;                 \
+      if ((iter)->pfx_peer_state_mask &                                        \
+          kh_val(peertable, (iter)->pfx_peer_it).state) {                      \
+        __iter_seek_peer((iter), kh_key(peertable, (iter)->pfx_peer_it),       \
+            (iter)->pfx_peer_state_mask);                                      \
+        (iter)->pfx_peer_it_valid = 1;                                         \
+        break;                                                                 \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
 
 #define __iter_pfx_first_peer_tab(iter, peertable, state_mask)                 \
   do {                                                                         \
@@ -1066,13 +1074,7 @@ int bgpview_iter_seek_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
     (iter)->pfx_peer_it = 0;                                                   \
     (iter)->pfx_peer_it_valid = 0;                                             \
     if (!peertable) break;                                                     \
-    WHILE_NOT_MATCHED_PFX_PEER(iter, peertable) {                              \
-      (iter)->pfx_peer_it++;                                                   \
-    }                                                                          \
-    if ((iter)->pfx_peer_it != kh_end(peertable)) {                            \
-      __iter_seek_peer((iter), kh_key(peertable, (iter)->pfx_peer_it), state_mask);               \
-      (iter)->pfx_peer_it_valid = 1;                                           \
-    }                                                                          \
+    SCAN_FOR_MATCHING_PFX_PEER(iter, peertable);                               \
   } while (0)
 
 #define __iter_pfx_first_peer(iter, state_mask)                                \
@@ -1087,16 +1089,9 @@ int bgpview_iter_seek_pfx(bgpview_iter_t *iter, bgpstream_pfx_t *pfx,
 
 #define __iter_pfx_next_peer_tab(iter, peertable)                              \
   do {                                                                         \
-    do {                                                                       \
-      (iter)->pfx_peer_it++;                                                   \
-    } WHILE_NOT_MATCHED_PFX_PEER(iter, peertable);                             \
-    if ((iter)->pfx_peer_it != kh_end(peertable)) {                            \
-      __iter_seek_peer((iter), kh_key(peertable, (iter)->pfx_peer_it),         \
-                       (iter)->pfx_peer_state_mask);                           \
-      (iter)->pfx_peer_it_valid = 1;                                           \
-    } else {                                                                   \
-      (iter)->pfx_peer_it_valid = 0;                                           \
-    }                                                                          \
+    (iter)->pfx_peer_it_valid = 0;                                             \
+    (iter)->pfx_peer_it++;                                                     \
+    SCAN_FOR_MATCHING_PFX_PEER(iter, peertable);                               \
   } while (0)
 
 #define __iter_pfx_next_peer(iter)                                             \
