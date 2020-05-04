@@ -65,8 +65,6 @@ typedef khash_t(map_peerid_viewcnt) map_peerid_viewcnt_t;
 
 typedef struct origin_info {
   bgpstream_as_path_store_path_id_t path_id; // id of path containing the origin
-  uint16_t full_feed_peer_cnt;          // count of full-feed peers that observed this pfx-origin
-  uint16_t partial_feed_peer_cnt;       // count of partial-feed peers that observed this pfx-origin
   viewcnt_t full_feed_peer_view_cnt;    // count of views in which any full-feed peer observed this pfx-origin
   viewcnt_t partial_feed_peer_view_cnt; // count of views in which any partial-feed peer observed this pfx-origin
   map_peerid_viewcnt_t *peers;          // peers that observed this pfx-origin, and in how many views
@@ -251,16 +249,10 @@ static void prep_results(bvc_t *consumer, int version, uint32_t view_interval)
       // for each origin in prefix
       for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
         origin_info_t *originfo = &pfxinfo->origins[oi];
-        originfo->full_feed_peer_cnt = 0;
-        originfo->partial_feed_peer_cnt = 0;
 
         // for each peer in origin
         for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
           if (!kh_exist(originfo->peers, mi)) continue;
-          if (kh_val(originfo->peers, mi).full_cnt > 0)
-            originfo->full_feed_peer_cnt++;
-          if (kh_val(originfo->peers, mi).partial_cnt > 0)
-            originfo->partial_feed_peer_cnt++;
           if (kh_val(originfo->peers, mi).full_cnt > 0 || kh_val(originfo->peers, mi).partial_cnt > 0) {
             int khret;
             bgpstream_peer_id_t peer_id = kh_key(originfo->peers, mi);
@@ -279,6 +271,24 @@ static void prep_results(bvc_t *consumer, int version, uint32_t view_interval)
       }
     }
   }
+}
+
+typedef struct peer_cnts {
+  uint16_t full_cnt;
+  uint16_t partial_cnt;
+} peer_cnts_t;
+
+static peer_cnts_t count_peer_types(origin_info_t *originfo)
+{
+  peer_cnts_t peercnts = {0,0};
+  for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
+    if (!kh_exist(originfo->peers, mi)) continue;
+    if (kh_val(originfo->peers, mi).full_cnt > 0)
+      peercnts.full_cnt++;
+    if (kh_val(originfo->peers, mi).partial_cnt > 0)
+      peercnts.partial_cnt++;
+  }
+  return peercnts;
 }
 
 static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interval)
@@ -394,8 +404,9 @@ static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interv
         DUMP_LINE(",", "asn: \"%s\"", orig_str);
 
         // full/partial-feed monitor counts
+        peer_cnts_t peercnts = count_peer_types(originfo);
         DUMP_LINE(",", "monitors: { full: %d, partial: %d }",
-            originfo->full_feed_peer_cnt, originfo->partial_feed_peer_cnt);
+            peercnts.full_cnt, peercnts.partial_cnt);
 
         // announced_duration
         DUMP_LINE(",", "announced_duration: { full: %d, partial: %d }",
@@ -515,11 +526,13 @@ static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interva
         char orig_str[4096];
         bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
 
+        peer_cnts_t peercnts = count_peer_types(originfo);
+
         wandio_printf(STATE->outfile, "P|%s|%s|%d|%d|%d|%d\n",
             pfx_str,
             orig_str,
-            originfo->full_feed_peer_cnt,
-            originfo->partial_feed_peer_cnt,
+            peercnts.full_cnt,
+            peercnts.partial_cnt,
             originfo->full_feed_peer_view_cnt * view_interval,
             originfo->partial_feed_peer_view_cnt * view_interval);
 
@@ -840,9 +853,7 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
         }
         pfxinfo->origin_cnt = origin_cnt;
         pfxinfo->origins[oi].path_id = path_id;
-        pfxinfo->origins[oi].full_feed_peer_cnt = 0;
         pfxinfo->origins[oi].full_feed_peer_view_cnt = 0;
-        pfxinfo->origins[oi].partial_feed_peer_cnt = 0;
         pfxinfo->origins[oi].partial_feed_peer_view_cnt = 0;
         pfxinfo->origins[oi].peers = kh_init(map_peerid_viewcnt);
       }
