@@ -847,28 +847,23 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
         pfxinfo->origins[oi].peers = kh_init(map_peerid_viewcnt);
       }
 
-      // count pfx-origin peertype
-      if (is_full) {
-        if (!originflags[oi].counted_as_full) {
-          pfxinfo->origins[oi].full_feed_peer_view_cnt++;
-          originflags[oi].counted_as_full = 1;
-        }
-      } else {
-        if (!originflags[oi].counted_as_partial) {
-          pfxinfo->origins[oi].partial_feed_peer_view_cnt++;
-          originflags[oi].counted_as_partial = 1;
-        }
-      }
-
-      // count pfx-origin-peer
+      // count pfx-origin-peer and pfx-origin peertype
       mi = kh_put(map_peerid_viewcnt, pfxinfo->origins[oi].peers, peer_id, &khret);
       if (khret > 0) { // new entry?
         memset(&kh_val(pfxinfo->origins[oi].peers, mi), 0, sizeof(peerviews_t));
       }
       if (is_full) {
         kh_val(pfxinfo->origins[oi].peers, mi).full_cnt++;
+        if (!originflags[oi].counted_as_full) {
+          pfxinfo->origins[oi].full_feed_peer_view_cnt++;
+          originflags[oi].counted_as_full = 1;
+        }
       } else {
         kh_val(pfxinfo->origins[oi].peers, mi).partial_cnt++;
+        if (!originflags[oi].counted_as_partial) {
+          pfxinfo->origins[oi].partial_feed_peer_view_cnt++;
+          originflags[oi].counted_as_partial = 1;
+        }
       }
     }
   }
