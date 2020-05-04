@@ -203,6 +203,30 @@ static int close_outfiles(bvc_t *consumer)
 // XXX This belongs in bgpstream
 #define path_id_equal(a, b) (memcmp(&a, &b, sizeof(a)) == 0)
 
+// Iterate over prefixes in state, setting `pfx` and `pfxinfo` for each.
+// Usage:  FOR_EACH_PFX(state, version) { ... } END_EACH_PFX
+#define FOR_EACH_PFX(state, version)                                           \
+  for (int _vidx = 0; _vidx < BGPSTREAM_MAX_IP_VERSION_IDX; _vidx++) {         \
+    if (version && bgpstream_ipv2idx(version) != _vidx)                        \
+      continue;                                                                \
+    khint_t _pfx_end = (_vidx == v4idx) ? kh_end(state->v4pfxs) :              \
+      kh_end(state->v6pfxs);                                                   \
+    /* for each prefix in the selected ipv */                                  \
+    for (khint_t _pi = 0; _pi != _pfx_end; ++_pi) {                            \
+      bgpstream_pfx_t *pfx;                                                    \
+      pfx_info_t *pfxinfo;                                                     \
+      if (_vidx == v4idx) {                                                    \
+        if (!kh_exist(state->v4pfxs, _pi)) continue;                           \
+        pfx = (bgpstream_pfx_t*)&kh_key(state->v4pfxs, _pi);                   \
+        pfxinfo = kh_val(state->v4pfxs, _pi);                                  \
+      } else { /* v6 */                                                        \
+        if (!kh_exist(state->v6pfxs, _pi)) continue;                           \
+        pfx = (bgpstream_pfx_t*)&kh_key(state->v6pfxs, _pi);                   \
+        pfxinfo = kh_val(state->v6pfxs, _pi);                                  \
+      }                                                                        \
+      do
+
+#define END_EACH_PFX  while (0); } }
 
 static void pfxinfo_destroy(pfx_info_t *pfxinfo)
 {
@@ -215,62 +239,37 @@ static void pfxinfo_destroy(pfx_info_t *pfxinfo)
 
 static void prep_results(bvc_t *consumer, int version, uint32_t view_interval)
 {
-  // for each ipv
-  for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
-    khint_t end;
-    if (version && bgpstream_ipv2idx(version) != vidx)
-      continue;
-    if (vidx == v4idx) {
-      end = kh_end(STATE->v4pfxs);
-    } else { // v6
-      end = kh_end(STATE->v6pfxs);
+  FOR_EACH_PFX(STATE, version) {
+    // reset flag in each peer of STATE->peers
+    for (khint_t k = 0; k != kh_end(STATE->peers); ++k) {
+      if (!kh_exist(STATE->peers, k)) continue;
+      kh_val(STATE->peers, k).counted_this_pfx = 0;
     }
 
-    // for each prefix in the selected ipv
-    for (khint_t pi = 0; pi != end; ++pi) {
-      bgpstream_pfx_t *pfx;
-      pfx_info_t *pfxinfo;
-      if (vidx == v4idx) {
-        if (!kh_exist(STATE->v4pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
-        pfxinfo = kh_val(STATE->v4pfxs, pi);
-      } else { // v6
-        if (!kh_exist(STATE->v6pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v6pfxs, pi);
-        pfxinfo = kh_val(STATE->v6pfxs, pi);
-      }
+    // for each origin in prefix
+    for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
+      origin_info_t *originfo = &pfxinfo->origins[oi];
 
-      // reset flag in each peer of STATE->peers
-      for (khint_t k = 0; k != kh_end(STATE->peers); ++k) {
-        if (!kh_exist(STATE->peers, k)) continue;
-        kh_val(STATE->peers, k).counted_this_pfx = 0;
-      }
-
-      // for each origin in prefix
-      for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
-        origin_info_t *originfo = &pfxinfo->origins[oi];
-
-        // for each peer in origin
-        for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
-          if (!kh_exist(originfo->peers, mi)) continue;
-          if (kh_val(originfo->peers, mi).full_cnt > 0 || kh_val(originfo->peers, mi).partial_cnt > 0) {
-            int khret;
-            bgpstream_peer_id_t peer_id = kh_key(originfo->peers, mi);
-            khint_t k = kh_put(map_peerid_pfxcnt, STATE->peers, peer_id,
-                &khret);
-            // if peer has not yet counted this pfx, do so now
-            if (khret > 0) {
-              kh_val(STATE->peers, k).counted_this_pfx = 1;
-              kh_val(STATE->peers, k).pfx_cnt = 1;
-            } else if (!kh_val(STATE->peers, k).counted_this_pfx) {
-              kh_val(STATE->peers, k).counted_this_pfx = 1;
-              kh_val(STATE->peers, k).pfx_cnt++;
-            }
+      // for each peer in origin
+      for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
+        if (!kh_exist(originfo->peers, mi)) continue;
+        if (kh_val(originfo->peers, mi).full_cnt > 0 || kh_val(originfo->peers, mi).partial_cnt > 0) {
+          int khret;
+          bgpstream_peer_id_t peer_id = kh_key(originfo->peers, mi);
+          khint_t k = kh_put(map_peerid_pfxcnt, STATE->peers, peer_id,
+              &khret);
+          // if peer has not yet counted this pfx, do so now
+          if (khret > 0) {
+            kh_val(STATE->peers, k).counted_this_pfx = 1;
+            kh_val(STATE->peers, k).pfx_cnt = 1;
+          } else if (!kh_val(STATE->peers, k).counted_this_pfx) {
+            kh_val(STATE->peers, k).counted_this_pfx = 1;
+            kh_val(STATE->peers, k).pfx_cnt++;
           }
         }
       }
     }
-  }
+  } END_EACH_PFX
 }
 
 typedef struct peer_cnts {
@@ -360,82 +359,57 @@ static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interv
 
   const char *pfx_delim = "";
 
-  // for each ipv
-  for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
-    khint_t end;
-    if (version && bgpstream_ipv2idx(version) != vidx)
-      continue;
-    if (vidx == v4idx) {
-      end = kh_end(STATE->v4pfxs);
-    } else { // v6
-      end = kh_end(STATE->v6pfxs);
-    }
+  FOR_EACH_PFX(STATE, version) {
+    char pfx_str[INET6_ADDRSTRLEN + 4];
+    bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
 
-    // for each prefix in the selected ipv
-    for (khint_t pi = 0; pi != end; ++pi) {
-      bgpstream_pfx_t *pfx;
-      pfx_info_t *pfxinfo;
-      if (vidx == v4idx) {
-        if (!kh_exist(STATE->v4pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
-        pfxinfo = kh_val(STATE->v4pfxs, pi);
-      } else { // v6
-        if (!kh_exist(STATE->v6pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v6pfxs, pi);
-        pfxinfo = kh_val(STATE->v6pfxs, pi);
-      }
+    // dump {pfx,origin} => ...
+    for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
+      origin_info_t *originfo = &pfxinfo->origins[oi];
+      bgpstream_as_path_store_path_id_t path_id = originfo->path_id;
+      bgpstream_as_path_seg_t *seg = path_get_origin_seg(STATE->pathstore, path_id);
 
-      char pfx_str[INET6_ADDRSTRLEN + 4];
-      bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
+      char orig_str[4096];
+      bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
 
-      // dump {pfx,origin} => ...
-      for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
-        origin_info_t *originfo = &pfxinfo->origins[oi];
-        bgpstream_as_path_store_path_id_t path_id = originfo->path_id;
-        bgpstream_as_path_seg_t *seg = path_get_origin_seg(STATE->pathstore, path_id);
+      DUMP_LINE(pfx_delim, "{"); // prefix_as_meta_data obj
+      pfx_delim = ",";
+      indent += 2;
+      DUMP_LINE("", "network: \"%s\"", pfx_str);
+      DUMP_LINE(",", "asn: \"%s\"", orig_str);
 
-        char orig_str[4096];
-        bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
+      // full/partial-feed monitor counts
+      peer_cnts_t peercnts = count_peer_types(originfo);
+      DUMP_LINE(",", "monitors: { full: %d, partial: %d }",
+          peercnts.full_cnt, peercnts.partial_cnt);
 
-        DUMP_LINE(pfx_delim, "{"); // prefix_as_meta_data obj
-        pfx_delim = ",";
+      // announced_duration
+      DUMP_LINE(",", "announced_duration: { full: %d, partial: %d }",
+          originfo->full_feed_peer_view_cnt * view_interval,
+          originfo->partial_feed_peer_view_cnt * view_interval);
+
+      // list of {monitor_idx, duration}
+      if (!STATE->peer_count_only) {
+        DUMP_LINE(",", "monitors: [");
         indent += 2;
-        DUMP_LINE("", "network: \"%s\"", pfx_str);
-        DUMP_LINE(",", "asn: \"%s\"", orig_str);
-
-        // full/partial-feed monitor counts
-        peer_cnts_t peercnts = count_peer_types(originfo);
-        DUMP_LINE(",", "monitors: { full: %d, partial: %d }",
-            peercnts.full_cnt, peercnts.partial_cnt);
-
-        // announced_duration
-        DUMP_LINE(",", "announced_duration: { full: %d, partial: %d }",
-            originfo->full_feed_peer_view_cnt * view_interval,
-            originfo->partial_feed_peer_view_cnt * view_interval);
-
-        // list of {monitor_idx, duration}
-        if (!STATE->peer_count_only) {
-          DUMP_LINE(",", "monitors: [");
-          indent += 2;
-          const char *pfxmon_delim = "";
-          for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
-            if (!kh_exist(originfo->peers, mi)) continue;
-            uint32_t duration = view_interval *
-              (kh_val(originfo->peers, mi).full_cnt +
-               kh_val(originfo->peers, mi).partial_cnt);
-            DUMP_LINE(pfxmon_delim, "{ monitor:%"PRIu16", duration:%"PRIu32" }",
-                kh_key(originfo->peers, mi), duration);
-            pfxmon_delim = ",";
-          }
-          indent -= 2;
-          DUMP_LINE("", "]"); // monitors
+        const char *pfxmon_delim = "";
+        for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
+          if (!kh_exist(originfo->peers, mi)) continue;
+          uint32_t duration = view_interval *
+            (kh_val(originfo->peers, mi).full_cnt +
+             kh_val(originfo->peers, mi).partial_cnt);
+          DUMP_LINE(pfxmon_delim, "{ monitor:%"PRIu16", duration:%"PRIu32" }",
+              kh_key(originfo->peers, mi), duration);
+          pfxmon_delim = ",";
         }
-
         indent -= 2;
-        DUMP_LINE("", "}"); // prefix_as_meta_data obj
+        DUMP_LINE("", "]"); // monitors
       }
+
+      indent -= 2;
+      DUMP_LINE("", "}"); // prefix_as_meta_data obj
     }
-  }
+  } END_EACH_PFX
   indent -= 2;
   DUMP_LINE("", "]\n"); // prefix_as_meta_data list
 }
@@ -489,71 +463,46 @@ static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interva
   }
 
   // Dump prefixes
-  // for each ipv
-  for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; vidx++) {
-    khint_t end;
-    if (version && bgpstream_ipv2idx(version) != vidx)
-      continue;
-    if (vidx == v4idx) {
-      end = kh_end(STATE->v4pfxs);
-    } else { // v6
-      end = kh_end(STATE->v6pfxs);
-    }
+  FOR_EACH_PFX(STATE, version) {
+    char pfx_str[INET6_ADDRSTRLEN + 4];
+    bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
 
-    // for each prefix in the selected ipv
-    for (khint_t pi = 0; pi != end; ++pi) {
-      bgpstream_pfx_t *pfx;
-      pfx_info_t *pfxinfo;
-      if (vidx == v4idx) {
-        if (!kh_exist(STATE->v4pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
-        pfxinfo = kh_val(STATE->v4pfxs, pi);
-      } else { // v6
-        if (!kh_exist(STATE->v6pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v6pfxs, pi);
-        pfxinfo = kh_val(STATE->v6pfxs, pi);
-      }
+    // dump {pfx,origin} => ...
+    for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
+      origin_info_t *originfo = &pfxinfo->origins[oi];
+      bgpstream_as_path_store_path_id_t path_id = originfo->path_id;
+      bgpstream_as_path_seg_t *seg = path_get_origin_seg(STATE->pathstore, path_id);
 
-      char pfx_str[INET6_ADDRSTRLEN + 4];
-      bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
+      char orig_str[4096];
+      bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
 
-      // dump {pfx,origin} => ...
-      for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
-        origin_info_t *originfo = &pfxinfo->origins[oi];
-        bgpstream_as_path_store_path_id_t path_id = originfo->path_id;
-        bgpstream_as_path_seg_t *seg = path_get_origin_seg(STATE->pathstore, path_id);
+      peer_cnts_t peercnts = count_peer_types(originfo);
 
-        char orig_str[4096];
-        bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
+      wandio_printf(STATE->outfile, "P|%s|%s|%d|%d|%d|%d\n",
+          pfx_str,
+          orig_str,
+          peercnts.full_cnt,
+          peercnts.partial_cnt,
+          originfo->full_feed_peer_view_cnt * view_interval,
+          originfo->partial_feed_peer_view_cnt * view_interval);
 
-        peer_cnts_t peercnts = count_peer_types(originfo);
+      // list of {monitor_idx, duration}
+      if (!STATE->peer_count_only) {
+        for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
+          if (!kh_exist(originfo->peers, mi)) continue;
+          uint32_t duration = view_interval *
+            (kh_val(originfo->peers, mi).full_cnt +
+             kh_val(originfo->peers, mi).partial_cnt);
 
-        wandio_printf(STATE->outfile, "P|%s|%s|%d|%d|%d|%d\n",
-            pfx_str,
-            orig_str,
-            peercnts.full_cnt,
-            peercnts.partial_cnt,
-            originfo->full_feed_peer_view_cnt * view_interval,
-            originfo->partial_feed_peer_view_cnt * view_interval);
-
-        // list of {monitor_idx, duration}
-        if (!STATE->peer_count_only) {
-          for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
-            if (!kh_exist(originfo->peers, mi)) continue;
-            uint32_t duration = view_interval *
-              (kh_val(originfo->peers, mi).full_cnt +
-               kh_val(originfo->peers, mi).partial_cnt);
-
-            wandio_printf(STATE->outfile, "p|%s|%s|%"PRIu16"|%"PRIu32"\n",
-                pfx_str,
-                orig_str,
-                kh_key(originfo->peers, mi),
-                duration);
-          }
+          wandio_printf(STATE->outfile, "p|%s|%s|%"PRIu16"|%"PRIu32"\n",
+              pfx_str,
+              orig_str,
+              kh_key(originfo->peers, mi),
+              duration);
         }
       }
     }
-  }
+  } END_EACH_PFX
 }
 
 static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
