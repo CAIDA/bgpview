@@ -142,10 +142,8 @@ CONSUMER_SRCS += \
 
 # Prefix-to-AS consumer
 CONSUMER_SRCS += \
-	bvc_pfx2as_v1.c \
-	bvc_pfx2as_v1.h \
-	bvc_pfx2as_v2.c \
-	bvc_pfx2as_v2.h
+	bvc_pfx2as.c \
+	bvc_pfx2as.h
 
 # -- sample how to add conditional consumer
 #if WITH_<NAME>

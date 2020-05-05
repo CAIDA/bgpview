@@ -21,7 +21,7 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bvc_pfx2as_v2.h"
+#include "bvc_pfx2as.h"
 #include "bgpview_consumer_interface.h"
 #include "bgpview_consumer_utils.h"
 #include "bgpstream_utils_addr.h"
@@ -35,20 +35,20 @@
 #include <unistd.h>
 #include <wandio.h>
 
-#define NAME "pfx2as-v2"
+#define NAME "pfx2as"
 
 #define MAX_ORIGIN_CNT 512
 #define OUTPUT_INTERVAL 86400
 
-#define STATE (BVC_GET_STATE(consumer, pfx2as_v2))
+#define STATE (BVC_GET_STATE(consumer, pfx2as))
 
 #define CHAIN_STATE (BVC_GET_CHAIN_STATE(consumer))
 
 /* our 'class' */
-static bvc_t bvc_pfx2as_v2 = { //
-  BVC_ID_PFX2AS_V2, //
+static bvc_t bvc_pfx2as = { //
+  BVC_ID_PFX2AS, //
   NAME, //
-  BVC_GENERATE_PTRS(pfx2as_v2) //
+  BVC_GENERATE_PTRS(pfx2as) //
 };
 
 typedef uint16_t viewcnt_t;
@@ -102,7 +102,7 @@ typedef enum {
 static int v4idx = 0; // should be compile-time const in bgpstream_utils_addr.h
 
 /* our 'instance' */
-typedef struct bvc_pfx2as_v2_state {
+typedef struct bvc_pfx2as_state {
 
   /* ----- configuration ----- */
 
@@ -162,15 +162,15 @@ typedef struct bvc_pfx2as_v2_state {
   /** first view_time in the current output interval */
   uint32_t out_interval_start;
 
-} bvc_pfx2as_v2_state_t;
+} bvc_pfx2as_state_t;
 
-typedef struct pfx2as_v2_stats {
+typedef struct pfx2as_stats {
   uint32_t pfxorigin_cnt;   // count of pfx-origins
   uint32_t max_origin_cnt;  // max origin count for any pfx
   uint32_t mop_cnt;         // count of pfxs with multiple origins
   uint32_t recycled_cnt;    // count of pfxinfos that were recycled
   uint32_t grow_cnt;        // count of pfxinfos that grew
-} pfx2as_v2_stats_t;
+} pfx2as_stats_t;
 
 /* ==================== CONSUMER INTERNAL FUNCTIONS ==================== */
 
@@ -599,7 +599,7 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   return 0;
 }
 
-static void dump_stats(bvc_t *consumer, pfx2as_v2_stats_t *stats)
+static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
 {
   // for each prefix
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; ++vidx) {
@@ -663,7 +663,7 @@ static void dump_stats(bvc_t *consumer, pfx2as_v2_stats_t *stats)
       stats->grow_cnt);
 }
 
-int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
+int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
 {
   uint32_t vtime = bgpview_get_time(view);
   uintptr_t view_interval = 0;
@@ -701,7 +701,7 @@ int bvc_pfx2as_v2_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   vit = bgpview_iter_create(view);
-  pfx2as_v2_stats_t stats;
+  pfx2as_stats_t stats;
   memset(&stats, 0, sizeof(stats));
   STATE->view_cnt++;
 
@@ -860,7 +860,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
   int opt;
   assert(argc > 0 && argv != NULL);
 
-  bvc_pfx2as_v2_state_t *state = STATE;
+  bvc_pfx2as_state_t *state = STATE;
 
   /* NB: remember to reset optind to 1 before using getopt! */
   optind = 1;
@@ -911,16 +911,16 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
 
 /* ==================== CONSUMER INTERFACE FUNCTIONS ==================== */
 
-bvc_t *bvc_pfx2as_v2_alloc()
+bvc_t *bvc_pfx2as_alloc()
 {
-  return &bvc_pfx2as_v2;
+  return &bvc_pfx2as;
 }
 
-int bvc_pfx2as_v2_init(bvc_t *consumer, int argc, char **argv)
+int bvc_pfx2as_init(bvc_t *consumer, int argc, char **argv)
 {
-  bvc_pfx2as_v2_state_t *state = NULL;
+  bvc_pfx2as_state_t *state = NULL;
 
-  if ((state = malloc_zero(sizeof(bvc_pfx2as_v2_state_t))) == NULL) {
+  if ((state = malloc_zero(sizeof(bvc_pfx2as_state_t))) == NULL) {
     return -1;
   }
   BVC_SET_STATE(consumer, state);
@@ -952,11 +952,11 @@ int bvc_pfx2as_v2_init(bvc_t *consumer, int argc, char **argv)
   return 0;
 
 err:
-  bvc_pfx2as_v2_destroy(consumer);
+  bvc_pfx2as_destroy(consumer);
   return -1;
 }
 
-void bvc_pfx2as_v2_destroy(bvc_t *consumer)
+void bvc_pfx2as_destroy(bvc_t *consumer)
 {
   if (STATE == NULL) {
     return;
