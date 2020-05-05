@@ -591,7 +591,9 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   int gc_cnt = 0;
   CLEAR_PFX_MAP(v4);
   CLEAR_PFX_MAP(v6);
+#ifdef PFX2AS_STATS
   printf("# gc=%d\n", gc_cnt);
+#endif
 
   STATE->view_cnt = 0;
   STATE->out_interval_start = vtime;
@@ -599,9 +601,10 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
   return 0;
 }
 
+#ifdef PFX2AS_STATS
 static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
 {
-  // for each prefix
+  // for each ipv
   for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; ++vidx) {
     khint_t end;
     if (vidx == v4idx) {
@@ -662,6 +665,7 @@ static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
       stats->recycled_cnt,
       stats->grow_cnt);
 }
+#endif
 
 int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
 {
@@ -701,8 +705,10 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
   }
 
   vit = bgpview_iter_create(view);
+#ifdef PFX2AS_STATS
   pfx2as_stats_t stats;
   memset(&stats, 0, sizeof(stats));
+#endif
   STATE->view_cnt++;
 
   struct {
@@ -783,6 +789,7 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
         oi = origin_cnt++;
         assert(origin_cnt <= MAX_ORIGIN_CNT);
         memset(&originflags[oi], 0, sizeof(originflags[oi]));
+#ifdef PFX2AS_STATS
         if (pfxinfo) {
           if (origin_cnt == 1) {
             stats.recycled_cnt++;
@@ -790,6 +797,7 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
             stats.grow_cnt++;
           }
         }
+#endif
         pfxinfo = realloc(pfxinfo, pfxinfo_size(origin_cnt));
         if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
           kh_val(STATE->v4pfxs, pi) = pfxinfo;
@@ -833,7 +841,9 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
   STATE->prev_view_interval = view_interval;
   STATE->prev_view_time = vtime;
 
+#ifdef PFX2AS_STATS
   dump_stats(consumer, &stats);
+#endif
 
   return 0;
 err:
