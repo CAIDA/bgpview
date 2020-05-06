@@ -71,7 +71,8 @@ typedef struct origin_info {
 } origin_info_t;
 
 typedef struct pfx_info {
-  uint32_t origin_cnt;
+  uint16_t origin_cnt;
+  uint16_t origin_alloc_cnt;
   origin_info_t origins[]; // FAM (but most pfxs have just 1 origin)
 } pfx_info_t;
 
@@ -231,8 +232,10 @@ static int close_outfiles(bvc_t *consumer)
 static void pfxinfo_destroy(pfx_info_t *pfxinfo)
 {
   if (!pfxinfo) return;
-  for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
-    kh_destroy(map_peerid_viewcnt, pfxinfo->origins[oi].peers);
+  for (uint32_t oi = 0; oi < pfxinfo->origin_alloc_cnt; ++oi) {
+    if (pfxinfo->origins[oi].peers) {
+      kh_destroy(map_peerid_viewcnt, pfxinfo->origins[oi].peers);
+    }
   }
   free(pfxinfo);
 }
@@ -562,12 +565,23 @@ static int init_my_state(bvc_t *consumer, bgpview_t *srcview)
       if (!kh_exist(STATE->ipv##pfxs, k)) continue;                            \
       pfxinfo = kh_val(STATE->ipv##pfxs, k);                                   \
       if (pfxinfo->origin_cnt == 0) {                                          \
-        /* pfx was not seen in this interval; delete it */                     \
+        /* pfx slot is unlikely to be reused next interval; destroy it */      \
         gc_cnt++;                                                              \
         pfxinfo_destroy(pfxinfo);                                              \
         kh_del(map_##ipv##pfx_pfxinfo, STATE->ipv##pfxs, k);                   \
       } else {                                                                 \
-        /* pfx is likely to be seen again in the next interval; keep it */     \
+        /* pfx slot is likely to be reused next interval; reset and keep it */ \
+        for (int oi = 0; oi < pfxinfo->origin_cnt; ++oi) {                     \
+          if (!pfxinfo->origins[oi].peers) continue;                           \
+          if (kh_size(pfxinfo->origins[oi].peers) == 0) {                      \
+            /* origin slot is unlikely to be reused; destroy it */             \
+            kh_destroy(map_peerid_viewcnt, pfxinfo->origins[oi].peers);        \
+            pfxinfo->origins[oi].peers = NULL;                                 \
+          } else {                                                             \
+            /* origin slot is likely to be reused; reset and keep it */        \
+            kh_clear(map_peerid_viewcnt, pfxinfo->origins[oi].peers);          \
+          }                                                                    \
+        }                                                                      \
         pfxinfo->origin_cnt = 0;                                               \
       }                                                                        \
     }                                                                          \
@@ -744,7 +758,6 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       // pfx is new; pfxinfo will be allocated later, for the first peer-origin
     }
 
-    assert(origin_cnt <= MAX_ORIGIN_CNT);
     memset(originflags, 0, sizeof(originflags[0]) * origin_cnt);
 
     char pfx_str[INET6_ADDRSTRLEN + 4];
@@ -768,37 +781,46 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), origin);
 
       // Most prefixes have one origin, so a linear search is efficient
-      int oi = -1; // origin index
-      for (int i = 0; i < origin_cnt; ++i) {
+      int oi; // origin index
+      for (oi = 0; oi < origin_cnt; ++oi) {
         // Comparing path_ids is cheaper, but if that fails we must still
         // compare origins because different paths can have the same origin.
-        if (path_id_equal(path_id, pfxinfo->origins[i].path_id) ||
+        if (path_id_equal(path_id, pfxinfo->origins[oi].path_id) ||
             bgpstream_as_path_seg_equal(origin,
-              path_get_origin_seg(STATE->pathstore, pfxinfo->origins[i].path_id))) {
-          oi = i;
+              path_get_origin_seg(STATE->pathstore, pfxinfo->origins[oi].path_id))) {
           break;
         }
       }
-      if (oi < 0) {
-        // Allocate/grow pfxinfo to accommodate a new pfxinfo->origins entry.
-        // If pfx is new, pfxinfo is NULL, and realloc will create a new one.
-        // If pfx already contains origins, realloc will grow pfxinfo.
-        // If pfx has no origins yet this interval, origin_cnt becomes 1, and
-        // realloc does nothing (or it could theoretically shrink pfxinfo, if
-        // it the previous interval left it larger than 1).
-        oi = origin_cnt++;
-        assert(origin_cnt <= MAX_ORIGIN_CNT);
-        memset(&originflags[oi], 0, sizeof(originflags[oi]));
-#ifdef PFX2AS_STATS
-        if (pfxinfo) {
-          if (origin_cnt == 1) {
-            stats.recycled_cnt++;
-          } else {
-            stats.grow_cnt++;
-          }
+      if (oi == origin_cnt) {
+        // There was no matching origin.
+        // Is there an unused origin slot we can recycle?
+        for (oi = 0; oi < origin_cnt; ++oi) {
+          if (!pfxinfo->origins[oi].peers ||
+              kh_size(pfxinfo->origins[oi].peers) == 0)
+            break;
         }
+        if (oi == origin_cnt) {
+          // There were no unused origin slots to recycle
+          origin_cnt++;
+          assert(origin_cnt <= MAX_ORIGIN_CNT);
+        }
+        if (!pfxinfo) {
+          // Allocate a new pfxinfo with 1 origin slot
+          assert(origin_cnt == 1);
+          pfxinfo = malloc(pfxinfo_size(origin_cnt));
+          pfxinfo->origin_alloc_cnt = origin_cnt;
+          pfxinfo->origins[oi].peers = NULL;
+        } else if (origin_cnt > pfxinfo->origin_alloc_cnt) {
+          // Add a new origin slot to an existing pfxinfo
+          pfxinfo = realloc(pfxinfo, pfxinfo_size(origin_cnt));
+          pfxinfo->origin_alloc_cnt = origin_cnt;
+          pfxinfo->origins[oi].peers = NULL;
+#ifdef PFX2AS_STATS
+          stats.grow_cnt++;
+        } else if (origin_cnt == 1) {
+          stats.recycled_cnt++;
 #endif
-        pfxinfo = realloc(pfxinfo, pfxinfo_size(origin_cnt));
+        }
         if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
           kh_val(STATE->v4pfxs, pi) = pfxinfo;
           if (origin_cnt == 1)
@@ -812,7 +834,10 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
         pfxinfo->origins[oi].path_id = path_id;
         pfxinfo->origins[oi].full_feed_peer_view_cnt = 0;
         pfxinfo->origins[oi].partial_feed_peer_view_cnt = 0;
-        pfxinfo->origins[oi].peers = kh_init(map_peerid_viewcnt);
+        if (!pfxinfo->origins[oi].peers) {
+          pfxinfo->origins[oi].peers = kh_init(map_peerid_viewcnt);
+        }
+        memset(&originflags[oi], 0, sizeof(originflags[oi]));
       }
 
       // count pfx-origin-peer and pfx-origin peertype
