@@ -560,10 +560,9 @@ static int init_my_state(bvc_t *consumer, bgpview_t *srcview)
 
 #define CLEAR_PFX_MAP(ipv)                                                     \
   do {                                                                         \
-    pfx_info_t *pfxinfo;                                                       \
     for (khint_t k = 0; k != kh_end(STATE->ipv##pfxs); ++k) {                  \
       if (!kh_exist(STATE->ipv##pfxs, k)) continue;                            \
-      pfxinfo = kh_val(STATE->ipv##pfxs, k);                                   \
+      pfx_info_t *pfxinfo = kh_val(STATE->ipv##pfxs, k);                       \
       if (pfxinfo->origin_cnt == 0) {                                          \
         /* pfx slot is unlikely to be reused next interval; destroy it */      \
         gc_cnt++;                                                              \
@@ -740,22 +739,24 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
     int khret;
 
     khint_t pi;
-    if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
-      pi = kh_put(map_v4pfx_pfxinfo, STATE->v4pfxs, pfx->bs_ipv4, &khret);
-    } else {
-      pi = kh_put(map_v6pfx_pfxinfo, STATE->v6pfxs, pfx->bs_ipv6, &khret);
-    }
     pfx_info_t *pfxinfo = NULL;
     int origin_cnt = 0;
-    if (khret == 0) { // pfx already existed
-      if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
+    if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
+      pi = kh_put(map_v4pfx_pfxinfo, STATE->v4pfxs, pfx->bs_ipv4, &khret);
+      if (khret == 0) { // pfx already existed
         pfxinfo = kh_val(STATE->v4pfxs, pi);
+        origin_cnt = pfxinfo->origin_cnt;
       } else {
-        pfxinfo = kh_val(STATE->v6pfxs, pi);
+        kh_val(STATE->v4pfxs, pi) = NULL;
       }
-      origin_cnt = pfxinfo->origin_cnt;
     } else {
-      // pfx is new; pfxinfo will be allocated later, for the first peer-origin
+      pi = kh_put(map_v6pfx_pfxinfo, STATE->v6pfxs, pfx->bs_ipv6, &khret);
+      if (khret == 0) { // pfx already existed
+        pfxinfo = kh_val(STATE->v6pfxs, pi);
+        origin_cnt = pfxinfo->origin_cnt;
+      } else {
+        kh_val(STATE->v6pfxs, pi) = NULL;
+      }
     }
 
     memset(originflags, 0, sizeof(originflags[0]) * origin_cnt);
