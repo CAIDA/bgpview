@@ -571,7 +571,7 @@ static int init_my_state(bvc_t *consumer, bgpview_t *srcview)
         kh_del(map_##ipv##pfx_pfxinfo, STATE->ipv##pfxs, k);                   \
       } else {                                                                 \
         /* pfx slot is likely to be reused next interval; reset and keep it */ \
-        for (int oi = 0; oi < pfxinfo->origin_cnt; ++oi) {                     \
+        for (int oi = 0; oi < pfxinfo->origin_alloc_cnt; ++oi) {               \
           if (!pfxinfo->origins[oi].peers) continue;                           \
           if (kh_size(pfxinfo->origins[oi].peers) == 0) {                      \
             /* origin slot is unlikely to be reused; destroy it */             \
