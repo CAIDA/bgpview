@@ -181,7 +181,7 @@ typedef struct pfx2as_stats {
 
 static int open_outfiles(bvc_t *consumer, int version, uint32_t vtime)
 {
-  char version_str[4] = "";
+  char version_str[6] = "";
   if (version != 0)
     sprintf(version_str, ".v%d", bgpstream_ipv2number(version));
   if (!(STATE->outfile = bvcu_open_outfile(STATE->outfile_name,
@@ -429,7 +429,11 @@ static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interva
   wandio_printf(STATE->outfile, "# P|<pfx>|<asn>|<full_cnt>|<partial_cnt>|"
       "<full_duration>|<partial_duration>\n");
   if (!STATE->peer_count_only) {
-    wandio_printf(STATE->outfile, "# p|<pfx>|<asn>|<monitor_idx>|<duration>\n");
+    wandio_printf(STATE->outfile, "# p|"
+#ifdef REPEAT_PFX_ORIGIN
+        "<pfx>|<asn>|"
+#endif
+        "<monitor_idx>|<duration>\n");
   }
 
 
@@ -497,9 +501,15 @@ static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interva
             (kh_val(originfo->peers, mi).full_cnt +
              kh_val(originfo->peers, mi).partial_cnt);
 
-          wandio_printf(STATE->outfile, "p|%s|%s|%"PRIu16"|%"PRIu32"\n",
+          wandio_printf(STATE->outfile, "p|"
+#ifdef REPEAT_PFX_ORIGIN
+              "%s|%s|"
+#endif
+              "%"PRIu16"|%"PRIu32"\n",
+#ifdef REPEAT_PFX_ORIGIN
               pfx_str,
               orig_str,
+#endif
               kh_key(originfo->peers, mi),
               duration);
         }
