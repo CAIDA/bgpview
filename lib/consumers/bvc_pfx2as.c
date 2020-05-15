@@ -905,7 +905,7 @@ static int parse_args(bvc_t *consumer, int argc, char **argv)
     case 'f':
       if (strcmp(optarg, "dsv") == 0) {
         state->format = OUTFMT_DSV;
-      } if (strcmp(optarg, "json") == 0) {
+      } else if (strcmp(optarg, "json") == 0) {
         state->format = OUTFMT_JSON;
       } else {
         fprintf(stderr, "ERROR: " NAME
