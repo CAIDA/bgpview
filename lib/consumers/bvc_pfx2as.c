@@ -55,8 +55,10 @@ typedef uint16_t viewcnt_t;
 #define MAX_VIEW_CNT UINT16_MAX
 
 typedef struct peerviews {
-  viewcnt_t full_cnt;     // count of views in which pfx-origin was seen by this peer and this peer was considered full-feed
-  viewcnt_t partial_cnt;  // count of views in which pfx-origin was seen by this peer and this peer was considered partial-feed
+  viewcnt_t full_cnt;    // count of views in which pfx-origin was seen by this
+                         // peer and this peer was considered full-feed
+  viewcnt_t partial_cnt; // count of views in which pfx-origin was seen by this
+                         // peer and this peer was considered partial-feed
 } peerviews_t;
 
 KHASH_INIT(map_peerid_viewcnt, bgpstream_peer_id_t, peerviews_t, 1,
@@ -64,10 +66,13 @@ KHASH_INIT(map_peerid_viewcnt, bgpstream_peer_id_t, peerviews_t, 1,
 typedef khash_t(map_peerid_viewcnt) map_peerid_viewcnt_t;
 
 typedef struct origin_info {
-  bgpstream_as_path_store_path_id_t path_id; // id of path containing the origin
-  viewcnt_t full_feed_peer_view_cnt;    // count of views in which any full-feed peer observed this pfx-origin
-  viewcnt_t partial_feed_peer_view_cnt; // count of views in which any partial-feed peer observed this pfx-origin
-  map_peerid_viewcnt_t *peers;          // peers that observed this pfx-origin, and in how many views
+  bgpstream_as_path_store_path_id_t pathid; // id of path containing the origin
+  viewcnt_t full_feed_peer_view_cnt;    // count of views in which any full-
+                                        // feed peer observed this pfx-origin
+  viewcnt_t partial_feed_peer_view_cnt; // count of views in which any partial-
+                                        // feed peer observed this pfx-origin
+  map_peerid_viewcnt_t *peers;          // peers that observed this pfx-origin,
+                                        // and in how many views
 } origin_info_t;
 
 typedef struct pfx_info {
@@ -87,18 +92,15 @@ KHASH_INIT(map_v6pfx_pfxinfo, bgpstream_ipv6_pfx_t, pfx_info_t*, 1,
 typedef khash_t(map_v6pfx_pfxinfo) map_v6pfx_pfxinfo_t;
 
 typedef struct pfxcnt {
-  int counted_this_pfx;   // has the current pfx been counted yet?
-  uint32_t pfx_cnt;       // count of prefixes seen by peer
+  int counted_this_pfx; // has the current pfx been counted yet?
+  uint32_t pfx_cnt;     // count of prefixes seen by peer
 } pfxcnt_t;
 
 KHASH_INIT(map_peerid_pfxcnt, bgpstream_peer_id_t, pfxcnt_t, 1,
            kh_int_hash_func, kh_int_hash_equal)
 typedef khash_t(map_peerid_pfxcnt) map_peerid_pfxcnt_t;
 
-typedef enum {
-  OUTFMT_DSV,
-  OUTFMT_JSON
-} format_t;
+typedef enum { OUTFMT_DSV, OUTFMT_JSON } format_t;
 
 static int v4idx = 0; // should be compile-time const in bgpstream_utils_addr.h
 
@@ -166,18 +168,18 @@ typedef struct bvc_pfx2as_state {
 } bvc_pfx2as_state_t;
 
 typedef struct pfx2as_stats {
-  uint32_t pfxorigin_cnt;   // count of pfx-origins
-  uint32_t max_origin_cnt;  // max origin count for any pfx
-  uint32_t mop_cnt;         // count of pfxs with multiple origins
-  uint32_t recycled_cnt;    // count of pfxinfos that were recycled
-  uint32_t grow_cnt;        // count of pfxinfos that grew
+  uint32_t pfxorigin_cnt;  // count of pfx-origins
+  uint32_t max_origin_cnt; // max origin count for any pfx
+  uint32_t mop_cnt;        // count of pfxs with multiple origins
+  uint32_t recycled_cnt;   // count of pfxinfos that were recycled
+  uint32_t grow_cnt;       // count of pfxinfos that grew
 } pfx2as_stats_t;
 
 /* ==================== CONSUMER INTERNAL FUNCTIONS ==================== */
 
 #define path_get_origin_seg(pathstore, path_id)                                \
-    bgpstream_as_path_store_path_get_origin_seg(                               \
-        bgpstream_as_path_store_get_store_path(pathstore, path_id))
+  bgpstream_as_path_store_path_get_origin_seg(                                 \
+    bgpstream_as_path_store_get_store_path(pathstore, path_id))
 
 static int open_outfiles(bvc_t *consumer, int version, uint32_t vtime)
 {
@@ -200,7 +202,6 @@ static int close_outfiles(bvc_t *consumer)
   return 0;
 }
 
-
 // XXX This belongs in bgpstream
 #define path_id_equal(a, b) (memcmp(&a, &b, sizeof(a)) == 0)
 
@@ -210,8 +211,8 @@ static int close_outfiles(bvc_t *consumer)
   for (int _vidx = 0; _vidx < BGPSTREAM_MAX_IP_VERSION_IDX; _vidx++) {         \
     if (version && bgpstream_ipv2idx(version) != _vidx)                        \
       continue;                                                                \
-    khint_t _pfx_end = (_vidx == v4idx) ? kh_end(state->v4pfxs) :              \
-      kh_end(state->v6pfxs);                                                   \
+    khint_t _pfx_end =                                                         \
+      (_vidx == v4idx) ? kh_end(state->v4pfxs) : kh_end(state->v6pfxs);        \
     /* for each prefix in the selected ipv */                                  \
     for (khint_t _pi = 0; _pi != _pfx_end; ++_pi) {                            \
       bgpstream_pfx_t *pfx;                                                    \
@@ -256,11 +257,11 @@ static void prep_results(bvc_t *consumer, int version, uint32_t view_interval)
       // for each peer in origin
       for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
         if (!kh_exist(originfo->peers, mi)) continue;
-        if (kh_val(originfo->peers, mi).full_cnt > 0 || kh_val(originfo->peers, mi).partial_cnt > 0) {
+        if (kh_val(originfo->peers, mi).full_cnt > 0 ||
+            kh_val(originfo->peers, mi).partial_cnt > 0) {
           int khret;
           bgpstream_peer_id_t peer_id = kh_key(originfo->peers, mi);
-          khint_t k = kh_put(map_peerid_pfxcnt, STATE->peers, peer_id,
-              &khret);
+          khint_t k = kh_put(map_peerid_pfxcnt, STATE->peers, peer_id, &khret);
           // if peer has not yet counted this pfx, do so now
           if (khret > 0) {
             kh_val(STATE->peers, k).counted_this_pfx = 1;
@@ -282,7 +283,7 @@ typedef struct peer_cnts {
 
 static peer_cnts_t count_peer_types(origin_info_t *originfo)
 {
-  peer_cnts_t peercnts = {0,0};
+  peer_cnts_t peercnts = {0, 0};
   for (uint32_t mi = 0; mi != kh_end(originfo->peers); ++mi) {
     if (!kh_exist(originfo->peers, mi)) continue;
     if (kh_val(originfo->peers, mi).full_cnt > 0)
@@ -293,7 +294,8 @@ static peer_cnts_t count_peer_types(origin_info_t *originfo)
   return peercnts;
 }
 
-static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interval)
+static void dump_results_json(bvc_t *consumer, int version,
+    uint32_t view_interval)
 {
   int indent = 0;
 // DUMP_LINE(delim, fmt, args...)
@@ -337,7 +339,7 @@ static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interv
         continue; // skip peer with no prefixes with the requested ipv
 
       bgpstream_peer_sig_t *ps =
-          bgpstream_peer_sig_map_get_sig(STATE->peersigs, peer_id);
+        bgpstream_peer_sig_map_get_sig(STATE->peersigs, peer_id);
       DUMP_LINE(mon_delim, "{");
       mon_delim = ",";
       indent += 2;
@@ -369,8 +371,9 @@ static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interv
     // dump {pfx,origin} => ...
     for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
       origin_info_t *originfo = &pfxinfo->origins[oi];
-      bgpstream_as_path_store_path_id_t path_id = originfo->path_id;
-      bgpstream_as_path_seg_t *seg = path_get_origin_seg(STATE->pathstore, path_id);
+      bgpstream_as_path_store_path_id_t path_id = originfo->pathid;
+      bgpstream_as_path_seg_t *seg =
+        path_get_origin_seg(STATE->pathstore, path_id);
 
       char orig_str[4096];
       bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
@@ -417,7 +420,8 @@ static void dump_results_json(bvc_t *consumer, int version, uint32_t view_interv
   DUMP_LINE("", "]\n"); // prefix_as_meta_data list
 }
 
-static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interval)
+static void dump_results_dsv(bvc_t *consumer, int version,
+    uint32_t view_interval)
 {
   // Header
   wandio_printf(STATE->outfile,
@@ -458,7 +462,7 @@ static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interva
       if (peer_pfx_cnt == 0)
         continue; // skip peer with no prefixes with the requested ipv
       bgpstream_peer_sig_t *ps =
-          bgpstream_peer_sig_map_get_sig(STATE->peersigs, peer_id);
+        bgpstream_peer_sig_map_get_sig(STATE->peersigs, peer_id);
       bgpstream_addr_ntop(addr_str, sizeof(addr_str), &ps->peer_ip_addr);
       wandio_printf(STATE->outfile, "M|%d|%s|%s|%"PRIu32"|%"PRIu32"\n",
           peer_id,
@@ -477,8 +481,9 @@ static void dump_results_dsv(bvc_t *consumer, int version, uint32_t view_interva
     // dump {pfx,origin} => ...
     for (uint32_t oi = 0; oi < pfxinfo->origin_cnt; ++oi) {
       origin_info_t *originfo = &pfxinfo->origins[oi];
-      bgpstream_as_path_store_path_id_t path_id = originfo->path_id;
-      bgpstream_as_path_seg_t *seg = path_get_origin_seg(STATE->pathstore, path_id);
+      bgpstream_as_path_store_path_id_t path_id = originfo->pathid;
+      bgpstream_as_path_seg_t *seg =
+        path_get_origin_seg(STATE->pathstore, path_id);
 
       char orig_str[4096];
       bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str), seg);
@@ -524,7 +529,7 @@ static int dump_results(bvc_t *consumer, int version, uint32_t view_interval)
 
   prep_results(consumer, version, view_interval);
 
-  if (kh_size(STATE->peers) == 0) // e.g., peers are ipv-specific, and split_ipv is true
+  if (kh_size(STATE->peers) == 0)
     return 0; // nothing to report
 
   if (open_outfiles(consumer, version, STATE->out_interval_start) != 0) {
@@ -650,14 +655,14 @@ static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
         for (uint32_t i = 0; i < pfxinfo->origin_cnt; ++i) {
           char orig_str[4096];
           bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str),
-                path_get_origin_seg(STATE->pathstore, pfxinfo->origins[i].path_id));
+            path_get_origin_seg(STATE->pathstore, pfxinfo->origins[i].pathid));
           printf(" origin %s:", orig_str);
           for (khint_t mi = 0; mi != kh_end(pfxinfo->origins[i].peers); ++mi) {
             if (!kh_exist(pfxinfo->origins[i].peers, mi)) continue;
             printf(" %d %d+%d;",
-                kh_key(pfxinfo->origins[i].peers, mi), // peer_id
-                kh_val(pfxinfo->origins[i].peers, mi).full_cnt,
-                kh_val(pfxinfo->origins[i].peers, mi).partial_cnt);
+              kh_key(pfxinfo->origins[i].peers, mi), // peer_id
+              kh_val(pfxinfo->origins[i].peers, mi).full_cnt,
+              kh_val(pfxinfo->origins[i].peers, mi).partial_cnt);
           }
         }
         printf("\n");
@@ -726,14 +731,15 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
   STATE->view_cnt++;
 
   struct {
-    uint8_t counted_as_full;    // has pfx-origin's full_feed_peer_view_cnt been incremented yet in the current view?
-    uint8_t counted_as_partial; // has pfx-origin's partial_feed_peer_view_cnt been incremented yet in the current view?
+    uint8_t counted_as_full;    // has pfx-origin's full_feed_peer_view_cnt
+                                // been incremented yet in the current view?
+    uint8_t counted_as_partial; // has pfx-origin's partial_feed_peer_view_cnt
+                                // been incremented yet in the current view?
   } originflags[MAX_ORIGIN_CNT];
 
   // for each prefix
   for (bgpview_iter_first_pfx(vit, 0, BGPVIEW_FIELD_ACTIVE);
-      bgpview_iter_has_more_pfx(vit);
-      bgpview_iter_next_pfx(vit)) {
+      bgpview_iter_has_more_pfx(vit); bgpview_iter_next_pfx(vit)) {
 
     bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(vit);
     int vidx = bgpstream_ipv2idx(pfx->address.version);
@@ -767,28 +773,27 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
 
     // for each peer in pfx
     for (bgpview_iter_pfx_first_peer(vit, BGPVIEW_FIELD_ACTIVE);
-        bgpview_iter_pfx_has_more_peer(vit);
-        bgpview_iter_pfx_next_peer(vit)) {
+        bgpview_iter_pfx_has_more_peer(vit); bgpview_iter_pfx_next_peer(vit)) {
       khint_t mi; // peer (monitor) index
 
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(vit);
       bgpstream_as_path_store_path_id_t path_id =
-          bgpview_iter_pfx_peer_get_as_path_store_path_id(vit);
+        bgpview_iter_pfx_peer_get_as_path_store_path_id(vit);
       bgpstream_as_path_seg_t *origin = NULL;
-      int is_full = bgpstream_id_set_exists(
-          CHAIN_STATE->full_feed_peer_ids[vidx], peer_id);
+      int is_full =
+        bgpstream_id_set_exists(CHAIN_STATE->full_feed_peer_ids[vidx], peer_id);
 
       // Most prefixes have one origin, so a linear search is efficient
       int oi; // origin index
       for (oi = 0; oi < origin_cnt; ++oi) {
         // Comparing path_ids is cheaper, but if that fails we must still
         // compare origins because different paths can have the same origin.
-        if (path_id_equal(path_id, pfxinfo->origins[oi].path_id))
+        if (path_id_equal(path_id, pfxinfo->origins[oi].pathid))
           break;
         if (!origin) // not yet initialized?
           origin = bgpview_iter_pfx_peer_get_origin_seg(vit); // lazy init
         if (bgpstream_as_path_seg_equal(origin,
-            path_get_origin_seg(STATE->pathstore, pfxinfo->origins[oi].path_id)))
+            path_get_origin_seg(STATE->pathstore, pfxinfo->origins[oi].pathid)))
           break;
       }
       if (oi == origin_cnt) {
@@ -822,7 +827,7 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
             STATE->v6pfx_cnt++;
         }
         pfxinfo->origin_cnt = origin_cnt;
-        pfxinfo->origins[oi].path_id = path_id;
+        pfxinfo->origins[oi].pathid = path_id;
         pfxinfo->origins[oi].full_feed_peer_view_cnt = 0;
         pfxinfo->origins[oi].partial_feed_peer_view_cnt = 0;
         if (pfxinfo->origins[oi].peers) {
@@ -834,7 +839,8 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       }
 
       // count pfx-origin-peer and pfx-origin peertype
-      mi = kh_put(map_peerid_viewcnt, pfxinfo->origins[oi].peers, peer_id, &khret);
+      mi = kh_put(map_peerid_viewcnt, pfxinfo->origins[oi].peers, peer_id,
+        &khret);
       if (khret > 0) { // new entry?
         memset(&kh_val(pfxinfo->origins[oi].peers, mi), 0, sizeof(peerviews_t));
       }
@@ -1023,4 +1029,3 @@ void bvc_pfx2as_destroy(bvc_t *consumer)
   free(STATE);
   BVC_SET_STATE(consumer, NULL);
 }
-
