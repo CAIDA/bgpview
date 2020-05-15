@@ -703,8 +703,8 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
             STATE->out_interval, view_interval, vtime);
       }
     } else {
+      // third+ view (end of second+ view_interval)
       if (STATE->prev_view_interval != view_interval) {
-        // third+ view (end of second+ view_interval)
         fprintf(stderr, "ERROR: " NAME ": view interval changed from %d to "
             "%"PRIuPTR" at %"PRIu32"\n",
             STATE->prev_view_interval, view_interval, vtime);
@@ -774,8 +774,7 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       bgpstream_peer_id_t peer_id = bgpview_iter_peer_get_peer_id(vit);
       bgpstream_as_path_store_path_id_t path_id =
           bgpview_iter_pfx_peer_get_as_path_store_path_id(vit);
-      bgpstream_as_path_seg_t *origin =
-          bgpview_iter_pfx_peer_get_origin_seg(vit);
+      bgpstream_as_path_seg_t *origin = NULL;
       int is_full = bgpstream_id_set_exists(
           CHAIN_STATE->full_feed_peer_ids[vidx], peer_id);
 
@@ -784,11 +783,13 @@ int bvc_pfx2as_process_view(bvc_t *consumer, bgpview_t *view)
       for (oi = 0; oi < origin_cnt; ++oi) {
         // Comparing path_ids is cheaper, but if that fails we must still
         // compare origins because different paths can have the same origin.
-        if (path_id_equal(path_id, pfxinfo->origins[oi].path_id) ||
-            bgpstream_as_path_seg_equal(origin,
-              path_get_origin_seg(STATE->pathstore, pfxinfo->origins[oi].path_id))) {
+        if (path_id_equal(path_id, pfxinfo->origins[oi].path_id))
           break;
-        }
+        if (!origin) // not yet initialized?
+          origin = bgpview_iter_pfx_peer_get_origin_seg(vit); // lazy init
+        if (bgpstream_as_path_seg_equal(origin,
+            path_get_origin_seg(STATE->pathstore, pfxinfo->origins[oi].path_id)))
+          break;
       }
       if (oi == origin_cnt) {
         // There was no matching origin.
