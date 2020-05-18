@@ -623,54 +623,31 @@ static int end_output_interval(bvc_t *consumer, uint32_t vtime,
 #ifdef PFX2AS_STATS
 static void dump_stats(bvc_t *consumer, pfx2as_stats_t *stats)
 {
-  // for each ipv
-  for (int vidx = 0; vidx < BGPSTREAM_MAX_IP_VERSION_IDX; ++vidx) {
-    khint_t end;
-    if (vidx == v4idx) {
-      end = kh_end(STATE->v4pfxs);
-    } else { // v6
-      end = kh_end(STATE->v6pfxs);
-    }
-
-    // for each prefix in the selected ipv
-    for (khint_t pi = 0; pi != end; ++pi) {
-      bgpstream_pfx_t *pfx;
-      pfx_info_t *pfxinfo;
-      if (vidx == v4idx) {
-        if (!kh_exist(STATE->v4pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v4pfxs, pi);
-        pfxinfo = kh_val(STATE->v4pfxs, pi);
-      } else { // v6
-        if (!kh_exist(STATE->v6pfxs, pi)) continue;
-        pfx = (bgpstream_pfx_t*)&kh_key(STATE->v6pfxs, pi);
-        pfxinfo = kh_val(STATE->v6pfxs, pi);
-      }
-
-      stats->pfxorigin_cnt += pfxinfo->origin_cnt;
-      if (pfxinfo->origin_cnt > 1) {
-        stats->mop_cnt++;
-        char pfx_str[INET6_ADDRSTRLEN + 4];
-        bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
-        printf("## mop %s:", pfx_str);
-        for (uint32_t i = 0; i < pfxinfo->origin_cnt; ++i) {
-          char orig_str[4096];
-          bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str),
-            path_get_origin_seg(STATE->pathstore, pfxinfo->origins[i].pathid));
-          printf(" origin %s:", orig_str);
-          for (khint_t mi = 0; mi != kh_end(pfxinfo->origins[i].peers); ++mi) {
-            if (!kh_exist(pfxinfo->origins[i].peers, mi)) continue;
-            printf(" %d %d+%d;",
-              kh_key(pfxinfo->origins[i].peers, mi), // peer_id
-              kh_val(pfxinfo->origins[i].peers, mi).full_cnt,
-              kh_val(pfxinfo->origins[i].peers, mi).partial_cnt);
-          }
+  FOR_EACH_PFX(STATE, 0) {
+    stats->pfxorigin_cnt += pfxinfo->origin_cnt;
+    if (pfxinfo->origin_cnt > 1) {
+      stats->mop_cnt++;
+      char pfx_str[INET6_ADDRSTRLEN + 4];
+      bgpstream_pfx_snprintf(pfx_str, sizeof(pfx_str), pfx);
+      printf("## mop %s:", pfx_str);
+      for (uint32_t i = 0; i < pfxinfo->origin_cnt; ++i) {
+        char orig_str[4096];
+        bgpstream_as_path_seg_snprintf(orig_str, sizeof(orig_str),
+          path_get_origin_seg(STATE->pathstore, pfxinfo->origins[i].pathid));
+        printf(" origin %s:", orig_str);
+        for (khint_t mi = 0; mi != kh_end(pfxinfo->origins[i].peers); ++mi) {
+          if (!kh_exist(pfxinfo->origins[i].peers, mi)) continue;
+          printf(" %d %d+%d;",
+            kh_key(pfxinfo->origins[i].peers, mi), // peer_id
+            kh_val(pfxinfo->origins[i].peers, mi).full_cnt,
+            kh_val(pfxinfo->origins[i].peers, mi).partial_cnt);
         }
-        printf("\n");
       }
-      if (pfxinfo->origin_cnt > stats->max_origin_cnt)
-        stats->max_origin_cnt = pfxinfo->origin_cnt;
+      printf("\n");
     }
-  }
+    if (pfxinfo->origin_cnt > stats->max_origin_cnt)
+      stats->max_origin_cnt = pfxinfo->origin_cnt;
+  } END_EACH_PFX
 
   uint32_t pfx_cnt = STATE->v4pfx_cnt + STATE->v6pfx_cnt;
   uint32_t pfx_slots = kh_size(STATE->v4pfxs) + kh_size(STATE->v6pfxs);
