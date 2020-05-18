@@ -215,15 +215,15 @@ static int close_outfiles(bvc_t *consumer)
       (_vidx == v4idx) ? kh_end(state->v4pfxs) : kh_end(state->v6pfxs);        \
     /* for each prefix in the selected ipv */                                  \
     for (khint_t _pi = 0; _pi != _pfx_end; ++_pi) {                            \
-      bgpstream_pfx_t *pfx;                                                    \
+      const bgpstream_pfx_t *pfx;                                              \
       pfx_info_t *pfxinfo;                                                     \
       if (_vidx == v4idx) {                                                    \
         if (!kh_exist(state->v4pfxs, _pi)) continue;                           \
-        pfx = (bgpstream_pfx_t*)&kh_key(state->v4pfxs, _pi);                   \
+        pfx = (const bgpstream_pfx_t*)&kh_key(state->v4pfxs, _pi);             \
         pfxinfo = kh_val(state->v4pfxs, _pi);                                  \
       } else { /* v6 */                                                        \
         if (!kh_exist(state->v6pfxs, _pi)) continue;                           \
-        pfx = (bgpstream_pfx_t*)&kh_key(state->v6pfxs, _pi);                   \
+        pfx = (const bgpstream_pfx_t*)&kh_key(state->v6pfxs, _pi);             \
         pfxinfo = kh_val(state->v6pfxs, _pi);                                  \
       }                                                                        \
       do
