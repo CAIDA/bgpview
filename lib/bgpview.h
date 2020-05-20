@@ -187,8 +187,8 @@ void bgpview_destroy(bgpview_t *view);
  * @param view          view to clear
  *
  * This does not actually free any memory, it just marks prefix and peers as
- * dirty so that future inserts can re-use the memory allocation. It does *not*
- * clear the peersigns table.
+ * invalid so that future inserts can re-use the memory allocation. It does
+ * *not* clear the peersigns table.
  */
 void bgpview_clear(bgpview_t *view);
 
@@ -361,6 +361,13 @@ void bgpview_set_pfx_peer_user_destructor(
  * @return pointer to the AS Path Store used by the view
  */
 bgpstream_as_path_store_t *bgpview_get_as_path_store(bgpview_t *view);
+
+/** Get the Peer Signatures table associated with this view
+ *
+ * @param view          pointer to the view to retrieve the peersigns for
+ * @return pointer to the peersigns used by the view
+ */
+bgpstream_peer_sig_map_t *bgpview_get_peersigns(bgpview_t *view);
 
 /** Get the ID of a peer given a peer signature
  *

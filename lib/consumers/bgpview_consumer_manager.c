@@ -91,6 +91,9 @@
 /* Per-peer prefix origins consumer */
 #include "bvc_peerpfxorigins.h"
 
+/* Prefix to AS consumer */
+#include "bvc_pfx2as.h"
+
 /* ==================== PRIVATE DATA STRUCTURES ==================== */
 
 #define MAXOPTS 1024
@@ -176,6 +179,9 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
 
   /** Pointer to peerpfxorigins alloc function */
   bvc_peerpfxorigins_alloc,
+
+  /** Pointer to pfx2as alloc function */
+  bvc_pfx2as_alloc,
 
   /** Sample conditional consumer. If enabled, point to the alloc function,
       otherwise a NULL pointer to indicate the consumer is unavailable */
@@ -374,16 +380,16 @@ int bgpview_consumer_manager_enable_consumer(bvc_t *consumer,
 bvc_t *bgpview_consumer_manager_enable_consumer_from_str(
   bgpview_consumer_manager_t *mgr, const char *cmd)
 {
-  char *strcpy = NULL;
+  char *cmdcpy = NULL;
   char *args = NULL;
 
   bvc_t *consumer;
 
-  if ((strcpy = strdup(cmd)) == NULL) {
+  if ((cmdcpy = strdup(cmd)) == NULL) {
     goto err;
   }
 
-  if ((args = strchr(strcpy, ' ')) != NULL) {
+  if ((args = strchr(cmdcpy, ' ')) != NULL) {
     /* set the space to a nul, which allows cmd to be used for the backend
        name, and then increment args ptr to point to the next character, which
        will be the start of the arg string (or at worst case, the terminating
@@ -392,9 +398,9 @@ bvc_t *bgpview_consumer_manager_enable_consumer_from_str(
     args++;
   }
 
-  if ((consumer = bgpview_consumer_manager_get_consumer_by_name(mgr, cmd)) ==
+  if ((consumer = bgpview_consumer_manager_get_consumer_by_name(mgr, cmdcpy)) ==
       NULL) {
-    fprintf(stderr, "ERROR: Invalid consumer name (%s)\n", cmd);
+    fprintf(stderr, "ERROR: Invalid consumer name (%s)\n", cmdcpy);
     goto err;
   }
 
@@ -403,13 +409,13 @@ bvc_t *bgpview_consumer_manager_enable_consumer_from_str(
     goto err;
   }
 
-  free(strcpy);
+  free(cmdcpy);
 
   return consumer;
 
 err:
-  if (strcpy != NULL) {
-    free(strcpy);
+  if (cmdcpy != NULL) {
+    free(cmdcpy);
   }
   return NULL;
 }
@@ -435,7 +441,7 @@ bgpview_consumer_manager_get_consumer_by_name(bgpview_consumer_manager_t *mgr,
   for (id = BVC_ID_FIRST; id <= BVC_ID_LAST; id++) {
     if ((consumer = bgpview_consumer_manager_get_consumer_by_id(mgr, id)) !=
           NULL &&
-        strncasecmp(consumer->name, name, strlen(consumer->name)) == 0) {
+        strcasecmp(consumer->name, name) == 0) {
       return consumer;
     }
   }

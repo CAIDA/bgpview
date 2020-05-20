@@ -140,6 +140,11 @@ CONSUMER_SRCS += \
 	bvc_subpfx.c \
 	bvc_subpfx.h
 
+# Prefix-to-AS consumer
+CONSUMER_SRCS += \
+	bvc_pfx2as.c \
+	bvc_pfx2as.h
+
 # -- sample how to add conditional consumer
 #if WITH_<NAME>
 #SUBDIRS += lib<name>

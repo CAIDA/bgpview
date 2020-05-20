@@ -174,13 +174,17 @@ typedef enum bvc_id {
       peer */
   BVC_ID_PEERPFXORIGINS = 18,
 
+  /** Outputs the origin ASNs observed for each prefix over a time period,
+   * and how long each peer obvserved them */
+  BVC_ID_PFX2AS = 19,
+
   /** @todo add more consumers here */
 
   /** Lowest numbered bgpview consumer ID */
   BVC_ID_FIRST = BVC_ID_TEST,
 
   /** Highest numbered bgpview consumer ID */
-  BVC_ID_LAST = BVC_ID_PEERPFXORIGINS,
+  BVC_ID_LAST = BVC_ID_PFX2AS,
 
 } bvc_id_t;
 
