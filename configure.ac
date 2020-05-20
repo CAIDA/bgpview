@@ -145,7 +145,7 @@ AC_MSG_NOTICE([checking BGPView Consumer dependencies])
 AC_CHECK_LIB([timeseries], [timeseries_init], , [
     AC_MSG_ERROR([libtimeseries is required for the Per-AS Visibility plugin])
 ])
-AC_CHECK_LIB([ipmeta], [ipmeta_lookup], ,[AC_MSG_ERROR([ipmeta is required])])
+AC_CHECK_LIB([ipmeta], [ipmeta_record_set_clear], ,[AC_MSG_ERROR([ipmeta is required])])
 
 
 # BGPView IO modules

@@ -682,7 +682,7 @@ static int init_kp(bvc_t *consumer)
 static int init_ipmeta(bvc_t *consumer)
 {
   /* initialize ipmeta structure */
-  if ((STATE->ipmeta = ipmeta_init()) == NULL) {
+  if ((STATE->ipmeta = ipmeta_init(IPMETA_DS_PATRICIA)) == NULL) {
     fprintf(stderr, "Error: Could not initialize ipmeta \n");
     return -1;
   }
@@ -720,8 +720,7 @@ static int init_ipmeta(bvc_t *consumer)
   }
 
   if (ipmeta_enable_provider(STATE->ipmeta, STATE->provider,
-                             STATE->provider_arg,
-                             IPMETA_PROVIDER_DEFAULT_YES) != 0) {
+                             STATE->provider_arg) != 0) {
     fprintf(stderr, "ERROR: Could not enable provider %s\n",
             STATE->provider_config);
     return -1;
@@ -997,9 +996,9 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
     }
 
     /* Perform lookup */
-    ipmeta_lookup(STATE->provider,
-                  (uint32_t)pfx->address.bs_ipv4.addr.s_addr,
-                  pfx->mask_len, STATE->records);
+    ipmeta_record_set_clear(STATE->records);
+    ipmeta_lookup(STATE->ipmeta, (uint32_t)pfx->address.bs_ipv4.addr.s_addr,
+                  pfx->mask_len, 0, STATE->records);
     ipmeta_record_set_rewind(STATE->records);
     while ((rec = ipmeta_record_set_next(STATE->records, &num_ips))) {
       /* records can be duplicates, so we do an (expensive) linear search
