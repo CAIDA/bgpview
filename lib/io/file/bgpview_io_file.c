@@ -159,6 +159,7 @@ static int write_peers(iow_t *outfile, bgpview_iter_t *it,
   uint8_t u8;
   uint16_t u16;
   uint32_t u32;
+  int siglen;
 
   bgpstream_peer_sig_t *ps;
 
@@ -168,9 +169,6 @@ static int write_peers(iow_t *outfile, bgpview_iter_t *it,
 
   bgpview_t *view = bgpview_iter_get_view(it);
   assert(view != NULL);
-
-  /* an assumption we make... */
-  assert(BGPSTREAM_UTILS_STR_NAME_LEN < UINT8_MAX);
 
   /* foreach peer, send peerid, collector string, peer ip (version, address),
      peer asn */
@@ -196,7 +194,9 @@ static int write_peers(iow_t *outfile, bgpview_iter_t *it,
 
     ps = bgpview_iter_peer_get_sig(it);
     assert(ps);
-    u8 = strlen(ps->collector_str);
+    siglen = strlen(ps->collector_str);
+    assert(siglen <= UINT8_MAX);
+    u8 = siglen;
     WRITE_VAL(u8);
     if (wandio_wwrite(outfile, &ps->collector_str, u8) != u8) {
       goto err;
