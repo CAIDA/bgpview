@@ -977,7 +977,7 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
   bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
   perpfx_cache_t *pfx_cache = (perpfx_cache_t *)bgpview_iter_pfx_get_user(it);
 
-  uint32_t num_ips = 0;
+  uint64_t num_ips = 0;
   uint32_t cur_address = first_pfx_addr(pfx);
   ipmeta_record_t *rec = NULL;
 
@@ -997,8 +997,9 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
 
     /* Perform lookup */
     ipmeta_record_set_clear(STATE->records);
-    ipmeta_lookup(STATE->ipmeta, (uint32_t)pfx->address.bs_ipv4.addr.s_addr,
-                  pfx->mask_len, 0, STATE->records);
+    ipmeta_lookup_pfx(STATE->ipmeta, AF_INET,
+                      (void *)(&(pfx->address.bs_ipv4.addr.s_addr)),
+                      pfx->mask_len, 0, STATE->records);
     ipmeta_record_set_rewind(STATE->records);
     while ((rec = ipmeta_record_set_next(STATE->records, &num_ips))) {
       /* records can be duplicates, so we do an (expensive) linear search
