@@ -32,7 +32,7 @@
 
 #include "routingtables_int.h"
 #include "routingtables.h"
-#include "../bgpview_io_bsrt_int.h"
+#include "bgpview_io_bsrt_int.h"
 
 // Convenience macro for iterating over a khash
 #define rt_kh_for(iter, h)  for (khint_t iter = kh_begin(h); iter != kh_end(h); ++iter)

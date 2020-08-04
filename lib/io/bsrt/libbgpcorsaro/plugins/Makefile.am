@@ -24,7 +24,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-SUBDIRS =
+SUBDIRS = libroutingtables
 
 AM_CPPFLAGS = -I$(top_srcdir) \
 	      -I$(top_srcdir)/lib \
@@ -36,9 +36,9 @@ include_HEADERS =
 PLUGIN_SRC=
 PLUGIN_LIBS=
 
-PLUGIN_LIBS += $(top_builddir)/lib/io/bsrt/libroutingtables/libroutingtables.la
+PLUGIN_LIBS += $(top_builddir)/lib/io/bsrt/libbgpcorsaro/plugins/libroutingtables/libroutingtables.la
 AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libbgpcorsaro
-AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libroutingtables
+AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libbgpcorsaro/plugins/libroutingtables
 PLUGIN_SRC+=bgpcorsaro_routingtables.c bgpcorsaro_routingtables.h
 
 libbgpcorsaroplugins_la_SOURCES = \

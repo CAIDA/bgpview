@@ -203,9 +203,9 @@ AC_CONFIG_FILES([Makefile
                 lib/io/file/Makefile
                 lib/io/kafka/Makefile
                 lib/io/bsrt/Makefile
-                lib/io/bsrt/libroutingtables/Makefile
                 lib/io/bsrt/libbgpcorsaro/Makefile
                 lib/io/bsrt/libbgpcorsaro/plugins/Makefile
+                lib/io/bsrt/libbgpcorsaro/plugins/libroutingtables/Makefile
                 lib/io/test/Makefile
                 lib/io/zmq/Makefile
                 tools/Makefile
