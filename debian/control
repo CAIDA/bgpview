@@ -12,7 +12,7 @@ Package: bgpview
 Architecture: any
 Section: libdevel
 Depends: bgpview2-tools (=${binary:Version}),
- libbgpview-dev (=${binary:Version}), ${misc:Depends}
+ libbgpview2-dev (=${binary:Version}), ${misc:Depends}
 Description: Meta package for full BGPView install
  Meta package for latest libbgpview library, development environment, and
  command-line tools.
@@ -36,7 +36,7 @@ Package: libbgpview2
 Architecture: any
 Section: libs
 Depends: libbgpstream2 (>=2.0.0~rc5), libtimeseries0-dev (>=1.0.0),
- libipmeta2-dev (>=3.0.0), libwandio1 (>=4.2.0), librdkafka (>=0.11.3),
+ libipmeta2-dev (>=3.0.0), libwandio1 (>=4.2.0), librdkafka1 (>=0.11.3),
  ${shlibs:Depends}, ${misc:Depends}
 Description: Software framework for live and historical BGP data analysis
  BGPStream: An open-source software framework for live and historical BGP data
