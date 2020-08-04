@@ -1,0 +1,55 @@
+Source: libbgpview2
+Section: libs
+Priority: optional
+Maintainer: CAIDA Software Maintainer <software@caida.org>
+Build-Depends: debhelper (>= 10), autotools-dev, libbgpstream2-dev (>=2.0.0~rc5),
+ libtimeseries0-dev (>=1.0.0), libipmeta2-dev (>=3.0.0),
+ libwandio1-dev (>=4.2.0), librdkafka-dev (>=0.11.3)
+Standards-Version: 4.1.2
+Homepage: https://github.com/CAIDA/bgpview
+
+Package: bgpview
+Architecture: any
+Section: libdevel
+Depends: bgpview2-tools (=${binary:Version}),
+ libbgpview-dev (=${binary:Version}), ${misc:Depends}
+Description: Meta package for full BGPView install
+ Meta package for latest libbgpview library, development environment, and
+ command-line tools.
+ .
+ BGPStream: An open-source software framework for live and historical BGP data
+ analysis, supporting scientific research, operational monitoring, and
+ post-event analysis.
+
+Package: bgpview2-tools
+Architecture: any
+Section: libs
+Depends: libbgpview2 (=${binary:Version}), ${shlibs:Depends}, ${misc:Depends}
+Description: BGPView tools
+ Command-line tools for obtaining and processing BGP data using BGPView
+ .
+ BGPStream: An open-source software framework for live and historical BGP data
+ analysis, supporting scientific research, operational monitoring, and
+ post-event analysis.
+
+Package: libbgpview2
+Architecture: any
+Section: libs
+Depends: libbgpstream2 (>=2.0.0~rc5), libtimeseries0-dev (>=1.0.0),
+ libipmeta2-dev (>=3.0.0), libwandio1 (>=4.2.0), librdkafka (>=0.11.3),
+ ${shlibs:Depends}, ${misc:Depends}
+Description: Software framework for live and historical BGP data analysis
+ BGPStream: An open-source software framework for live and historical BGP data
+ analysis, supporting scientific research, operational monitoring, and
+ post-event analysis.
+
+Package: libbgpview2-dev
+Architecture: any
+Section: libdevel
+Depends: libbgpview2 (=${binary:Version}), ${misc:Depends}
+Description: Development environment for libbgpview2
+ Development headers and shared libraries for the libbgpview2 library.
+ .
+ BGPStream: An open-source software framework for live and historical BGP data
+ analysis, supporting scientific research, operational monitoring, and
+ post-event analysis.
