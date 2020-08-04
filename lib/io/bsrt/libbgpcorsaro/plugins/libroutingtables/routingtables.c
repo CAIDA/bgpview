@@ -32,7 +32,7 @@
 
 #include "routingtables_int.h"
 #include "routingtables.h"
-#include "../bgpview_io_bsrt_int.h"
+#include "bgpview_io_bsrt_int.h"
 
 // Convenience macro for iterating over a khash
 #define rt_kh_for(iter, h)  for (khint_t iter = kh_begin(h); iter != kh_end(h); ++iter)
@@ -190,7 +190,7 @@ static collector_t *get_collector_data(routingtables_t *rt, const char *project,
 
   /* create new collector-related structures if it is the first time
    * we see it */
-  if ((k = kh_get(collector_data, rt->collectors, collector)) ==
+  if ((k = kh_get(collector_data, rt->collectors, (char *)collector)) ==
       kh_end(rt->collectors)) {
 
     /* collector data initialization (all the fields needs to be */

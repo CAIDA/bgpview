@@ -30,11 +30,9 @@ AM_CPPFLAGS = -I$(top_srcdir) \
 	      -Iplugins \
 	      -I$(top_srcdir)/common
 
-lib_LTLIBRARIES = libbgpcorsarocaida.la
+noinst_LTLIBRARIES = libbgpcorsaro.la
 
-include_HEADERS = bgpcorsaro.h
-
-libbgpcorsarocaida_la_SOURCES = 	\
+libbgpcorsaro_la_SOURCES = 	\
 	bgpcorsaro.c 		\
 	bgpcorsaro.h 		\
 	bgpcorsaro_int.h 	\
@@ -44,8 +42,7 @@ libbgpcorsarocaida_la_SOURCES = 	\
 	bgpcorsaro_log.h	\
 	bgpcorsaro_plugin.h
 
-libbgpcorsarocaida_la_LIBADD = $(top_builddir)/common/libcccommon.la \
-		          plugins/libbgpcorsaroplugins.la
+libbgpcorsaro_la_LIBADD = plugins/libbgpcorsaroplugins.la
 
 ACLOCAL_AMFLAGS = -I m4
 

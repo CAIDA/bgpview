@@ -24,7 +24,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-SUBDIRS = libroutingtables libbgpcorsaro
+SUBDIRS = libbgpcorsaro
 
 AM_CPPFLAGS = 	-I$(top_srcdir) \
 	 	-I$(top_srcdir)/common \
@@ -41,9 +41,7 @@ libbgpview_io_bsrt_la_SOURCES = 	\
 	bgpview_io_bsrt_int.h
 
 libbgpview_io_bsrt_la_LIBADD =
-libbgpview_io_bsrt_la_LIBADD += $(top_srcdir)/lib/io/bsrt/libroutingtables/libroutingtables.la
-libbgpview_io_bsrt_la_LIBADD += $(top_srcdir)/lib/io/bsrt/libbgpcorsaro/libbgpcorsarocaida.la
-AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libroutingtables
+libbgpview_io_bsrt_la_LIBADD += $(top_srcdir)/lib/io/bsrt/libbgpcorsaro/libbgpcorsaro.la
 AM_CPPFLAGS += -I$(top_srcdir)/lib/io/bsrt/libbgpcorsaro
 
 
