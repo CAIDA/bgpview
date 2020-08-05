@@ -1,3 +1,9 @@
+libbgpview2 (2.0.0~rc1-1) unstable; urgency=medium
+
+  * Bug fix for debian package dependencies
+
+ -- Alistair King <software@caida.org>  Wed, 05 Aug 2020 20:03:16 +0000
+
 libbgpview2 (2.0.0~rc1) unstable; urgency=medium
 
   * This is the first release candidate for libbgpview version 2.0.0
