@@ -1,0 +1,6 @@
+libbgpview2 (2.0.0~rc1) unstable; urgency=medium
+
+  * This is the first release candidate for libbgpview version 2.0.0
+
+ -- Alistair King <software@caida.org>  Tue, 04 Aug 2020 21:07:36 +0000
+
