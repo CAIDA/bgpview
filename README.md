@@ -60,6 +60,41 @@ truly pipelined).
 
 ## Quick Start
 
+### Debian/Ubuntu Packages
+
+The easiest way to install BGPView and its dependencies is from
+CAIDA's apt package mirror.
+
+```
+curl https://pkg.caida.org/os/ubuntu/boostrap.sh | bash
+sudo apt install bgpview
+```
+Of course you should first manually inspect the `bootstrap.sh` script
+before executing it.
+
+### Building From Source
+
+You will need to first install dependencies:
+
+ - [libbgpstream (>= v2.0.0)](https://bgpstream.caida.org)
+ - [libtimeseries (>= v1.0.0)](https://github.com/CAIDA/libtimeseries)
+ - [libipmeta (>= v3.0.0)](https://github.com/CAIDA/libipmeta)
+ - [libwandio (>= v4.2.0)](https://research.wand.net.nz/software/libwandio.php)
+ - [librdkafka (>= v0.11.3)](https://github.com/edenhill/librdkafka)
+
+On Ubuntu/Debian systems, this means something like
+```
+sudo apt install libbgpstream2-dev libtimeseries0-dev \
+  libipmeta2-dev libwandio1-dev librdkafka-dev
+```
+This assumes you have added the CAIDA package archive to apt using the
+bootstrap command above.
+
+One you have installed the dependencies, download the BGPView source,
+either from the
+[GitHub releases page](https://github.com/CAIDA/bgpview/releases), or
+by cloning the GitHub repo.
+
 ## Realtime Analysis
 
 ### CAIDA's Public BGPView feed
@@ -68,6 +103,10 @@ truly pipelined).
 
 ## Offline Analysis
 
-### One-off processing
+### One-off Processing
 
-### Spark-managed processing
+### Spark-managed Processing
+
+## Available Consumers
+
+## Writing a New Consumer
