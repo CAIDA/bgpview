@@ -209,8 +209,98 @@ Offline analysis can be carried out using the same `bgpview-consumer`
 tool that is used for realtime processing (see above).
 
 The important difference between running BGPView in "offline mode"
-compared to realtime, is that we switch to using the `bsrt` IO module
-rather than `kafka`. This uses BGPStream XXX HERE
+compared to realtime, is that we switch to using the BGPStream
+RealTime (`bsrt`) IO module rather than `kafka`. This is the same
+module that is used in the View generation stage of the realtime
+system, but in this case we don't configure it to transmit the
+resulting Views to Kafka -- we simply pass them in-memory to our
+consumers.
+
+### BSRT Options
+
+The options for the `bsrt` module are (deliberately) very similar to
+those for the `bgpreader` tool:
+```
+$ bgpview-consumer -c test -b ascii -i "bsrt -h"
+[14:07:41:815] timeseries_init: initializing libtimeseries
+[14:07:41:815] timeseries_enable_backend: enabling backend (ascii)
+INFO: Enabling consumer 'test'
+INFO: Starting BSRT IO consumer module...
+BSRT IO Options:
+   -d <interface> use the given bgpstream data interface to find available data
+                  available data interfaces are:
+       broker       Retrieve metadata information from the BGPStream Broker service
+       singlefile   Read a single mrt data file (RIB and/or updates)
+       kafka        Read updates in real-time from an Apache Kafka topic
+       csvfile      Retrieve metadata information from a csv file
+   -o <option-name=option-value>*
+                  set an option for the current data interface.
+                  use '-o ?' to get a list of available options for the current
+                  data interface. (data interface can be selected using -d)
+   -p <project>   process records from only the given project (routeviews, ris)*
+   -c <collector> process records from only the given collector*
+   -t <type>      process records with only the given type (ribs, updates)*
+   -w <start>[,<end>]
+                  process records within the given time window
+   -P <period>    process a rib files every <period> seconds (bgp time)
+   -j <peer ASN>  return valid elems originated by a specific peer ASN*
+   -k <prefix>    return valid elems associated with a specific prefix*
+   -y <community> return valid elems with the specified community*
+                  (format: asn:value, the '*' metacharacter is recognized)
+
+   -i <interval>  distribution interval in seconds (default: 60)
+   -a             align the end time of the first interval
+   -g <gap-limit> maximum allowed gap between packets (0 is no limit) (default: 0)
+   -n <name>      monitor name (default: gibi.caida.org)
+   -O <outfile>   use <outfile> as a template for file names.
+                   - %X => plugin name
+                   - %N => monitor name
+                   - see man strftime(3) for more options
+   -r <intervals> rotate output files after n intervals
+   -R <intervals> rotate bgpcorsaro meta files after n intervals
+
+   -h             print this help menu
+* denotes an option that can be given multiple times
+```
+
+#### Common Options
+
+For most use, the `-i`, `-w`, `-c`, and/or `-p` options are all that
+are necessary.
+
+`-i` specifies the frequency with which views will be created and
+provided to consumers. The public BGPView stream described above uses
+`-i 300` to generate views for every 5 mins of BGP data processed.
+
+`-w` specifies the time range (using seconds since the unix epoch) to
+process. The syntax is `-w <start>[,<end>]`, but if the `end`
+parameter is not provided, BSRT will go into "realtime" mode and
+process data continuously, forever.
+
+`-c` specifies the collectors to process data from (e.g.,
+`route-views.sg`). This option can be given multiple times to include
+data from multiple collectors.
+
+`-p` specifies which BGP collection projects (e.g., `ris`) to process
+data from. See https://bgpstream.caida.org/data for information about
+supported projects, but at the time of writing the two projects that
+are compatible with BGPView are `routeviews` and `ris` (since these
+are the only two that provide RIB dumps which BGPView needs to
+bootstrap processing). This option can be given multiple times to include
+data from multiple projects.
+
+*Warning:* While you are not required to specify either `-c` or `-p`,
+if you do this, BSRT will process data from all available projects --
+including those that do not provide RIB dumps (e.g.,
+`routeviews-stream`). This may have unintended consequences. As a
+result, it is recommended that if you do not need to limit processing
+to a single collector, you should specify `-p routeviews -p ris`.
+
+Note also that the `-O` option is required, but is a legacy from a
+previous version of the library. We no longer make use of any of the
+output files that are written to this location. You can safely set
+this to something like `/tmp/%X.bgpview.deleteme` and ignore the
+contents.
 
 ### One-off Processing
 
@@ -253,8 +343,35 @@ All consumer code is located in the
 directory. Consumer source files are named `bvc_<consumer>.[ch]`.
 
 To get a list of consumers built into a bgpview-consumer binary, run
-it without arguments. To see the usage for a specific consumer, run it
-like so:
+it without arguments:
+```
+$ bgpview-consumer
+[14:24:21:829] timeseries_init: initializing libtimeseries
+...
+       -c"<consumer> <opts>" Consumer to activate (can be used multiple times)
+                               available consumers:
+                                - test
+                                - perfmonitor
+                                - visibility
+                                - per-as-visibility
+                                - per-geo-visibility
+                                - announced-pfxs
+                                - moas
+                                - archiver
+                                - edges
+                                - triplets
+                                - pfx-origins
+                                - routed-space
+                                - my-view-process
+                                - view-sender
+                                - path-change
+                                - subpfx
+                                - peer-pfx-origins
+                                - pfx2as
+...
+```
+
+To see the usage for a specific consumer, run it like so:
 ```
 bgpview-consumer -b ascii -i test -c "<CONSUMER> -h"
 ```
@@ -275,6 +392,11 @@ consumer usage: archiver
        -m <mode>     output mode: 'ascii' or 'binary' (default: binary)
 ...
 ```
+
+**Note:** the `-c` option can (and sometimes must) be used multiple
+times to run multiple consumers on each View. In this configuration
+the consumers will be "chained" in the order they are specified on the
+command line, and each consumer will process each View in series.
 
 Currently the following consumers are part of the official BGPView package:
 
