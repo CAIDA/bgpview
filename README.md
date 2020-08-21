@@ -144,6 +144,7 @@ Available timeouts:
 ```
 bgpview-consumer \
   -i "kafka -k bgpview.bgpstream.caida.org:9192 -n bgpview-prod -c 2400" \
+  -N 1 \
   -b ascii \
   -c "test"
 ```
@@ -157,10 +158,36 @@ In this example, we configure the `kafka` IO module to:
    only available namespace so should not be changed)
  - use the 2400-second timeout view stream (see notes above about
    timeouts)
+ - process a single view before exiting (`-N `)
  - use the `ascii` backend for writing timeseries statistics
  - run the `test` consumer (see below for how to run other consumers)
 
-This will require a _significant_ amount of memory to run (~ XX GB).
+This will require a _significant_ amount of memory to run (> 8 GB).
+
+Note that there are quotes around the arguments to the `-i`
+option. This is because the `kafka -k ....` sub-command is passed
+directly to the kafka module for argument processing. The same is true
+when configuring consumers (here we don't pass arguments to the `test`
+consumer, so the quotes are not strictly necessary).
+
+To filter the view to a prefix (or origin ASN) of interest, the `-f`
+option can be used as follows:
+```
+bgpview-consumer \
+  -i "kafka -k bgpview.bgpstream.caida.org:9192 -n bgpview-prod -c 2400" \
+  -N 1 \
+  -b ascii \
+  -c "test" \
+  -f "pfx:192.172.226.0/24"
+```
+
+The BGPView code currently outputs a large amount of debugging
+information
+([Issue #25](https://github.com/CAIDA/bgpview/issues/25)). You may
+want to filter it out by doing something like:
+```
+bgpview-consuer [arguments] 2>&1 | grep -v DEBUG
+```
 
 ### Running a private BGPView deployment
 
