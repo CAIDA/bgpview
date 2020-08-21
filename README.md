@@ -128,4 +128,44 @@ ASCII format.
 
 ## Available Consumers
 
+All consumer code is located in the
+[lib/consumers/](https://github.com/CAIDA/bgpview/tree/master/lib/consumers)
+directory. Consumer source files are named `bvc_<consumer>.[ch]`.
+
+To get a list of consumers built into a specific bgpview-consumer
+binary, run it without arguments.
+
+Currently the following consumers are part of the official BGPView package:
+
+### BGP Hijacks Observatory Consumers
+ - `edges`
+ - `moas`
+ - `subpfx`
+ - `announcedpfxs`
+ - `pfxorigins`
+ - `routedspace`
+ - `triplets`
+
+### IODA Consumers
+ - `perasvisibility`
+ - `pergeovisibility`
+
+### Utility Consumers
+ - `archiver`
+ - `viewsender`
+ - `visibility`
+
+### Test/Template Consumers
+ - `test`
+ - `myviewprocess`
+
+### Prefix-Origin Consumers
+ - `peerpfxorigins`
+ - `pfx2as`
+
+### Misc Consumers
+ - `pathchange`
+ - `perfmonitor`
+
+
 ## Writing a New Consumer
