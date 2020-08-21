@@ -118,7 +118,53 @@ ASCII format.
 
 ### CAIDA's Public BGPView feed
 
+Because running the realtime BGPView system requires significant
+compute infrastructure, CAIDA is making its BGPView feed publicly
+accessible. Users can install the BGPView software on their local
+servers, and then configure the `kafka` interface to consume data from
+the CAIDA Kafka cluster.
+
+#### View Publication Timeouts
+
+TODO: describe why we have timeouts, what the trade-offs are, etc.
+
+Available timeouts:
+ - 10 min (`-c 600`)
+ - 20 min (`-c 1200`)
+ - 30 min (`-c 1800`)
+ - 40 min (`-c 2400`)
+ - 50 min (`-c 3000`)
+ - 1 hr (`-c 3600`)
+ - 2 hr (`-c 7200`)
+ - 4 hr (`-c 14400`)
+ - 6 hr (`-c 28800`)
+
+#### Example Usage
+
+```
+bgpview-consumer \
+  -i "kafka -k bgpview.bgpstream.caida.org:9192 -n bgpview-prod -c 2400" \
+  -b ascii \
+  -c "test"
+```
+
+In this example, we configure the `kafka` IO module to:
+
+ - connect to the Kafka cluster running at
+   `bgpview.bgpstream.caida.org:9192` (note the non-standard 9192 port
+   number).
+ - use the `bgpview-prod` "namespace" in this cluster (this is the
+   only available namespace so should not be changed)
+ - use the 2400-second timeout view stream (see notes above about
+   timeouts)
+ - use the `ascii` backend for writing timeseries statistics
+ - run the `test` consumer (see below for how to run other consumers)
+
+This will require a _significant_ amount of memory to run (~ XX GB).
+
 ### Running a private BGPView deployment
+
+TODO
 
 ## Offline Analysis
 
