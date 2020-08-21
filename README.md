@@ -145,7 +145,7 @@ Available timeouts:
  - 1 hr (`-c 3600`)
  - 2 hr (`-c 7200`)
  - 4 hr (`-c 14400`)
- - 6 hr (`-c 28800`)
+ - 6 hr (`-c 21600`)
 
 #### Example Usage
 
