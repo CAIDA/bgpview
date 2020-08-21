@@ -62,9 +62,6 @@
 #include "bvc_archiver.h"
 #endif
 
-/* Submoas consumer */
-#include "bvc_submoas.h"
-
 /* Edges consumer */
 #include "bvc_edges.h"
 
@@ -149,8 +146,8 @@ static const consumer_alloc_func_t consumer_alloc_functions[] = {
   NULL,
 #endif
 
-  /** Pointer to submoas alloc function */
-  bvc_submoas_alloc,
+  /** DEPRECATED: submoas consumer */
+  NULL,
 
   /** Pointer to edge alloc function */
   bvc_edges_alloc,

@@ -83,11 +83,6 @@ CONSUMER_SRCS += \
 	bvc_archiver.h
 endif
 
-# Submoas consumer
-CONSUMER_SRCS += \
-	bvc_submoas.c \
-	bvc_submoas.h
-
 # Edges consumer
 CONSUMER_SRCS += \
 	bvc_edges.c \

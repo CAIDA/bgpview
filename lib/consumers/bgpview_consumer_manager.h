@@ -141,10 +141,6 @@ typedef enum bvc_id {
   /** Writes views to files */
   BVC_ID_ARCHIVER = 8,
 
-  /** Writes information about prefixes whose more specific prefixes are
-      announced by different ASNs */
-  BVC_ID_SUBMOAS = 9,
-
   /** Writes information about prefixes that are reachable through new
       edges */
   BVC_ID_EDGES = 10,
