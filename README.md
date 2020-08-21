@@ -138,30 +138,112 @@ binary, run it without arguments.
 Currently the following consumers are part of the official BGPView package:
 
 ### Utility Consumers
- - `archiver`
- - `viewsender`
- - `visibility`
+
+#### `archiver`
+
+Serializes views to files (either in ASCII or compact binary format).
+
+Usage:
+```
+
+```
+
+#### `viewsender`
+
+Used in the realtime distributed system to publish views to Kafka.
+
+Usage:
+```
+
+```
+
+#### `visibility`
+
+Calculates simple visibility information. Used by many other
+consumers.
+
+Usage:
+```
+
+```
 
 ### Prefix-Origin Consumers
- - `peerpfxorigins`
- - `pfx2as`
+
+#### `peerpfxorigins`
+
+"Cecilia's consumer". Generates "un-opinionated" per-peer
+prefix-origin information.
+
+Usage:
+```
+
+```
+
+#### `pfx2as`
+
+Accumulates per-prefix origin information across many views and writes
+summary information periodically. Used as input for the new high-level
+CAIDA Prefix2AS dataset.
+
+Usage:
+```
+
+```
 
 ### BGP Hijacks Observatory Consumers
- - `edges`
- - `moas`
- - `subpfx`
- - `announcedpfxs`
- - `pfxorigins`
- - `routedspace`
- - `triplets`
+
+#### `edges`
+
+Monitors AS paths and detects new "edges" (AS links).
+
+#### `moas`
+
+Identifies multiple-origin prefixes.
+
+#### `subpfx`
+
+Identifies sub-prefix announcements.
+
+#### `announcedpfxs`
+
+???
+
+#### `pfxorigins`
+
+Tracks changes in prefix origin ASes between views.
+
+#### `routedspace`
+
+???
+
+#### `triplets`
+
+???
 
 ### IODA Consumers
- - `perasvisibility`
- - `pergeovisibility`
+
+#### `perasvisibility`
+
+Tracks per-AS statistics about prefixes announced on BGP.
+
+#### `pergeovisibility`
+
+Tracks per-geo statistics about prefixes announced on BGP.
 
 ### Test/Template Consumers
- - `test`
- - `myviewprocess`
+
+#### `test`
+
+Simple testing consumer.
+
+Usage:
+```
+
+```
+
+#### `myviewprocess`
+
+Template consumer that can be copied to start development of a new consumer.
 
 ### Misc Consumers
  - `pathchange`
