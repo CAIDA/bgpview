@@ -132,8 +132,29 @@ All consumer code is located in the
 [lib/consumers/](https://github.com/CAIDA/bgpview/tree/master/lib/consumers)
 directory. Consumer source files are named `bvc_<consumer>.[ch]`.
 
-To get a list of consumers built into a specific bgpview-consumer
-binary, run it without arguments.
+To get a list of consumers built into a bgpview-consumer binary, run
+it without arguments. To see the usage for a specific consumer, run it
+like so:
+```
+bgpview-consumer -b ascii -i test -c "<CONSUMER> -h"
+```
+e.g.,
+```
+$ bgpview-consumer -b ascii -i test -c "archiver -h"
+[09:52:52:870] timeseries_init: initializing libtimeseries
+[09:52:52:870] timeseries_enable_backend: enabling backend (ascii)
+INFO: Enabling consumer 'archiver'
+consumer usage: archiver
+       -f <filename> output file pattern for writing views
+                       accepts same format parameters as strftime(3)
+                       as well as '%s' to write unix time
+       -r <seconds>  output file rotation period (default: no rotation)
+       -a            disable alignment of output file rotation to multiples of the rotation interval
+       -l <filename> file to write the filename of the latest complete output file to
+       -c <level>    output compression level to use (default: 6)
+       -m <mode>     output mode: 'ascii' or 'binary' (default: binary)
+...
+```
 
 Currently the following consumers are part of the official BGPView package:
 
@@ -145,16 +166,32 @@ Serializes views to files (either in ASCII or compact binary format).
 
 Usage:
 ```
-
+consumer usage: archiver
+       -f <filename> output file pattern for writing views
+                       accepts same format parameters as strftime(3)
+                       as well as '%s' to write unix time
+       -r <seconds>  output file rotation period (default: no rotation)
+       -a            disable alignment of output file rotation to multiples of the rotation interval
+       -l <filename> file to write the filename of the latest complete output file to
+       -c <level>    output compression level to use (default: 6)
+       -m <mode>     output mode: 'ascii' or 'binary' (default: binary)
 ```
 
-#### `viewsender`
+#### `view-sender`
 
 Used in the realtime distributed system to publish views to Kafka.
 
 Usage:
 ```
-
+consumer usage: view-sender [options] -n <instance-name> -i <io-module>
+       -i <module opts>      IO module to use for sending views.
+                               Available modules:
+                                - kafka
+       -n <instance-name>    Unique name for this sender (required)
+       -s <sync-interval>   Sync frame freq. in secs (default: 3600)
+                               (used only for Kafka)
+       -4 <pfx-cnt>          Only send peers with > N IPv4 pfxs (default: 400000)
+       -6 <pfx-cnt>          Only send peers with > N IPv6 pfxs (default: 10000)
 ```
 
 #### `visibility`
@@ -164,19 +201,25 @@ consumers.
 
 Usage:
 ```
-
+consumer usage: visibility
+       -4 <pfx-cnt>  # pfxs in a IPv4 full-feed table (default: 400000)
+       -6 <pfx-cnt>  # pfxs in a IPv6 full-feed table (default: 10000)
+       -m <mask-len> minimum mask length for pfxs (default: 6)
+       -p <peer-cnt> # peers that must observe a pfx (default: 10)
 ```
 
 ### Prefix-Origin Consumers
 
-#### `peerpfxorigins`
+#### `peer-pfx-origins`
 
 "Cecilia's consumer". Generates "un-opinionated" per-peer
 prefix-origin information.
 
 Usage:
 ```
-
+consumer usage: peer-pfx-origins
+       -o <path>             output directory
+       -c                    only output peer counts
 ```
 
 #### `pfx2as`
@@ -187,7 +230,12 @@ CAIDA Prefix2AS dataset.
 
 Usage:
 ```
-
+consumer usage: pfx2as
+       -i <interval>  output interval in seconds (default 86400)
+       -o <path>      output directory
+       -f <fmt>       output format: "dsv" (default) or "json"
+       -c             output peer counts, not full list
+       -v             split prefixes into files by IP version
 ```
 
 ### BGP Hijacks Observatory Consumers
@@ -204,31 +252,70 @@ Identifies multiple-origin prefixes.
 
 Identifies sub-prefix announcements.
 
-#### `announcedpfxs`
+#### `announced-pfxs`
 
-???
+Aggregates data across views and outputs information about announced
+prefixes.
 
-#### `pfxorigins`
+Usage:
+```
+consumer usage: announced-pfxs
+       -w <window-size>      window size in seconds (default 604800)
+       -i <output-interval>  output interval in seconds (default 86400)
+       -o <path>             output folder (default: current folder)
+```
+
+#### `pfx-origins`
 
 Tracks changes in prefix origin ASes between views.
 
-#### `routedspace`
+Usage:
+```
+consumer usage: pfx-origins
+       -o <path>             output folder (default: ./)
+```
 
-???
+#### `routed-space`
+
+Outputs information about address space that is "routed".
+
+Usage:
+```
+consumer usage: routed-space
+       -w <window-size>      window size in seconds (default 86400)
+       -o <path>             output folder (default: current folder)
+```
 
 #### `triplets`
 
-???
+Output information about unique "triplets" seen in views.
+
+Usage:
+```
+consumer usage: triplets
+       -w <window-size>      window size in seconds (default 604800)
+       -o <output-folder>    output folder (default: ./)
+```
 
 ### IODA Consumers
 
-#### `perasvisibility`
+#### `per-as-visibility`
 
 Tracks per-AS statistics about prefixes announced on BGP.
 
-#### `pergeovisibility`
+Usage:
+```
+consumer usage: per-as-visibility
+```
+
+#### `per-geo-visibility`
 
 Tracks per-geo statistics about prefixes announced on BGP.
+
+Usage:
+```
+consumer usage: per-geo-visibility -p <ipmeta-provider>
+```
 
 ### Test/Template Consumers
 
@@ -238,7 +325,7 @@ Simple testing consumer.
 
 Usage:
 ```
-
+consumer usage: test
 ```
 
 #### `myviewprocess`
@@ -251,3 +338,5 @@ Template consumer that can be copied to start development of a new consumer.
 
 
 ## Writing a New Consumer
+
+TODO
