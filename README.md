@@ -124,6 +124,14 @@ accessible. Users can install the BGPView software on their local
 servers, and then configure the `kafka` interface to consume data from
 the CAIDA Kafka cluster.
 
+#### Kafka Cluster URL
+
+The production Kafka cluster is available at:
+```
+bgpview.bgpstream.caida.org:9192
+```
+_Note the non-standard 9192 port number._
+
 #### View Publication Timeouts
 
 TODO: describe why we have timeouts, what the trade-offs are, etc.
@@ -180,24 +188,63 @@ bgpview-consumer \
   -c "test" \
   -f "pfx:192.172.226.0/24"
 ```
+This uses "only" 1.5 GB of memory, and will output (amongst other
+things) all of the AS paths observed toward the given prefix.
 
 The BGPView code currently outputs a large amount of debugging
 information
 ([Issue #25](https://github.com/CAIDA/bgpview/issues/25)). You may
 want to filter it out by doing something like:
 ```
-bgpview-consuer [arguments] 2>&1 | grep -v DEBUG
+bgpview-consuer [arguments] 2>&1 | fgrep -v DEBUG | fgrep -v INFO | fgrep -v "AS Path Store"
 ```
 
 ### Running a private BGPView deployment
 
-TODO
+TODO (pjb)
 
 ## Offline Analysis
 
+Offline analysis can be carried out using the same `bgpview-consumer`
+tool that is used for realtime processing (see above).
+
+The important difference between running BGPView in "offline mode"
+compared to realtime, is that we switch to using the `bsrt` IO module
+rather than `kafka`. This uses BGPStream XXX HERE
+
 ### One-off Processing
 
+Example script for triggering a one-shot offline BGPView run (with the
+archiver consumer):
+
+```bash
+#!/bin/bash
+
+set -e
+
+if [ "$#" -ne 3 ]
+then
+  echo "Usage: $0 collector start end"
+  exit 1
+fi
+
+COLLECTOR="$1"
+START="$2"
+END="$3"
+
+OUTDIR="/scratch/aspathsdb/bgpview/archiver"
+mkdir -p $OUTDIR/logs
+mkdir -p $OUTDIR/views
+
+bgpview-consumer \
+  -i "bsrt -i 300 -c $COLLECTOR -w $START,$END -O $OUTDIR/logs/%X.deleteme" \
+  -b ascii \
+  -c "archiver -f $OUTDIR/views/$COLLECTOR.%s.bgpview.gz -r 300 -m binary"
+```
+
 ### Spark-managed Processing
+
+TODO (mingwei)
 
 ## Available Consumers
 
@@ -412,4 +459,4 @@ Template consumer that can be copied to start development of a new consumer.
 
 ## Writing a New Consumer
 
-TODO
+TODO (kkeys)
