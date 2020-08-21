@@ -137,6 +137,15 @@ binary, run it without arguments.
 
 Currently the following consumers are part of the official BGPView package:
 
+### Utility Consumers
+ - `archiver`
+ - `viewsender`
+ - `visibility`
+
+### Prefix-Origin Consumers
+ - `peerpfxorigins`
+ - `pfx2as`
+
 ### BGP Hijacks Observatory Consumers
  - `edges`
  - `moas`
@@ -150,18 +159,9 @@ Currently the following consumers are part of the official BGPView package:
  - `perasvisibility`
  - `pergeovisibility`
 
-### Utility Consumers
- - `archiver`
- - `viewsender`
- - `visibility`
-
 ### Test/Template Consumers
  - `test`
  - `myviewprocess`
-
-### Prefix-Origin Consumers
- - `peerpfxorigins`
- - `pfx2as`
 
 ### Misc Consumers
  - `pathchange`
