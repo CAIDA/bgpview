@@ -134,7 +134,7 @@ _Note the non-standard 9192 port number._
 
 #### View Publication Timeouts
 
-TODO: describe why we have timeouts, what the trade-offs are, etc.
+Reasoning about timeouts and trade-offs are in the [BGPStream paper](https://www.caida.org/publications/papers/2016/bgpstream/bgpstream.pdf), specifically check Section 6.2.3 (Data synchronization). In the Observatory and IODA we use a 40 min time-out based on historical observation of when MRT files are made available by the RouteViews and RIPE RIS web archives.
 
 Available timeouts:
  - 10 min (`-c 600`)
