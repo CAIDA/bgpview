@@ -517,6 +517,19 @@ consumer usage: pfx-origins
        -o <path>             output folder (default: ./)
 ```
 
+Example output:
+```
+1425463800|223.68.184.0/23|56046|56046|STABLE
+1425463800|81.3.170.248/32|65170|65170|STABLE
+1425463800|91.214.17.0/24|196758|196758|STABLE
+[...]
+1425463800|207.201.203.0/24||40805|NEWROUTED
+1425463800|2a03:ff80:101::/48|57541||REMOVED
+1425463800|212.44.92.144/32|65170||REMOVED
+1425463800|2001:4bb0:f:23::/64||41497|NEWROUTED
+```
+
+
 #### `routed-space`
 
 Outputs information about address space that is "routed".
