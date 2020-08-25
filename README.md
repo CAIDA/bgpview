@@ -464,6 +464,16 @@ consumer usage: peer-pfx-origins
        -c                    only output peer counts
 ```
 
+Sample output:
+```
+# peer_cnt: 1362
+prefix|origin|peer_cnt
+58.30.222.0/24|17429|377
+200.50.174.0/24|264797|371
+82.117.160.0/20|31036|429
+70.169.92.0/22|22773|419
+```
+
 #### `pfx2as`
 
 Accumulates per-prefix origin information across many views and writes
