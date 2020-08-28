@@ -476,9 +476,9 @@ prefix|origin|peer_cnt
 
 #### `pfx2as`
 
-Accumulates per-prefix origin information across many views and writes
-summary information periodically. Used as input for the new high-level
-CAIDA Prefix2AS dataset.
+Accumulates per-prefix origin information across many views (e.g., 
+defaults to 24hrs) and writes summary information periodically. 
+Used as input for the new high-level CAIDA Prefix2AS dataset.
 
 Usage:
 ```
