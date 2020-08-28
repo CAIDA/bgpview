@@ -172,7 +172,7 @@ In this example, we configure the `kafka` IO module to:
 
 This will require a _significant_ amount of memory to run (> 8 GB).
 
-Note that there are quotes around the arguments to the `-i`
+**Note** that there are quotes around the arguments to the `-i`
 option. This is because the `kafka -k ....` sub-command is passed
 directly to the kafka module for argument processing. The same is true
 when configuring consumers (here we don't pass arguments to the `test`
