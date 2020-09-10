@@ -490,6 +490,25 @@ consumer usage: pfx2as
        -v             split prefixes into files by IP version
 ```
 
+Sample output:
+```
+# D|<start>|<duration>|<monitor_cnt>|<pfx_cnt>
+# M|<monitor_idx>|<collector>|<address>|<asn>|<pfx_cnt>
+# P|<pfx>|<asn>|<full_cnt>|<partial_cnt>|<full_duration>|<partial_duration>
+# p|<monitor_idx>|<duration>
+D|1599652800|600|15|841574
+M|1|route-views.eqix|206.126.237.22|808838|199524
+M|2|route-views.eqix|206.126.236.172|816403|11039
+M|3|route-views.eqix|206.126.238.56|818199|37468
+...
+...
+...
+P|23.230.96.0/24|18779|15|0|600|0
+p|1|600
+p|2|600
+...
+...
+```
 ### BGP Hijacks Observatory Consumers
 
 #### `edges`
