@@ -1,3 +1,10 @@
+
+# BGPView
+
+BGPView is a set of highly optimized data structures and libraries for
+(re-)construction, transport and analysis of BGP "routing tables".
+
+# Table of Contents
 - [BGPView](#bgpview)
   * [Background](#background)
   * [Quick Start](#quick-start)
@@ -39,10 +46,6 @@
     + [Misc Consumers](#misc-consumers)
   * [Writing a New Consumer](#writing-a-new-consumer)
   
-# BGPView
-
-BGPView is a set of highly optimized data structures and libraries for
-(re-)construction, transport and analysis of BGP "routing tables".
 
 ## Background
 
