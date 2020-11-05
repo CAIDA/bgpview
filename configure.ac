@@ -139,6 +139,8 @@ CC="$PTHREAD_CC"
 # Check that BGPStream is installed
 AC_CHECK_LIB([bgpstream], [bgpstream_create], ,
   [AC_MSG_ERROR( [libbgpstream is required (https://bgpstream.caida.org)])])
+AC_CHECK_LIB([m], [log2], ,
+  [AC_MSG_ERROR( [libm is required])])
 
 
 # CONSUMERS
@@ -150,6 +152,7 @@ AC_CHECK_LIB([timeseries], [timeseries_init], , [
     AC_MSG_ERROR([libtimeseries is required for the Per-AS Visibility plugin])
 ])
 AC_CHECK_LIB([ipmeta], [ipmeta_record_set_clear], ,[AC_MSG_ERROR([ipmeta is required])])
+AC_CHECK_LIB([Judy], [JudyLGet], ,[AC_MSG_ERROR([libJudy is required])])
 
 
 # BGPView IO modules
