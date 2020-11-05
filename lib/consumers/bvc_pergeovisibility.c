@@ -650,11 +650,9 @@ static per_geo_t *per_geo_init(bvc_t *consumer, const char *metric_pfx)
 
 static void add_geo_v6pfx_to_tree(bgpstream_pfx_t *pfx, void *userdata)
 {
-  char str[256];
 
-  bgpstream_pfx_snprintf(str, 256, pfx);
-  printf(" -- per_geo_update_v6 has seen prefix %s\n", str);
-
+  per_thresh_t *pt = (per_thresh_t *)userdata;
+  bgpstream_patricia_tree_insert(pt->v6_subnets, pfx);
 }
 
 static int per_geo_update_v6(bvc_t *consumer, per_geo_t *pg,
@@ -910,7 +908,6 @@ static void destroy_ipmeta(bvc_t *consumer)
     }
   }
 
-#if 0
   for (i = 0; i < STATE->polygons_tbl_cnt; i++) {
     for (j = 0; j < STATE->polygons_cnt[i]; j++) {
       if (STATE->polygons != NULL && STATE->polygons[i][j] != NULL) {
@@ -922,7 +919,6 @@ static void destroy_ipmeta(bvc_t *consumer)
     STATE->polygons[i] = NULL;
     STATE->polygons_cnt[i] = 0;
   }
-#endif
 
   if (STATE->ipmeta != NULL) {
     ipmeta_free(STATE->ipmeta);
@@ -1103,7 +1099,6 @@ static int create_geo_pfxs_vis(bvc_t *consumer)
   kh_free_vals(strstr, country_hash, (void (*)(char *))free);
   kh_destroy(strstr, country_hash);
 
-#if 0
   /* add state for each polygon (region and county) */
   STATE->polygons_tbl_cnt =
     ipmeta_provider_netacq_edge_get_polygon_tables(STATE->provider, &poly_tbls);
@@ -1140,7 +1135,6 @@ static int create_geo_pfxs_vis(bvc_t *consumer)
                          table->polygons[j]->fqid);
     }
   }
-#endif
 
   return 0;
 
@@ -1299,20 +1293,17 @@ static int update_pfx_v6(bvc_t *consumer, bgpstream_pfx_t *pfx,
       return -1;
     }
 
-#if 0
     for (poly_table = 0; poly_table < rec->polygon_ids_cnt; poly_table++) {
       ind = lookup_polygon(pfx_cache, rec, poly_table);
       if (ind < 0) {
         return -1;
       }
-      if ((pfx_cache->poly_addr_runs[poly_table][ind] =
-          update_ip6_prefix(pfx_cache->poly_addr_runs[poly_table][ind],
-                  &(pfx_cache->per_poly_addr_run_cnt[poly_table][ind]),
+      if ((pfx_cache->poly_addr6_pfxs[poly_table][ind] =
+          update_ip6_prefix(pfx_cache->poly_addr6_pfxs[poly_table][ind],
                   cur_address, num_ips)) == NULL) {
         return -1;
       }
     }
-#endif
 
     cur_address += num_ips;
     (*iptally) += num_ips;
@@ -1403,7 +1394,6 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
       return -1;
     }
 
-    /* TODO Split into v4 and v6 functions based on pfx->address.version */
     if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
       if (update_pfx_v4(consumer, pfx, pfx_cache, &num_ips) < 0) {
         return -1;
@@ -1474,34 +1464,28 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
     }
   }
 
-#if 0
   /* polygons (possibly many per table) */
   for (poly_table = 0; poly_table < STATE->polygons_tbl_cnt; poly_table++) {
     /* each polygon in this table */
     for (i = 0; i < pfx_cache->poly_table_idxs_cnt[poly_table]; i++) {
-      if (per_geo_update(
-            consumer,
+      if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV4) {
+        if (per_geo_update(
+              consumer,
+              STATE
+                ->polygons[poly_table][pfx_cache->poly_table_idxs[poly_table][i]],
+              pfx,
+              pfx_cache->poly_addr_runs[poly_table][i],
+              pfx_cache->per_poly_addr_run_cnt[poly_table][i], 0) != 0) {
+          return -1;
+        }
+      } else if (per_geo_update_v6(consumer,
             STATE
               ->polygons[poly_table][pfx_cache->poly_table_idxs[poly_table][i]],
             pfx,
-            pfx_cache->poly_addr_runs[poly_table][i],
-            pfx_cache->per_poly_addr_run_cnt[poly_table][i]) != 0) {
-        return -1;
-      }
-      if (per_geo_update(
-            consumer,
-            STATE
-              ->polygons[poly_table][pfx_cache->poly_table_idxs[poly_table][i]],
-            pfx,
-            pfx_cache->poly_addr6_pfxs[poly_table][i],
-        pfxspfx_cache->per_poly_addr6_pfx_cnt[poly_table][i]) != 0) {
+            pfx_cache->poly_addr6_pfxs[poly_table][i]) != 0) {
         return -1;
       }
     }
-  }
-#endif
-  if (pfx->address.version == BGPSTREAM_ADDR_VERSION_IPV6) {
-    fprintf(stdout, "DEBUG: v6 prefix processed successfully\n");
   }
   return 0;
 }
@@ -1580,6 +1564,8 @@ static int update_per_geo_metrics(bvc_t *consumer, per_geo_t *pg, int index)
                              pg->thresholds[i + 1].asns_v6);
       slash24_id_set_merge(pg->thresholds[i].slash24s,
                            pg->thresholds[i + 1].slash24s);
+      bgpstream_patricia_tree_merge(pg->thresholds[i].v6_subnets,
+                                    pg->thresholds[i+1].v6_subnets);
     }
 
     /* now that the tree represents all the prefixes that match the threshold,
@@ -1614,18 +1600,11 @@ static int update_per_geo_metrics(bvc_t *consumer, per_geo_t *pg, int index)
       bgpstream_patricia_prefix_count(pg->thresholds[i].pfxs,
                                       BGPSTREAM_ADDR_VERSION_IPV6));
 
-    if (i == VIS_THRESHOLDS_CNT - 2) {
-      if (index == 0x414f) {
-        printf("-------\n");
-        bgpstream_patricia_tree_print(pg->thresholds[i].pfxs);
-      }
-    }
-
     timeseries_kp_set(
       STATE->kp,
       pg->thresholds[i]
         .subnet_cnt_idx[bgpstream_ipv2idx(BGPSTREAM_ADDR_VERSION_IPV6)],
-      0);
+      bgpstream_patricia_tree_count_64subnets(pg->thresholds[i].v6_subnets));
 
     timeseries_kp_set(
       STATE->kp,
@@ -1640,6 +1619,7 @@ static int update_per_geo_metrics(bvc_t *consumer, per_geo_t *pg, int index)
     bgpstream_id_set_clear(pg->thresholds[i].asns);
     bgpstream_id_set_clear(pg->thresholds[i].asns_v6);
     slash24_id_set_clear(pg->thresholds[i].slash24s);
+    bgpstream_patricia_tree_clear(pg->thresholds[i].v6_subnets);
   }
 
   return 0;
@@ -1664,18 +1644,16 @@ static int update_metrics(bvc_t *consumer)
   }
 
   /* for each poly table */
-#if 0
   for (poly_table = 0; poly_table < STATE->polygons_tbl_cnt; poly_table++) {
     /* for each polygon */
     for (i = 0; i < STATE->polygons_cnt[poly_table]; i++) {
       if (STATE->polygons[poly_table][i] != NULL &&
-          update_per_geo_metrics(consumer, STATE->polygons[poly_table][i]) !=
+          update_per_geo_metrics(consumer, STATE->polygons[poly_table][i], 0) !=
             0) {
         return -1;
       }
     }
   }
-#endif
   return 0;
 }
 
