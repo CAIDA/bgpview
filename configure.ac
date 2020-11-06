@@ -152,8 +152,6 @@ AC_CHECK_LIB([timeseries], [timeseries_init], , [
     AC_MSG_ERROR([libtimeseries is required for the Per-AS Visibility plugin])
 ])
 AC_CHECK_LIB([ipmeta], [ipmeta_record_set_clear], ,[AC_MSG_ERROR([ipmeta is required])])
-AC_CHECK_LIB([Judy], [JudyLGet], ,[AC_MSG_ERROR([libJudy is required])])
-
 
 # BGPView IO modules
 # TODO: Make BGPView-IO optional (one may just want the datastructure without IO/Consumers)
