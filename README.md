@@ -256,7 +256,7 @@ tool that is used for realtime processing (see above).
 
 The important difference between running BGPView in "offline mode"
 compared to realtime, is that we switch to using the BGPStream
-RealTime (`bsrt`) IO module rather than `kafka`. This is the same
+Routing Table (`bsrt`) IO module rather than `kafka`. This is the same
 module that is used in the View generation stage of the realtime
 system, but in this case we don't configure it to transmit the
 resulting Views to Kafka -- we simply pass them in-memory to our
