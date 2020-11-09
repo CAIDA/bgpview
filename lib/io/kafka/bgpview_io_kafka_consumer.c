@@ -281,6 +281,46 @@ err:
 
 /* ==========START SEND/RECEIVE FUNCTIONS ========== */
 
+/* On success, return msg.
+ * On error, print a message to stderr, and return NULL.
+ * WARNING: do not set timeout_ms > 2147483 (i.e. INT_MAX/1000): an overflow
+ * bug in rd_kafka_consume() will make it behave as if timeout_ms == 0.
+ */
+static rd_kafka_message_t *bvio_kafka_consume(rd_kafka_topic_t *rkt,
+    int32_t partition, int timeout_ms, const char *label)
+{
+  rd_kafka_message_t *msg;
+  while (1) {
+    msg = rd_kafka_consume(rkt, partition, timeout_ms);
+    if (msg == NULL) {
+      if (errno == ETIMEDOUT) {
+        fprintf(stderr, "INFO: Timed out retrieving %s message. Retrying...\n",
+            label);
+        continue; // retry
+      } else {
+        fprintf(stderr, "ERROR: Failed to retrieve %s message: errno=%d\n",
+            label, errno);
+        return NULL; // fail
+      }
+    }
+    /* Note: (msg->payload != NULL) does not imply success. */
+    if (msg->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
+      /* Reached end of topic+partition queue on broker. Not really an error. */
+      rd_kafka_message_destroy(msg);
+      msg = NULL;
+      continue; // retry
+    }
+    if (msg->err != 0) {
+      /* TODO: handle this failure -- maybe reconnect? */
+      fprintf(stderr, "ERROR: Could not consume %s message (err %d: %s)\n",
+              label, msg->err, rd_kafka_message_errstr(msg));
+      rd_kafka_message_destroy(msg);
+      return NULL; // fail
+    }
+    return msg; // success
+  }
+}
+
 static int recv_direct_metadata(bgpview_io_kafka_t *client, bgpview_t *view,
                                 bgpview_io_kafka_md_t *meta, int need_sync)
 {
@@ -288,20 +328,9 @@ static int recv_direct_metadata(bgpview_io_kafka_t *client, bgpview_t *view,
 
 again:
   /* Grab the last metadata message */
-  if ((msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
+  if ((msg = bvio_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_META),
                               BGPVIEW_IO_KAFKA_METADATA_PARTITION_DEFAULT,
-                              2000000000)) == NULL) {
-    goto err;
-  }
-
-  if (msg->payload == NULL) {
-    if (msg->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
-      rd_kafka_message_destroy(msg);
-      msg = NULL;
-      goto again;
-    }
-    /* TODO: handle this failure -- maybe reconnect? */
-    fprintf(stderr, "ERROR: Could not consume metadata message\n");
+                              2000000, "direct metadata")) == NULL) {
     goto err;
   }
 
@@ -373,24 +402,11 @@ again:
     metas = NULL;
   }
   /* Grab the next metadata message */
-  msg = rd_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
+  msg = bvio_kafka_consume(RKT(BGPVIEW_IO_KAFKA_TOPIC_ID_GLOBALMETA),
                          BGPVIEW_IO_KAFKA_GLOBALMETADATA_PARTITION_DEFAULT,
-                         2000000000);
-  /* check for a non-standard response */
-  if (msg == NULL) {
-    goto again;
-  }
-  if (msg->err == RD_KAFKA_RESP_ERR__PARTITION_EOF) {
-    rd_kafka_message_destroy(msg);
-    msg = NULL;
-    goto again;
-  }
-  if (msg->err != 0) {
-    /* TODO: handle this failure -- maybe reconnect? */
-    fprintf(stderr, "ERROR: Could not consume metadata message (err: %d)\n",
-            msg->err);
+                         2000000, "global metadata");
+  if (msg == NULL)
     goto err;
-  }
   if (msg->payload == NULL || msg->len == 0) {
     fprintf(stderr, "WARN: Empty metadata message, retrying...\n");
     rd_kafka_message_destroy(msg);
@@ -493,15 +509,10 @@ static int recv_peers(bgpview_io_kafka_peeridmap_t *idmap,
 
   /* receive the peers */
   while (1) {
-    msg = rd_kafka_consume(topic->rkt, BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
-                           5000);
-    if (msg == NULL) {
-      fprintf(stderr, "INFO: Failed to retrieve peer message. Retrying...\n");
-      continue;
-    }
-    if (msg->payload == NULL) {
+    msg = bvio_kafka_consume(topic->rkt, BGPVIEW_IO_KAFKA_PEERS_PARTITION_DEFAULT,
+                           5000, "peer");
+    if (msg == NULL)
       goto err;
-    }
     ptr = msg->payload;
     read = 0;
 
@@ -610,15 +621,10 @@ static int recv_pfxs(bgpview_io_kafka_peeridmap_t *idmap,
   int msg_cnt = 0;
 
   while (1) {
-    msg = rd_kafka_consume(topic->rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
-                           5000);
-    if (msg == NULL) {
-      fprintf(stderr, "INFO: Failed to retrieve prefix message. Retrying...\n");
-      continue;
-    }
-    if (msg->payload == NULL) {
+    msg = bvio_kafka_consume(topic->rkt, BGPVIEW_IO_KAFKA_PFXS_PARTITION_DEFAULT,
+                           5000, "prefix");
+    if (msg == NULL)
       goto err;
-    }
     msg_cnt++;
 
     ptr = msg->payload;
