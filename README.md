@@ -110,7 +110,7 @@ The easiest way to install BGPView and its dependencies is from
 CAIDA's apt package mirror.
 
 ```
-curl https://pkg.caida.org/os/ubuntu/boostrap.sh | bash
+curl https://pkg.caida.org/os/ubuntu/bootstrap.sh | bash
 sudo apt install bgpview
 ```
 Of course you should first manually inspect the `bootstrap.sh` script
