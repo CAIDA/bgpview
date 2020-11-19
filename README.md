@@ -242,7 +242,7 @@ information
 ([Issue #25](https://github.com/CAIDA/bgpview/issues/25)). You may
 want to filter it out by doing something like:
 ```
-bgpview-consuer [arguments] 2>&1 | fgrep -v DEBUG | fgrep -v INFO | fgrep -v "AS Path Store"
+bgpview-consumer [arguments] 2>&1 | fgrep -v DEBUG | fgrep -v INFO | fgrep -v "AS Path Store"
 ```
 
 ### Running a private BGPView deployment
