@@ -37,8 +37,6 @@
 #include <unistd.h>
 #include <math.h>
 
-#include <Judy.h>
-
 #define NAME "per-geo-visibility"
 #define METRIC_PREFIX "prefix-visibility"
 
@@ -480,18 +478,6 @@ static void slash24_id_set_destroy(slash24_id_set_t *set)
   free(set);
 }
 
-static void dump_slash24s(slash24_id_set_t *set) {
-  khiter_t it = kh_begin(set->hash);
-
-  while (it != kh_end(set->hash)) {
-     if (kh_exist(set->hash, it)) {
-         printf("/24 -- %08x\n", kh_key(set->hash, it));
-     }
-     ++it;
-  }
-
-}
-
 /* ==================== PER-GEO-INFO FUNCTIONS ==================== */
 
 static bgpstream_ipv6_pfx_set_t *update_ip6_prefix(
@@ -674,7 +660,7 @@ static int per_geo_update_v6(bvc_t *consumer, per_geo_t *pg,
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
    * only if the prefix belongs there */
-  int i, j, k, rcint;
+  int i, j, k;
   for (i = VIS_THRESHOLDS_CNT - 1; i >= 0; i--) {
     if (ratio >= threshold_vals[i]) {
       /* add prefix to the Patricia Tree */
@@ -717,7 +703,7 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
   /* we navigate the thresholds array starting from the
    * higher one, and populate each threshold information
    * only if the prefix belongs there */
-  int i, j, k, rcint;
+  int i, j, k;
   for (i = VIS_THRESHOLDS_CNT - 1; i >= 0; i--) {
     if (ratio >= threshold_vals[i]) {
       /* add prefix to the Patricia Tree */
@@ -753,7 +739,6 @@ static int per_geo_update(bvc_t *consumer, per_geo_t *pg, bgpstream_pfx_t *pfx,
 static void per_geo_destroy(per_geo_t *pg)
 {
   int i;
-  Word_t rcint;
   for (i = 0; i < VIS_THRESHOLDS_CNT; i++) {
     bgpstream_patricia_tree_destroy(pg->thresholds[i].pfxs);
     bgpstream_id_set_destroy(pg->thresholds[i].asns);
@@ -1551,7 +1536,6 @@ static int compute_geo_pfx_visibility(bvc_t *consumer, bgpview_iter_t *it)
 static int update_per_geo_metrics(bvc_t *consumer, per_geo_t *pg, int index)
 {
   int i;
-  Word_t rcw;
   for (i = VIS_THRESHOLDS_CNT - 1; i >= 0; i--) {
     /* we merge all the trees (asn sets) with the previous one, except the
      * first */
