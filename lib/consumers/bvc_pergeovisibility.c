@@ -1355,7 +1355,8 @@ static int update_pfx_v4(bvc_t *consumer, bgpstream_pfx_t *pfx,
   return 0;
 }
 
-static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
+static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it,
+                char *colstr)
 {
   bgpstream_pfx_t *pfx = bgpview_iter_pfx_get_pfx(it);
   perpfx_cache_t *pfx_cache = (perpfx_cache_t *)bgpview_iter_pfx_get_user(it);
@@ -1402,10 +1403,14 @@ static int update_pfx_geo_information(bvc_t *consumer, bgpview_iter_t *it)
    */
   if (first_pfx_addr(pfx) + num_ips != (last_pfx_addr(pfx) + 1) && \
       num_ips != 0) {
+    char buf[1024];
+    bgpstream_pfx_snprintf(buf, 1024, pfx);
     fprintf(stderr, "ERROR: Sum of NetAcuity blocks (%lu) and number of "
                     "addresses in prefix (%lu) are not identical.  Does "
                     "NetAcuity have gaps?\n",
                     num_ips, last_pfx_addr(pfx) - first_pfx_addr(pfx) + 1);
+    fprintf(stderr, "ERROR: Failed prefix was %s from collector %s\n", buf,
+                colstr);
     return -1;
   }
 
@@ -1525,7 +1530,7 @@ static int compute_geo_pfx_visibility(bvc_t *consumer, bgpview_iter_t *it)
     }
 
     if (STATE->valid_origins > 0 &&
-        update_pfx_geo_information(consumer, it) != 0) {
+        update_pfx_geo_information(consumer, it, sg->collector_str) != 0) {
       return -1;
     }
   }
