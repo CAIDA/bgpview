@@ -1,3 +1,9 @@
+libbgpview2 (2.0.0~rc2-1) unstable; urgency=medium
+
+  * Add some extra debug output when prefix size mismatches occur
+
+ -- Shane Alcock <software@caida.org>  Thu, 28 Jan 2021 00:00:00 +0000
+
 libbgpview2 (2.0.0~rc2) unstable; urgency=medium
 
   * Add IPv6 support to the pergeo_visibility consumer (by Shane Alcock @salcock)
