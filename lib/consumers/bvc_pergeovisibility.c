@@ -784,7 +784,7 @@ static uint64_t last_pfx_addr(bgpstream_pfx_t *pfx) {
     return first_addr;
   }
 
-  return first_addr + (1UL << 64 - (pfx->mask_len)) - 1;
+  return first_addr + (1UL << (64 - pfx->mask_len)) - 1;
 }
 
 static int init_kp(bvc_t *consumer)
