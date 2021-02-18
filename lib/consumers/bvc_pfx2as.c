@@ -431,7 +431,7 @@ static void dump_results_dsv(bvc_t *consumer, int version,
       "# D|<start>|<duration>|<monitor_cnt>|<pfx_cnt>\n");
   if (!STATE->peer_count_only) {
     wandio_printf(STATE->outfile,
-        "# M|<monitor_idx>|<collector>|<address>|<asn>|<pfx_cnt>\n");
+        "# M|<monitor_idx>|<collector>|<address>|<pfx_cnt>|<asn>\n");
   }
   wandio_printf(STATE->outfile, "# P|<pfx>|<asn>|<full_cnt>|<partial_cnt>|"
       "<full_duration>|<partial_duration>\n");

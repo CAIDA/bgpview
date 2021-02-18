@@ -297,7 +297,7 @@ BSRT IO Options:
    -i <interval>  distribution interval in seconds (default: 60)
    -a             align the end time of the first interval
    -g <gap-limit> maximum allowed gap between packets (0 is no limit) (default: 0)
-   -n <name>      monitor name (default: gibi.caida.org)
+   -n <name>      monitor name (default: <hostname>)
    -O <outfile>   use <outfile> as a template for file names.
                    - %X => plugin name
                    - %N => monitor name
@@ -539,7 +539,7 @@ consumer usage: pfx2as
 Sample output:
 ```
 # D|<start>|<duration>|<monitor_cnt>|<pfx_cnt>
-# M|<monitor_idx>|<collector>|<address>|<asn>|<pfx_cnt>
+# M|<monitor_idx>|<collector>|<address>|<pfx_cnt>|<asn>
 # P|<pfx>|<asn>|<full_cnt>|<partial_cnt>|<full_duration>|<partial_duration>
 # p|<monitor_idx>|<duration>
 D|1599652800|600|15|841574
@@ -555,6 +555,41 @@ p|2|600
 ...
 ...
 ```
+
+Record descriptions:
+- **D**: metadata (first record)
+  * *<start>*: start time of the pfx2as interval (unix timestamp)
+  * *<duration>*: duration of the pfx2as interval (seconds)
+  * *<monitor_cnt>*: count of monitors contributing data in the interval
+  * *<pfx_cnt>*: count of prefixes seen in the interval
+- **M**: monitor (peer) description (omitted by `-c` option)
+  * *<monitor_idx>*: index number (unique within this file) used to refer to
+    this monitor
+  * *<collector>*: name of the bgp collector that the monitor peers with
+  * *<address>*: IP address of the monitor
+  * *<pfx_cnt>*: count of prefixes seen by the monitor
+  * *<asn>*: ASN of the monitor
+- **P**: prefix and origin
+  * *<pfx>*: an IP prefix
+  * *<asn>*: the origin ASN for the prefix
+  * *<full_cnt>*: count of full-feed monitors that observed (pfx,origin)
+  * *<partial_cnt>*: count of partial-feed monitors that observed (pfx,origin)
+  * *<full_duration>*: amount of time covered by views in which any
+    full-feed peer observed this pfx-origin
+  * *<partial_duration>*: amount of time covered by views in which any
+    partial-feed peer observed this pfx-origin
+- **p**: a monitor that observed the (prefix,origin) in the previous **P**
+  record (omitted by `-c` option)
+  * *<monitor_idx>*: a reference to a monitor description (**M** record)
+  * *<duration>*: amount of time that the monitor observed the (pfx,origin)
+
+A "full-feed peer" is a peer which saw a full-feed table in a given view, as
+defined by the [`visibility`](#visibility) consumer.
+A "partial-feed peer" is a peer which did not see a full-feed table.
+Because the pfx2as interval includes multiple views, it is possible (though
+rare) for a peer to be considered full-feed in some views but partial-feed in
+others, and thus be counted in both *<full_cnt>* and *<partial_cnt>*.
+
 ### BGP Hijacks Observatory Consumers
 
 #### `edges`
