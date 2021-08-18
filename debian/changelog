@@ -1,3 +1,9 @@
+libbgpview2 (2.0.0~rc3) unstable; urgency=medium
+
+  * Fix bad prefix bug in pergeo_visibility v6 code
+
+ -- Shane Alcock <software@caida.org>  Thu, 19 Aug 2021 08:37:26 +1200
+
 libbgpview2 (2.0.0~rc2) unstable; urgency=medium
 
   * Add IPv6 support to the pergeo_visibility consumer (by Shane Alcock @salcock)
