@@ -488,7 +488,11 @@ static bgpstream_ipv6_pfx_set_t *update_ip6_prefix(
   bgpstream_pfx_t newpfx;
 
   /* Convert into a usable prefix */
-  newpfx.mask_len = 64 - log2(num_slash64s);
+  if (num_slash64s == 0) {
+    newpfx.mask_len = 64;
+  } else {
+    newpfx.mask_len = 64 - log2(num_slash64s);
+  }
   newpfx.allowed_matches = BGPSTREAM_PREFIX_MATCH_ANY;
   newpfx.address.version = BGPSTREAM_ADDR_VERSION_IPV6;
 
