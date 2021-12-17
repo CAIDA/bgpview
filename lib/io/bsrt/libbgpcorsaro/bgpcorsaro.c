@@ -474,9 +474,6 @@ static int bgpcorsaro_start_record(bgpcorsaro_t *bc,
       bgpstream_get_time(record) */
   bc->last_ts = ts = bsrecord->time_sec;
 
-  /* it also means we need to dump an interval end record */
-  bc->interval_end_needed = 1;
-
   /* if this is the first record we record, keep the timestamp */
   if (bc->record_cnt == 0) {
     bc->first_ts = ts;
@@ -560,7 +557,9 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
       return 1; // successful interval end.  caller can use shared_view.
     }
 
-    if (bc->bsrecord) {
+    /* Ignore records outside of our filtered time interval */
+    if (bc->bsrecord && bc->bsrecord->status !=
+		    BGPSTREAM_RECORD_STATUS_OUTSIDE_TIME_INTERVAL) {
       /* count this record for our overall record count */
       bc->record_cnt++;
 
@@ -568,6 +567,9 @@ int bgpcorsaro_process_interval(bgpcorsaro_t *bc)
       if (process_record(bc, bc->bsrecord) < 0) {
         return -1;
       }
+      /* only set this flag IF we have a valid record inside our allowed time
+       * interval. */
+      bc->interval_end_needed = 1;
     }
 
     // adapted from bgpcorsaro-caida:tools/bgpcorsaro.c:main()
