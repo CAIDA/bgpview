@@ -287,7 +287,7 @@ BSRT IO Options:
    -c <collector> process records from only the given collector*
    -t <type>      process records with only the given type (ribs, updates)*
    -w <start>[,<end>]
-                  process records within the given time window
+                  process records within the given time window (end is inclusive)
    -P <period>    process a rib files every <period> seconds (bgp time)
    -j <peer ASN>  return valid elems originated by a specific peer ASN*
    -k <prefix>    return valid elems associated with a specific prefix*
