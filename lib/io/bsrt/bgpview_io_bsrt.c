@@ -638,6 +638,7 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
 #define PREFIX_CMD_CNT 1000
 #define COMMUNITY_CMD_CNT 1000
 #define PEERASN_CMD_CNT 1000
+#define NOT_PEERASN_CMD_CNT 1000
 #define WINDOW_CMD_CNT 1024
 #define OPTION_CMD_CNT 1024
 
@@ -657,6 +658,9 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
   char *peerasns[PEERASN_CMD_CNT];
   int peerasns_cnt = 0;
 
+  char *not_peerasns[NOT_PEERASN_CMD_CNT];
+  int not_peerasns_cnt = 0;
+
   char *prefixes[PREFIX_CMD_CNT];
   int prefixes_cnt = 0;
 
@@ -675,7 +679,7 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
   optind = 1;
 
   /* remember the argv strings DO NOT belong to us */
-  while ((opt = getopt(argc, argv, "d:o:p:c:t:w:j:k:y:P:i:ag:lLB:n:O:r:R:h")) >= 0) {
+  while ((opt = getopt(argc, argv, "d:o:p:c:t:w:j:J:k:y:P:i:ag:lLB:n:O:r:R:h")) >= 0) {
     switch (opt) {
     case 'd':
       if (strcmp(optarg, "test") == 0) {
@@ -758,6 +762,17 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
         exit(-1);
       }
       peerasns[peerasns_cnt++] = strdup(optarg);
+      break;
+
+    case 'J':
+      if (not_peerasns_cnt == NOT_PEERASN_CMD_CNT) {
+        fprintf(stderr, "ERROR: A maximum of %d not peer asns can be specified on "
+                        "the command line\n",
+                NOT_PEERASN_CMD_CNT);
+        usage(bsrt);
+        exit(-1);
+      }
+      not_peerasns[not_peerasns_cnt++] = strdup(optarg);
       break;
 
     case 'k':
@@ -859,7 +874,7 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
 
   if (bsrt_get_next_record == test_get_next_record) {
     if (projects_cnt || types_cnt || collectors_cnt || windows_cnt ||
-        peerasns_cnt || prefixes_cnt || communities_cnt ||
+        not_peerasns_cnt || peerasns_cnt || prefixes_cnt || communities_cnt ||
         interface_options_cnt || rib_period)
     {
         fprintf(stderr, "ERROR: most options are not allowed with bsrt -dtest.\n");
@@ -943,6 +958,13 @@ static int parse_args(bgpview_io_bsrt_t *bsrt, int argc, char **argv)
     bgpstream_add_filter(bsrt->stream, BGPSTREAM_FILTER_TYPE_ELEM_PEER_ASN,
                          peerasns[i]);
     free(peerasns[i]);
+  }
+
+  /* not peer asns */
+  for (int i = 0; i < not_peerasns_cnt; i++) {
+    bgpstream_add_filter(bsrt->stream, BGPSTREAM_FILTER_TYPE_ELEM_NOT_PEER_ASN,
+                         not_peerasns[i]);
+    free(not_peerasns[i]);
   }
 
   /* prefixes */
