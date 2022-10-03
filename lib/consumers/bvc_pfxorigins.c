@@ -53,7 +53,9 @@
 #define IPV6_DEFAULT_ROUTE "0::/0"
 
 /** Default maximum number of unique origins */
-#define MAX_ORIGIN_AS_CNT 64
+#define MAX_ORIGIN_AS_CNT 65535
+
+#define ARRAY_SIZE_INCR 64
 
 /** MAX LEN of AS PATH SEGMENT STR  */
 #define MAX_ASPATH_SEGMENT_STR 255 * 16
@@ -69,10 +71,12 @@ static bvc_t bvc_pfxorigins = {BVC_ID_PFXORIGINS, NAME,
 typedef struct struct_origin_info_t {
 
   /* number of unique origins */
-  uint8_t num_asns;
+  uint16_t num_asns;
+
+  uint16_t array_size;
 
   /* array of origins */
-  bgpstream_as_path_seg_t *origin_asns[MAX_ORIGIN_AS_CNT];
+  bgpstream_as_path_seg_t **origin_asns;
 
 } origin_info_t;
 
@@ -228,9 +232,8 @@ static int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
         /* if things did not change, we just reset the current */
         for (i = 0; i < os->current.num_asns; i++) {
           bgpstream_as_path_seg_destroy(os->current.origin_asns[i]);
-          os->current.origin_asns[i] = NULL;
         }
-        os->current.num_asns = 0;
+	free(os->current.origin_asns);
       } else {
 
         /* if the prefix disappeared, we remove it from
@@ -249,29 +252,25 @@ static int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
           }
         }
 
-        /* step copy the current pointers in the previous bucket */
-        for (i = 0; i < os->current.num_asns; i++) {
-          if (i < os->previous.num_asns &&
-              os->previous.origin_asns[i] != NULL) {
-            bgpstream_as_path_seg_destroy(os->previous.origin_asns[i]);
-          }
-          os->previous.origin_asns[i] = os->current.origin_asns[i];
-        }
-        // remove remaining (if any) previous origins, if any
         for (i = os->current.num_asns; i < os->previous.num_asns; i++) {
           if (os->previous.origin_asns[i] != NULL) {
             bgpstream_as_path_seg_destroy(os->previous.origin_asns[i]);
             os->previous.origin_asns[i] = NULL;
           }
         }
+	free(os->previous.origin_asns);
+	os->previous.origin_asns = os->current.origin_asns;
+
         /* update previous counter */
         os->previous.num_asns = os->current.num_asns;
-        // reset current (no destroy is called, objects are in previous now)
-        for (i = 0; i < os->current.num_asns; i++) {
-          os->current.origin_asns[i] = NULL;
-        }
-        os->current.num_asns = 0;
+	os->previous.array_size = os->current.array_size;
+
       }
+      // reset current (no destroy is called, objects are in previous now)
+      os->current.origin_asns = calloc(ARRAY_SIZE_INCR,
+			  sizeof(bgpstream_as_path_seg_t *));
+      os->current.array_size = ARRAY_SIZE_INCR;
+      os->current.num_asns = 0;
     }
   }
 
@@ -477,6 +476,8 @@ static void origins_free(origin_status_t os)
       bgpstream_as_path_seg_destroy(os.current.origin_asns[i]);
     }
   }
+  free(os.previous.origin_asns);
+  free(os.current.origin_asns);
 }
 
 void bvc_pfxorigins_destroy(bvc_t *consumer)
@@ -565,7 +566,13 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
             k = kh_put(bwv_pfx_origin, state->pfx_origins, *pfx, &khret);
             os = &kh_value(state->pfx_origins, k);
             os->previous.num_asns = 0;
+            os->previous.array_size = ARRAY_SIZE_INCR;
             os->current.num_asns = 0;
+            os->current.array_size = ARRAY_SIZE_INCR;
+	    os->current.origin_asns = calloc(ARRAY_SIZE_INCR,
+			   sizeof(bgpstream_as_path_seg_t *));
+	    os->previous.origin_asns = calloc(ARRAY_SIZE_INCR,
+			   sizeof(bgpstream_as_path_seg_t *));
           }
           /* get os pointer */
           os = &kh_value(state->pfx_origins, k);
@@ -583,6 +590,17 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
         }
 
         if (!found) {
+	  if (os->current.num_asns >= os->current.array_size - 1) {
+	      char pfxstr[1024];
+              os->current.origin_asns = realloc(os->current.origin_asns,
+			      (os->current.array_size + ARRAY_SIZE_INCR) *
+			       sizeof(bgpstream_as_path_seg_t *));
+
+	      os->current.array_size += ARRAY_SIZE_INCR;
+	      bgpstream_pfx_snprintf(pfxstr, 1024, pfx);
+	      fprintf(stderr, "Resizing %s origin ASN array to %d\n",
+			      pfxstr, os->current.array_size);
+	  }
           os->current.origin_asns[os->current.num_asns] =
             bgpstream_as_path_seg_dup(origin_seg);
           if (os->current.origin_asns[os->current.num_asns] == NULL) {
@@ -590,7 +608,7 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
             return -1;
           }
           os->current.num_asns++;
-          assert(os->current.num_asns < MAX_ORIGIN_AS_CNT);
+          assert(os->current.num_asns != MAX_ORIGIN_AS_CNT);
         }
       }
     }
