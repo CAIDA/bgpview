@@ -252,18 +252,18 @@ static int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
           }
         }
 
-        for (i = os->current.num_asns; i < os->previous.num_asns; i++) {
+        for (i = 0; i < os->previous.num_asns; i++) {
           if (os->previous.origin_asns[i] != NULL) {
             bgpstream_as_path_seg_destroy(os->previous.origin_asns[i]);
             os->previous.origin_asns[i] = NULL;
           }
         }
-	free(os->previous.origin_asns);
-	os->previous.origin_asns = os->current.origin_asns;
+	    free(os->previous.origin_asns);
+	    os->previous.origin_asns = os->current.origin_asns;
 
         /* update previous counter */
         os->previous.num_asns = os->current.num_asns;
-	os->previous.array_size = os->current.array_size;
+	    os->previous.array_size = os->current.array_size;
 
       }
       // reset current (no destroy is called, objects are in previous now)
