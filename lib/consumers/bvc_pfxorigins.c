@@ -233,7 +233,7 @@ static int process_origin_state(bvc_t *consumer, uint32_t current_view_ts)
         for (i = 0; i < os->current.num_asns; i++) {
           bgpstream_as_path_seg_destroy(os->current.origin_asns[i]);
         }
-	free(os->current.origin_asns);
+	    free(os->current.origin_asns);
       } else {
 
         /* if the prefix disappeared, we remove it from
@@ -569,9 +569,9 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
             os->previous.array_size = ARRAY_SIZE_INCR;
             os->current.num_asns = 0;
             os->current.array_size = ARRAY_SIZE_INCR;
-	    os->current.origin_asns = calloc(ARRAY_SIZE_INCR,
+	        os->current.origin_asns = calloc(ARRAY_SIZE_INCR,
 			   sizeof(bgpstream_as_path_seg_t *));
-	    os->previous.origin_asns = calloc(ARRAY_SIZE_INCR,
+	        os->previous.origin_asns = calloc(ARRAY_SIZE_INCR,
 			   sizeof(bgpstream_as_path_seg_t *));
           }
           /* get os pointer */
@@ -590,19 +590,23 @@ int bvc_pfxorigins_process_view(bvc_t *consumer, bgpview_t *view)
         }
 
         if (!found) {
-	  if (os->current.num_asns >= os->current.array_size - 1) {
-	      char pfxstr[1024];
-              os->current.origin_asns = realloc(os->current.origin_asns,
+	      if (os->current.num_asns >= os->current.array_size - 1) {
+	        char pfxstr[1024];
+            os->current.origin_asns = realloc(os->current.origin_asns,
 			      (os->current.array_size + ARRAY_SIZE_INCR) *
 			       sizeof(bgpstream_as_path_seg_t *));
+            if (os->current.origin_asns == NULL) {
+              fprintf(stderr, "Could not allocate memory for origins array\n");
+              return -1;
+            }
 
-	      os->current.array_size += ARRAY_SIZE_INCR;
-	      bgpstream_pfx_snprintf(pfxstr, 1024, pfx);
-	      fprintf(stderr, "Resizing %s origin ASN array to %d\n",
+	        os->current.array_size += ARRAY_SIZE_INCR;
+	        bgpstream_pfx_snprintf(pfxstr, 1024, pfx);
+	        fprintf(stderr, "DEBUG: Resizing %s origin ASN array to %d\n",
 			      pfxstr, os->current.array_size);
-	  }
+	      }
           os->current.origin_asns[os->current.num_asns] =
-            bgpstream_as_path_seg_dup(origin_seg);
+              bgpstream_as_path_seg_dup(origin_seg);
           if (os->current.origin_asns[os->current.num_asns] == NULL) {
             fprintf(stderr, "Could not allocate memory for AS segment\n");
             return -1;
