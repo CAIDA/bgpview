@@ -55,7 +55,7 @@
 /** Default maximum number of unique origins */
 #define MAX_ORIGIN_AS_CNT 65535
 
-#define ARRAY_SIZE_INCR 64
+#define ARRAY_SIZE_INCR 32
 
 /** MAX LEN of AS PATH SEGMENT STR  */
 #define MAX_ASPATH_SEGMENT_STR 255 * 16
