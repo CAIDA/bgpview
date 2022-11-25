@@ -886,18 +886,21 @@ int bvc_edges_process_view(bvc_t *consumer, bgpview_t *view)
           if (normal_asn) {
             // Previous asn was a regular one
             if (prev_asn != 0) {
-              asn1 = asn;
-              asn2 = prev_asn;
+              asn1 = prev_asn;
+              asn2 = asn;
               // Continue if ASN perpending is observed
               if (asn == prev_asn) {
                 continue;
               }
               // Getting the greater than two ASNs. Assuming edges are not
               // directional
-              if (asn < prev_asn) {
+              /* Shane: but why? surely direction matters... */
+              /*
+	      if (asn < prev_asn) {
                 asn1 = prev_asn;
                 asn2 = asn;
               }
+	      */
 
               // int st=epoch_msec();
               category = insert_update_edges(consumer, asn1, asn2, pfx);
